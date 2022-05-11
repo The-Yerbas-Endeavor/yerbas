@@ -1,0 +1,22 @@
+[Unit]
+Description=Yerbas's distributed currency daemon
+After=network.target
+
+[Service]
+User=yerbascore
+Group=yerbascore
+
+Type=forking
+PIDFile=/var/lib/yerbasd/yerbasd.pid
+ExecStart=/usr/bin/yerbasd -daemon -pid=/var/lib/yerbasd/yerbasd.pid \
+-conf=/etc/yerbascore/yerbas.conf -datadir=/var/lib/yerbasd -disablewallet
+
+Restart=always
+PrivateTmp=true
+TimeoutStopSec=60s
+TimeoutStartSec=2s
+StartLimitInterval=120s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

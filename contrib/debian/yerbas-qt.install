@@ -1,0 +1,6 @@
+usr/local/bin/yerbas-qt usr/bin
+share/pixmaps/yerbas32.xpm usr/share/pixmaps
+share/pixmaps/yerbas16.xpm usr/share/pixmaps
+share/pixmaps/yerbas128.png usr/share/pixmaps
+debian/yerbas-qt.desktop usr/share/applications
+debian/yerbas-qt.protocol usr/share/kde4/services/
