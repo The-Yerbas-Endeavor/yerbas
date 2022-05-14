@@ -70,17 +70,7 @@ static CBlock CreateDevNetGenesisBlock(const uint256 &prevBlockHash, const std::
     return genesis;
 }
 
-/**
- * Build the genesis block. Note that the output of its generation
- * transaction cannot be spent since it did not originally exist in the
- * database.
- *
- * CBlock(hash=00000ffd590b14, ver=1, hashPrevBlock=00000000000000, hashMerkleRoot=e0028e, nTime=1390095618, nBits=1e0ffff0, nNonce=28917698, vtx=1)
- *   CTransaction(hash=e0028e, ver=1, vin.size=1, vout.size=1, nLockTime=0)
- *     CTxIn(COutPoint(000000, -1), coinbase 04ffff001d01044c5957697265642030392f4a616e2f3230313420546865204772616e64204578706572696d656e7420476f6573204c6976653a204f76657273746f636b2e636f6d204973204e6f7720416363657074696e6720426974636f696e73)
- *     CTxOut(nValue=50.00000000, scriptPubKey=0xA9037BAC7050C479B121CF)
- *   vMerkleTree: e0028e
- */
+
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     const char* pszTimestamp = "09/May/2022 Yerbas. The 'Good Shit' coin!";
@@ -520,10 +510,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_V17].nFalloffCoeff = 5; // this corresponds to 10 periods
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000"); // 0
+        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000015ea1cf745"); // 0
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000"); // 0
+        consensus.defaultAssumeValid = uint256S("0x9cf529c09eaf90f1b1b96c681c203aa80e1840b1709c928ab6e840b562d54c34"); // 0
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -542,15 +532,17 @@ public:
         assert(consensus.hashGenesisBlock == uint256S("0xeff0bbe5c1bbe1ef8da54822a18f528d6dc58232990bdb86e0a77ab2814ed12c"));
         assert(genesis.hashMerkleRoot == uint256S("0xbfe15871764bf35d6391308fc2dab8846f177ba563d256b1764271987ec99bc0"));
 
-        vSeeds.emplace_back("weednode00.yerbas.org", true);
-        vSeeds.emplace_back("weednode01.yerbas.org", true);
-        vSeeds.emplace_back("weednode02.yerbas.org", true);
-        vSeeds.emplace_back("weednode03.yerbas.org", true);
-        vSeeds.emplace_back("weednode420.yerbas.org", true);
-        vSeeds.emplace_back("weednode05.yerbas.org", true);
-        vSeeds.emplace_back("149.28.180.9", true);
-        vSeeds.emplace_back("144.202.98.65", true);
-        vSeeds.emplace_back("45.32.140.6", true);
+        vSeeds.emplace_back("weednode00.yerbas.org");
+        vSeeds.emplace_back("weednode01.yerbas.org");
+        vSeeds.emplace_back("weednode02.yerbas.org");
+        vSeeds.emplace_back("weednode03.yerbas.org");
+        vSeeds.emplace_back("weednode420.yerbas.org");
+        vSeeds.emplace_back("weednode05.yerbas.org");
+        vSeeds.emplace_back("149.28.180.9");
+        vSeeds.emplace_back("144.202.98.65");
+        vSeeds.emplace_back("45.32.140.6");
+        vSeeds.emplace_back("108.61.180.20");
+
 
 
         // Yerbas addresses start with 'y'
@@ -616,14 +608,16 @@ public:
         fBIP9CheckSmartnodesUpgraded = true;
 
         checkpointData = {
-          {  {0, uint256S("0xeff0bbe5c1bbe1ef8da54822a18f528d6dc58232990bdb86e0a77ab2814ed12c")} }
+          {  {0, uint256S("0xeff0bbe5c1bbe1ef8da54822a18f528d6dc58232990bdb86e0a77ab2814ed12c")}, 
+             {1420, uint256S("0x9cf529c09eaf90f1b1b96c681c203aa80e1840b1709c928ab6e840b562d54c34")},
+          }
 	};
 
         chainTxData = ChainTxData{
-          1621916553,   // * UNIX timestamp of last known number of transactions (Block 0)
-              170026,   // * total number of transactions between genesis and that timestamp
+          1652437996,   // * UNIX timestamp of last known number of transactions (Block 0)
+              3128,   // * total number of transactions between genesis and that timestamp
                         //   (the tx=... number in the SetBestChain debug.log lines)
-                 0.1    // * estimated number of transactions per second after that timestamp
+                 0.01    // * estimated number of transactions per second after that timestamp
         };
     }
 };

@@ -8,7 +8,7 @@ YERB - The "Good Shit" coin!
 
 WARNING! Yerbas is a work in progress...Use at your own risk!
 
-Yerbas is a community driven, developmental, grassroots, digital currency that enables instant payments to anyone, anywhere in the world. The Yerbas Coin uses peer-to-peer technology to operate with no central authority: managing transactions and issuing money are carried out collectively by the network. Yerbas is a code fork of Bitcoin/Dash/Raptoreum and inherits current and optionally future features such as chain locks, oracles etc. The insperation for the name Yerbas is derived from the Latin(herba) and Español(hierba) words for herb, grass, or weeds.
+Yerbas is a community driven, developmental, grassroots, digital currency that enables instant payments to anyone, anywhere in the world. The Yerbas Coin uses peer-to-peer technology to operate with no central authority: managing transactions and issuing money are carried out collectively by the network. Yerbas is a code fork of Bitcoin/Dash/Raptoreum and inherits current and optionally future features such as chain locks, oracles etc. The inspiration for the name Yerbas is derived from the Latin(herba) and Español(hierba) words for herb, grass, or weeds.
 
  We are further expanding capabilities by adding the following features:
 
