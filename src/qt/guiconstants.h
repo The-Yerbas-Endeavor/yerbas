@@ -43,7 +43,7 @@ static const int MAX_URI_LENGTH = 255;
 #define SPINNER_FRAMES 36
 
 #define QAPP_ORG_NAME "Yerbas"
-#define QAPP_ORG_DOMAIN "yerbas.com"
+#define QAPP_ORG_DOMAIN "yerbas.org"
 #define QAPP_APP_NAME_DEFAULT "Yerbas-Qt"
 #define QAPP_APP_NAME_TESTNET "Yerbas-Qt-testnet"
 #define QAPP_APP_NAME_DEVNET "Yerbas-Qt-%s"
