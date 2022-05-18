@@ -682,16 +682,16 @@ public:
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0x0"); // 0
 
-        pchMessageStart[0] = 0x74; //t
-        pchMessageStart[1] = 0x72; //r
-        pchMessageStart[2] = 0x74; //t
-        pchMessageStart[3] = 0x6d; //m
-        nDefaultPort = 10228;
+        pchMessageStart[0] = 0x7a;//t
+        pchMessageStart[0] = 0x79;//y
+        pchMessageStart[1] = 0x65;//e
+        pchMessageStart[2] = 0x72;//r
+        nDefaultPort = 20421;
         nPruneAfterHeight = 1000;
-       // FindMainNetGenesisBlock(1652138421,  0x20001fff, "test");
-        genesis = CreateGenesisBlock(1652138421, 234, 0x20001fff, 4, 5000 * COIN);
+  //      FindMainNetGenesisBlock(1651158966, 0x20001fff, "test");
+        genesis = CreateGenesisBlock(1651158966, 5025, 0x20001fff, 4, 5000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x3d76c1cf2c1ddcc8b0d104b14d54e3b1c13bca6fea4f1d92642d6cb2504a86ad"));
+        assert(consensus.hashGenesisBlock == uint256S("0xdfcc020dd96156eb9246cb7a3239169cbf45f0896cbc02a646905f5c8217b6bd"));
         assert(genesis.hashMerkleRoot == uint256S("0xbfe15871764bf35d6391308fc2dab8846f177ba563d256b1764271987ec99bc0"));
 
         vFixedSeeds.clear();
@@ -700,10 +700,12 @@ public:
         vSeeds.clear();
         // nodes with support for servicebits filtering should be at the top
 
-        vSeeds.emplace_back("weednode0.yerbas.org", true);
-        vSeeds.emplace_back("weednode1.yerbas.org", true);
-        vSeeds.emplace_back("weednode2.yerbas.org", true);
-        vSeeds.emplace_back("weednode3.yerbas.org", true);
+        vSeeds.emplace_back("weednode00.yerbas.org");
+        vSeeds.emplace_back("weednode01.yerbas.org");
+        vSeeds.emplace_back("weednode02.yerbas.org");
+        vSeeds.emplace_back("weednode03.yerbas.org");
+        vSeeds.emplace_back("weednode420.yerbas.org");
+        vSeeds.emplace_back("weednode05.yerbas.org");
 
         // Testnet Yerbas addresses start with 'r'
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,123);
