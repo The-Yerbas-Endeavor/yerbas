@@ -734,7 +734,7 @@ public:
         consensus.llmqTypePlatform = Consensus::LLMQ_100_67;
 
         consensus.nCollaterals = SmartnodeCollaterals(
-          {  {30000, 20000 * COIN}, {60000, 40000 * COIN}, {INT_MAX, 60000 * COIN}  },
+          {  {30000, 2000 * COIN}, {60000, 4000 * COIN}, {INT_MAX, 6000 * COIN}  },
           {  {INT_MAX, 20}  });
 
         consensus.nFutureRewardShare = Consensus::FutureRewardShare(0.8,0.2,0.0);
