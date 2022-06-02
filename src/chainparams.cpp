@@ -1133,8 +1133,7 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
     		(lastCheckMnCount != totalMnCount || lastCheckedLowLLMQParams != lowLLMQParams) &&
 			(isNotLLMQsMiningPhase = !IsLLMQsMiningPhase(height))) {
 	    LogPrintf("---UpdateLLMQParams %d-%d-%ld-%ld-%d\n", lastCheckHeight, height, lastCheckMnCount, totalMnCount, isNotLLMQsMiningPhase);
-		LogPrintf("=%i\n", totalMnCount);
-        lastCheckMnCount = totalMnCount;
+                lastCheckMnCount = totalMnCount;
 		lastCheckedLowLLMQParams = lowLLMQParams;
 		lastCheckHeight = height;
         bool isTestNet = strcmp(Params().NetworkIDString().c_str(),"testnet") == 0;
