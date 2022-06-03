@@ -1166,7 +1166,7 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 	}else{
         if(lastCheckHeight < height){
         lastCheckHeight = height;
-        if(height == 6759 || height == 15909){
+        if(height == 6759 || height > 15909){
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
 		}  
          if(height == 8319){
