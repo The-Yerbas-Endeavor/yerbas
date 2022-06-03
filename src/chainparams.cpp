@@ -510,10 +510,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_V17].nFalloffCoeff = 5; // this corresponds to 10 periods
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000021b23df662d"); // 0
+        consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000003f8009e1458"); // 0
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x25c1c019d70e6990d3ed680fa9703cb84d620008a6cb8f635bbcdcef913dfbae"); // 0
+        consensus.defaultAssumeValid = uint256S("0x6cb79413f86770f856556ce641e15beb45656915db9ce4511cc9d4853b532fe5"); // 0
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -611,12 +611,14 @@ public:
           {  {0, uint256S("0xeff0bbe5c1bbe1ef8da54822a18f528d6dc58232990bdb86e0a77ab2814ed12c")}, 
              {1420, uint256S("0x9cf529c09eaf90f1b1b96c681c203aa80e1840b1709c928ab6e840b562d54c34")},
              {8837, uint256S("0x25c1c019d70e6990d3ed680fa9703cb84d620008a6cb8f635bbcdcef913dfbae")},
+             {16460, uint256S("0x6cb79413f86770f856556ce641e15beb45656915db9ce4511cc9d4853b532fe5")},
+             
           }
 	};
 
         chainTxData = ChainTxData{
-          1653342048,   // * UNIX timestamp of last known number of transactions (Block 0)
-              24916,   // * total number of transactions between genesis and that timestamp
+          1654276328,   // * UNIX timestamp of last known number of transactions (Block 0)
+              42622,   // * total number of transactions between genesis and that timestamp
                         //   (the tx=... number in the SetBestChain debug.log lines)
                  0.01    // * estimated number of transactions per second after that timestamp
         };
@@ -1159,7 +1161,7 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 			consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
 			consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
 		}
-        if((height > 6759) && (height < 8320) || (height > 15908)){ (height < 16401)
+        if((height > 6759) && (height < 8320) || (height > 15908) && (height < 16401)){
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
 		} 
 		
@@ -1175,4 +1177,3 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
         }
     }
 }
-
