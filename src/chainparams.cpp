@@ -1159,7 +1159,7 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 			consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
 			consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
 		}
-        if((height > 6759) && (height < 8320) || (height > 15908)){ //need add && (height < ????) when urn off low llmq
+        if((height > 6759) && (height < 8320) || (height > 15908)){ (height < 16401)
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
 		} 
 		
