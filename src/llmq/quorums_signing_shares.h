@@ -1,22 +1,22 @@
-// Copyright (c) 2018-2021 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_QUORUMS_SIGNING_SHARES_H
-#define BITCOIN_LLMQ_QUORUMS_SIGNING_SHARES_H
+#ifndef YERBAS_QUORUMS_SIGNING_SHARES_H
+#define YERBAS_QUORUMS_SIGNING_SHARES_H
 
-#include <bls/bls.h>
-#include <chainparams.h>
-#include <net.h>
-#include <random.h>
-#include <saltedhasher.h>
-#include <serialize.h>
-#include <sync.h>
-#include <tinyformat.h>
-#include <uint256.h>
+#include "bls/bls.h"
+#include "chainparams.h"
+#include "net.h"
+#include "random.h"
+#include "saltedhasher.h"
+#include "serialize.h"
+#include "sync.h"
+#include "tinyformat.h"
+#include "uint256.h"
 
-#include <llmq/quorums.h>
+#include "llmq/quorums.h"
 
 #include <thread>
 #include <mutex>
@@ -31,6 +31,7 @@ namespace llmq
 // <signHash, quorumMember>
 typedef std::pair<uint256, uint16_t> SigShareKey;
 
+// this one does not get transmitted over the wire as it is batched inside CBatchedSigShares
 class CSigShare
 {
 public:
@@ -53,22 +54,6 @@ public:
     {
         assert(!key.first.IsNull());
         return key.first;
-    }
-
-    ADD_SERIALIZE_METHODS
-
-    template<typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(llmqType);
-        READWRITE(quorumHash);
-        READWRITE(quorumMember);
-        READWRITE(id);
-        READWRITE(msgHash);
-        READWRITE(sigShare);
-
-        if (ser_action.ForRead()) {
-            UpdateKey();
-        }
     }
 };
 
@@ -343,16 +328,6 @@ public:
     void RemoveSession(const uint256& signHash);
 };
 
-class CSignedSession
-{
-public:
-    CSigShare sigShare;
-    CQuorumCPtr quorum;
-
-    int64_t nextAttemptTime{0};
-    int attempt{0};
-};
-
 class CSigSharesManager : public CRecoveredSigsListener
 {
     static const int64_t SESSION_NEW_SHARES_TIMEOUT = 60;
@@ -365,10 +340,6 @@ class CSigSharesManager : public CRecoveredSigsListener
     // 400 is the maximum quorum size, so this is also the maximum number of sigs we need to support
     const size_t MAX_MSGS_TOTAL_BATCHED_SIGS = 400;
 
-    const int64_t EXP_SEND_FOR_RECOVERY_TIMEOUT = 2000;
-    const int64_t MAX_SEND_FOR_RECOVERY_TIMEOUT = 10000;
-    const size_t MAX_MSGS_SIG_SHARES = 32;
-
 private:
     CCriticalSection cs;
 
@@ -376,14 +347,13 @@ private:
     CThreadInterrupt workInterrupt;
 
     SigShareMap<CSigShare> sigShares;
-    std::unordered_map<uint256, CSignedSession, StaticSaltedHasher> signedSessions;
 
     // stores time of last receivedSigShare. Used to detect timeouts
     std::unordered_map<uint256, int64_t, StaticSaltedHasher> timeSeenForSessions;
 
     std::unordered_map<NodeId, CSigSharesNodeState> nodeStates;
     SigShareMap<std::pair<NodeId, int64_t>> sigSharesRequested;
-    SigShareMap<bool> sigSharesQueuedToAnnounce;
+    SigShareMap<bool> sigSharesToAnnounce;
 
     std::vector<std::tuple<const CQuorumCPtr, uint256, uint256>> pendingSigns;
 
@@ -404,42 +374,40 @@ public:
     void InterruptWorkerThread();
 
 public:
-    void ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv);
+    void ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
 
     void AsyncSign(const CQuorumCPtr& quorum, const uint256& id, const uint256& msgHash);
-    CSigShare CreateSigShare(const CQuorumCPtr& quorum, const uint256& id, const uint256& msgHash);
+    void Sign(const CQuorumCPtr& quorum, const uint256& id, const uint256& msgHash);
     void ForceReAnnouncement(const CQuorumCPtr& quorum, Consensus::LLMQType llmqType, const uint256& id, const uint256& msgHash);
 
-    void HandleNewRecoveredSig(const CRecoveredSig& recoveredSig) override;
-
-    static CDeterministicMNCPtr SelectMemberForRecovery(const CQuorumCPtr& quorum, const uint256& id, int attempt);
+    void HandleNewRecoveredSig(const CRecoveredSig& recoveredSig);
 
 private:
     // all of these return false when the currently processed message should be aborted (as each message actually contains multiple messages)
-    bool ProcessMessageSigSesAnn(CNode* pfrom, const CSigSesAnn& ann);
-    bool ProcessMessageSigSharesInv(CNode* pfrom, const CSigSharesInv& inv);
-    bool ProcessMessageGetSigShares(CNode* pfrom, const CSigSharesInv& inv);
-    bool ProcessMessageBatchedSigShares(CNode* pfrom, const CBatchedSigShares& batchedSigShares);
-    void ProcessMessageSigShare(NodeId fromId, const CSigShare& sigShare);
+    bool ProcessMessageSigSesAnn(CNode* pfrom, const CSigSesAnn& ann, CConnman& connman);
+    bool ProcessMessageSigSharesInv(CNode* pfrom, const CSigSharesInv& inv, CConnman& connman);
+    bool ProcessMessageGetSigShares(CNode* pfrom, const CSigSharesInv& inv, CConnman& connman);
+    bool ProcessMessageBatchedSigShares(CNode* pfrom, const CBatchedSigShares& batchedSigShares, CConnman& connman);
 
-    static bool VerifySigSharesInv(Consensus::LLMQType llmqType, const CSigSharesInv& inv);
-    static bool PreVerifyBatchedSigShares(const CSigSharesNodeState::SessionInfo& session, const CBatchedSigShares& batchedSigShares, bool& retBan);
+    bool VerifySigSharesInv(NodeId from, Consensus::LLMQType llmqType, const CSigSharesInv& inv);
+    bool PreVerifyBatchedSigShares(NodeId nodeId, const CSigSharesNodeState::SessionInfo& session, const CBatchedSigShares& batchedSigShares, bool& retBan);
 
     void CollectPendingSigSharesToVerify(size_t maxUniqueSessions,
             std::unordered_map<NodeId, std::vector<CSigShare>>& retSigShares,
             std::unordered_map<std::pair<Consensus::LLMQType, uint256>, CQuorumCPtr, StaticSaltedHasher>& retQuorums);
-    bool ProcessPendingSigShares(const CConnman& connman);
+    bool ProcessPendingSigShares(CConnman& connman);
 
-    void ProcessPendingSigShares(const std::vector<CSigShare>& sigShares,
+    void ProcessPendingSigSharesFromNode(NodeId nodeId,
+            const std::vector<CSigShare>& sigShares,
             const std::unordered_map<std::pair<Consensus::LLMQType, uint256>, CQuorumCPtr, StaticSaltedHasher>& quorums,
-            const CConnman& connman);
+            CConnman& connman);
 
-    void ProcessSigShare(const CSigShare& sigShare, const CConnman& connman, const CQuorumCPtr& quorum);
-    void TryRecoverSig(const CQuorumCPtr& quorum, const uint256& id, const uint256& msgHash);
+    void ProcessSigShare(NodeId nodeId, const CSigShare& sigShare, CConnman& connman, const CQuorumCPtr& quorum);
+    void TryRecoverSig(const CQuorumCPtr& quorum, const uint256& id, const uint256& msgHash, CConnman& connman);
 
 private:
     bool GetSessionInfoByRecvId(NodeId nodeId, uint32_t sessionId, CSigSharesNodeState::SessionInfo& retInfo);
-    static CSigShare RebuildSigShare(const CSigSharesNodeState::SessionInfo& session, const CBatchedSigShares& batchedSigShares, size_t idx);
+    CSigShare RebuildSigShare(const CSigSharesNodeState::SessionInfo& session, const CBatchedSigShares& batchedSigShares, size_t idx);
 
     void Cleanup();
     void RemoveSigSharesForSession(const uint256& signHash);
@@ -450,9 +418,8 @@ private:
     bool SendMessages();
     void CollectSigSharesToRequest(std::unordered_map<NodeId, std::unordered_map<uint256, CSigSharesInv, StaticSaltedHasher>>& sigSharesToRequest);
     void CollectSigSharesToSend(std::unordered_map<NodeId, std::unordered_map<uint256, CBatchedSigShares, StaticSaltedHasher>>& sigSharesToSend);
-    void CollectSigSharesToSendConcentrated(std::unordered_map<NodeId, std::vector<CSigShare>>& sigSharesToSend, const std::vector<CNode*>& vNodes);
     void CollectSigSharesToAnnounce(std::unordered_map<NodeId, std::unordered_map<uint256, CSigSharesInv, StaticSaltedHasher>>& sigSharesToAnnounce);
-    void SignPendingSigShares();
+    bool SignPendingSigShares();
     void WorkThreadMain();
 };
 
@@ -460,4 +427,4 @@ extern CSigSharesManager* quorumSigSharesManager;
 
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_QUORUMS_SIGNING_SHARES_H
+#endif //YERBAS_QUORUMS_SIGNING_SHARES_H

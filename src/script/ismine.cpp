@@ -3,23 +3,27 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <script/ismine.h>
+#include "ismine.h"
 
-#include <key.h>
-#include <keystore.h>
-#include <script/script.h>
-#include <script/sign.h>
+#include "key.h"
+#include "keystore.h"
+#include "script/script.h"
+#include "script/standard.h"
+#include "script/sign.h"
 
 
 typedef std::vector<unsigned char> valtype;
 
-static bool HaveKeys(const std::vector<valtype>& pubkeys, const CKeyStore& keystore)
+unsigned int HaveKeys(const std::vector<valtype>& pubkeys, const CKeyStore& keystore)
 {
-    for (const valtype& pubkey : pubkeys) {
+    unsigned int nResult = 0;
+    for (const valtype& pubkey : pubkeys)
+    {
         CKeyID keyID = CPubKey(pubkey).GetID();
-        if (!keystore.HaveKey(keyID)) return false;
+        if (keystore.HaveKey(keyID))
+            ++nResult;
     }
-    return true;
+    return nResult;
 }
 
 isminetype IsMine(const CKeyStore &keystore, const CTxDestination& dest)
@@ -32,7 +36,7 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
 {
     std::vector<valtype> vSolutions;
     txnouttype whichType;
-    if(!Solver(scriptPubKey, whichType, vSolutions)) {
+    if (!Solver(scriptPubKey, whichType, vSolutions)) {
         if (keystore.HaveWatchOnly(scriptPubKey))
             return ISMINE_WATCH_UNSOLVABLE;
         return ISMINE_NO;
@@ -73,7 +77,7 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
         // them) enable spend-out-from-under-you attacks, especially
         // in shared-wallet situations.
         std::vector<valtype> keys(vSolutions.begin()+1, vSolutions.begin()+vSolutions.size()-1);
-        if (HaveKeys(keys, keystore))
+        if (HaveKeys(keys, keystore) == keys.size())
             return ISMINE_SPENDABLE;
         break;
     }

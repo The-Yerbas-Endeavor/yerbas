@@ -1,12 +1,12 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_KEEPASS_H
-#define BITCOIN_KEEPASS_H
+#ifndef _KEEPASS_H_
+#define _KEEPASS_H_
 
-#include <support/allocators/secure.h>
+#include "support/allocators/secure.h"
 
 #include <univalue.h>
 
@@ -131,4 +131,4 @@ public:
 
 };
 
-#endif // BITCOIN_KEEPASS_H
+#endif

@@ -2,6 +2,12 @@ Contents
 ========
 This directory contains tools for developers working on this repository.
 
+check-doc.py
+============
+
+Check if all command line args are documented. The return value indicates the
+number of undocumented args.
+
 clang-format-diff.py
 ===================
 
@@ -79,13 +85,22 @@ gen-manpages.sh
 A small script to automatically create manpages in ../../doc/man by running the release binaries with the -help option.
 This requires help2man which can be found at: https://www.gnu.org/software/help2man/
 
-With in-tree builds this tool can be run from any directory within the
-repostitory. To use this tool with out-of-tree builds set `BUILDDIR`. For
-example:
+git-subtree-check.sh
+====================
 
-```bash
-BUILDDIR=$PWD/build contrib/devtools/gen-manpages.sh
-```
+Run this script from the root of the repository to verify that a subtree matches the contents of
+the commit it claims to have been updated to.
+
+To use, make sure that you have fetched the upstream repository branch in which the subtree is
+maintained:
+* for `src/secp256k1`: https://github.com/bitcoin-core/secp256k1.git (branch master)
+* for `src/leveldb`: https://github.com/bitcoin-core/leveldb.git (branch bitcoin-fork)
+* for `src/univalue`: https://github.com/bitcoin-core/univalue.git (branch master)
+* for `src/crypto/ctaes`: https://github.com/bitcoin-core/ctaes.git (branch master)
+
+Usage: `git-subtree-check.sh DIR (COMMIT)`
+
+`COMMIT` may be omitted, in which case `HEAD` is used.
 
 github-merge.py
 ===============
@@ -135,11 +150,11 @@ Perform basic ELF security checks on a series of executables.
 symbol-check.py
 ===============
 
-A script to check that the (Linux) executables produced by Gitian only contain
+A script to check that the (Linux) executables produced by gitian only contain
 allowed gcc, glibc and libstdc++ version symbols. This makes sure they are
 still compatible with the minimum supported Linux distribution versions.
 
-Example usage after a Gitian build:
+Example usage after a gitian build:
 
     find ../gitian-builder/build -type f -executable | xargs python contrib/devtools/symbol-check.py 
 
@@ -163,14 +178,3 @@ It will do the following automatically:
 - add missing translations to the build system (TODO)
 
 See doc/translation-process.md for more information.
-
-circular-dependencies.py
-========================
-
-Run this script from the root of the source tree (`src/`) to find circular dependencies in the source code.
-This looks only at which files include other files, treating the `.cpp` and `.h` file as one unit.
-
-Example usage:
-
-    cd .../src
-    ../contrib/devtools/circular-dependencies.py {*,*/*,*/*/*}.{h,cpp}

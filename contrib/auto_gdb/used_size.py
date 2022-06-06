@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 #
 
 try:
@@ -8,8 +8,8 @@ except ImportError as e:
 import traceback
 import sys
 import os
-import common_helpers
 sys.path.append(os.getcwd())
+import common_helpers
 
 
 class UsedSizeCommand (gdb.Command):

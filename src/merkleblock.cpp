@@ -3,14 +3,13 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <merkleblock.h>
+#include "merkleblock.h"
 
-#include <hash.h>
-#include <consensus/consensus.h>
-#include <utilstrencodings.h>
+#include "hash.h"
+#include "consensus/consensus.h"
+#include "utilstrencodings.h"
 
-
-CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter* filter, const std::set<uint256>* txids)
+CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
 {
     header = block.GetBlockHeader();
 
@@ -35,14 +34,36 @@ CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter* filter, const std:
         const uint256& hash = tx.GetHash();
         bool isAllowedType = tx.nVersion != 3 || allowedTxTypes.count(tx.nType) != 0;
 
-        if (txids && txids->count(hash)) {
+        if (isAllowedType && filter.IsRelevantAndUpdate(tx))
+        {
             vMatch.push_back(true);
-        } else if (isAllowedType && filter && filter->IsRelevantAndUpdate(*block.vtx[i])) {
-            vMatch.push_back(true);
-            vMatchedTxn.emplace_back(i, hash);
-        } else {
-            vMatch.push_back(false);
+            vMatchedTxn.push_back(std::make_pair(i, hash));
         }
+        else
+            vMatch.push_back(false);
+        vHashes.push_back(hash);
+    }
+
+    txn = CPartialMerkleTree(vHashes, vMatch);
+}
+
+CMerkleBlock::CMerkleBlock(const CBlock& block, const std::set<uint256>& txids)
+{
+    header = block.GetBlockHeader();
+
+    std::vector<bool> vMatch;
+    std::vector<uint256> vHashes;
+
+    vMatch.reserve(block.vtx.size());
+    vHashes.reserve(block.vtx.size());
+
+    for (unsigned int i = 0; i < block.vtx.size(); i++)
+    {
+        const uint256& hash = block.vtx[i]->GetHash();
+        if (txids.count(hash))
+            vMatch.push_back(true);
+        else
+            vMatch.push_back(false);
         vHashes.push_back(hash);
     }
 
@@ -147,7 +168,7 @@ uint256 CPartialMerkleTree::ExtractMatches(std::vector<uint256> &vMatch, std::ve
     if (nTransactions == 0)
         return uint256();
     // check for excessively high numbers of transactions
-    if (nTransactions > MaxBlockSize() / 60) // 60 is the lower bound for the size of a serialized CTransaction
+    if (nTransactions > MaxBlockSize(true) / 60) // 60 is the lower bound for the size of a serialized CTransaction
         return uint256();
     // there can never be more hashes provided than one for every txid
     if (vHash.size() > nTransactions)

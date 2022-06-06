@@ -5,13 +5,13 @@
 #ifndef BITCOIN_DBWRAPPER_H
 #define BITCOIN_DBWRAPPER_H
 
-#include <clientversion.h>
-#include <fs.h>
-#include <serialize.h>
-#include <streams.h>
-#include <util.h>
-#include <utilstrencodings.h>
-#include <version.h>
+#include "clientversion.h"
+#include "fs.h"
+#include "serialize.h"
+#include "streams.h"
+#include "util.h"
+#include "utilstrencodings.h"
+#include "version.h"
 
 #include <typeindex>
 
@@ -24,7 +24,7 @@ static const size_t DBWRAPPER_PREALLOC_VALUE_SIZE = 1024;
 class dbwrapper_error : public std::runtime_error
 {
 public:
-    explicit dbwrapper_error(const std::string& msg) : std::runtime_error(msg) {}
+    dbwrapper_error(const std::string& msg) : std::runtime_error(msg) {}
 };
 
 class CDBWrapper;
@@ -63,7 +63,7 @@ public:
     /**
      * @param[in] parent    CDBWrapper that this batch is to be submitted to
      */
-    explicit CDBBatch(const CDBWrapper &_parent) : parent(_parent), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION), size_estimate(0) { };
+    CDBBatch(const CDBWrapper &_parent) : parent(_parent), ssKey(SER_DISK, CLIENT_VERSION), ssValue(SER_DISK, CLIENT_VERSION), size_estimate(0) { };
 
     void Clear()
     {
@@ -139,7 +139,7 @@ public:
         parent(_parent), piter(_piter) { };
     ~CDBIterator();
 
-    bool Valid() const;
+    bool Valid();
 
     void SeekToFirst();
 
@@ -218,9 +218,6 @@ private:
 
     //! the database itself
     leveldb::DB* pdb;
-
-    //! the name of this database
-    std::string m_name;
 
     //! a key used for optional XOR-obfuscation of the database
     std::vector<unsigned char> obfuscate_key;
@@ -339,9 +336,6 @@ public:
 
     bool WriteBatch(CDBBatch& batch, bool fSync = false);
 
-    // Get an estimate of LevelDB memory usage (in bytes).
-    size_t DynamicMemoryUsage() const;
-
     // not available for LevelDB; provide for compatibility with BDB
     bool Flush()
     {
@@ -421,7 +415,7 @@ private:
     bool curIsParent{false};
 
 public:
-    explicit CDBTransactionIterator(CDBTransaction& _transaction) :
+    CDBTransactionIterator(CDBTransaction& _transaction) :
             transaction(_transaction),
             parentKey(SER_DISK, CLIENT_VERSION)
     {
@@ -576,7 +570,7 @@ protected:
 
     struct ValueHolder {
         size_t memoryUsage;
-        explicit ValueHolder(size_t _memoryUsage) : memoryUsage(_memoryUsage) {}
+        ValueHolder(size_t _memoryUsage) : memoryUsage(_memoryUsage) {}
         virtual ~ValueHolder() = default;
         virtual void Write(const CDataStream& ssKey, CommitTarget &parent) = 0;
     };

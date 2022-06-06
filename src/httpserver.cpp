@@ -2,20 +2,18 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <httpserver.h>
+#include "httpserver.h"
 
-#include <init.h>
-#include <chainparamsbase.h>
-#include <compat.h>
-#include <util.h>
-#include <utilstrencodings.h>
-#include <netbase.h>
-#include <rpc/protocol.h> // For HTTP status codes
-#include <sync.h>
-#include <ui_interface.h>
+#include "init.h"
+#include "chainparamsbase.h"
+#include "compat.h"
+#include "util.h"
+#include "utilstrencodings.h"
+#include "netbase.h"
+#include "rpc/protocol.h" // For HTTP status codes
+#include "sync.h"
+#include "ui_interface.h"
 
-#include <deque>
-#include <memory>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +28,7 @@
 #include <event2/util.h>
 #include <event2/keyvalq_struct.h>
 
-#include <support/events.h>
+#include "support/events.h"
 
 #ifdef EVENT__HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -47,7 +45,7 @@
 static const size_t MAX_HEADERS_SIZE = 8192;
 
 /** HTTP request work item */
-class HTTPWorkItem final : public HTTPClosure
+class HTTPWorkItem : public HTTPClosure
 {
 public:
     HTTPWorkItem(std::unique_ptr<HTTPRequest> _req, const std::string &_path, const HTTPRequestHandler& _func):
@@ -81,7 +79,7 @@ private:
     size_t maxDepth;
 
 public:
-    explicit WorkQueue(size_t _maxDepth) : running(true),
+    WorkQueue(size_t _maxDepth) : running(true),
                                  maxDepth(_maxDepth)
     {
     }
@@ -142,13 +140,13 @@ struct HTTPPathHandler
 /** HTTP module state */
 
 //! libevent event loop
-static struct event_base* eventBase = nullptr;
+static struct event_base* eventBase = 0;
 //! HTTP server
-struct evhttp* eventHTTP = nullptr;
+struct evhttp* eventHTTP = 0;
 //! List of subnets to allow RPC connections from
 static std::vector<CSubNet> rpc_allow_subnets;
 //! Work queue for handling longer requests off the event loop thread
-static WorkQueue<HTTPClosure>* workQueue = nullptr;
+static WorkQueue<HTTPClosure>* workQueue = 0;
 //! Handlers for (sub)paths
 std::vector<HTTPPathHandler> pathHandlers;
 //! Bound listening sockets
@@ -301,12 +299,9 @@ static bool HTTPBindAddresses(struct evhttp* http)
     std::vector<std::pair<std::string, uint16_t> > endpoints;
 
     // Determine what addresses to bind to
-    if (!(gArgs.IsArgSet("-rpcallowip") && gArgs.IsArgSet("-rpcbind"))) { // Default to loopback if not allowing external IPs
+    if (!gArgs.IsArgSet("-rpcallowip")) { // Default to loopback if not allowing external IPs
         endpoints.push_back(std::make_pair("::1", defaultPort));
         endpoints.push_back(std::make_pair("127.0.0.1", defaultPort));
-        if (gArgs.IsArgSet("-rpcallowip")) {
-            LogPrintf("WARNING: option -rpcallowip was specified without -rpcbind; this doesn't usually make sense\n");
-        }
         if (gArgs.IsArgSet("-rpcbind")) {
             LogPrintf("WARNING: option -rpcbind was ignored because -rpcallowip was not specified, refusing to allow everyone to connect\n");
         }
@@ -317,6 +312,9 @@ static bool HTTPBindAddresses(struct evhttp* http)
             SplitHostPort(strRPCBind, port, host);
             endpoints.push_back(std::make_pair(host, port));
         }
+    } else { // No specific bind address specified, bind to any
+        endpoints.push_back(std::make_pair("::", defaultPort));
+        endpoints.push_back(std::make_pair("0.0.0.0", defaultPort));
     }
 
     // Bind addresses
@@ -324,10 +322,6 @@ static bool HTTPBindAddresses(struct evhttp* http)
         LogPrint(BCLog::HTTP, "Binding RPC on address %s port %i\n", i->first, i->second);
         evhttp_bound_socket *bind_handle = evhttp_bind_socket_with_handle(http, i->first.empty() ? nullptr : i->first.c_str(), i->second);
         if (bind_handle) {
-            CNetAddr addr;
-            if (i->first.empty() || (LookupHost(i->first.c_str(), addr, false) && addr.IsBindAny())) {
-                LogPrintf("WARNING: the RPC server is not safe to expose to untrusted networks such as the public internet\n");
-            }
             boundSockets.push_back(bind_handle);
         } else {
             LogPrintf("Binding RPC on address %s port %i failed.\n", i->first, i->second);
@@ -409,7 +403,7 @@ bool InitHTTPServer()
     LogPrintf("HTTP: creating work queue of depth %d\n", workQueueDepth);
 
     workQueue = new WorkQueue<HTTPClosure>(workQueueDepth);
-    // transfer ownership to eventBase/HTTP via .release()
+    // tranfer ownership to eventBase/HTTP via .release()
     eventBase = base_ctr.release();
     eventHTTP = http_ctr.release();
     return true;
@@ -480,11 +474,11 @@ void StopHTTPServer()
     }
     if (eventHTTP) {
         evhttp_free(eventHTTP);
-        eventHTTP = nullptr;
+        eventHTTP = 0;
     }
     if (eventBase) {
         event_base_free(eventBase);
-        eventBase = nullptr;
+        eventBase = 0;
     }
     LogPrint(BCLog::HTTP, "Stopped HTTP server\n");
 }
@@ -497,7 +491,7 @@ struct event_base* EventBase()
 static void httpevent_callback_fn(evutil_socket_t, short, void* data)
 {
     // Static handler: simply call inner handler
-    HTTPEvent *self = static_cast<HTTPEvent*>(data);
+    HTTPEvent *self = ((HTTPEvent*)data);
     self->handler();
     if (self->deleteWhenTriggered)
         delete self;
@@ -602,9 +596,9 @@ void HTTPRequest::WriteReply(int nStatus, const std::string& strReply)
             }
         }
     });
-    ev->trigger(nullptr);
+    ev->trigger(0);
     replySent = true;
-    req = nullptr; // transferred back to main thread
+    req = 0; // transferred back to main thread
 }
 
 CService HTTPRequest::GetPeer()

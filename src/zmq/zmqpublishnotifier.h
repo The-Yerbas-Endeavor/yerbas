@@ -5,7 +5,7 @@
 #ifndef BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
 #define BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
 
-#include <zmq/zmqabstractnotifier.h>
+#include "zmqabstractnotifier.h"
 
 class CBlockIndex;
 class CGovernanceVote;
@@ -39,7 +39,7 @@ public:
 class CZMQPublishHashChainLockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyChainLock(const CBlockIndex *pindex, const std::shared_ptr<const llmq::CChainLockSig>& clsig) override;
+    bool NotifyChainLock(const CBlockIndex *pindex, const llmq::CChainLockSig& clsig) override;
 };
 
 class CZMQPublishHashTransactionNotifier : public CZMQAbstractPublishNotifier
@@ -51,31 +51,25 @@ public:
 class CZMQPublishHashTransactionLockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyTransactionLock(const CTransactionRef& transaction, const std::shared_ptr<const llmq::CInstantSendLock>& islock) override;
+    bool NotifyTransactionLock(const CTransaction &transaction, const llmq::CInstantSendLock& islock) override;
 };
 
 class CZMQPublishHashGovernanceVoteNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyGovernanceVote(const std::shared_ptr<const CGovernanceVote>& vote) override;
+    bool NotifyGovernanceVote(const CGovernanceVote &vote) override;
 };
 
 class CZMQPublishHashGovernanceObjectNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyGovernanceObject(const std::shared_ptr<const CGovernanceObject>& object) override;
+    bool NotifyGovernanceObject(const CGovernanceObject &object) override;
 };
 
 class CZMQPublishHashInstantSendDoubleSpendNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyInstantSendDoubleSpendAttempt(const CTransactionRef& currentTx, const CTransactionRef& previousTx) override;
-};
-
-class CZMQPublishHashRecoveredSigNotifier : public CZMQAbstractPublishNotifier
-{
-public:
-    bool NotifyRecoveredSig(const std::shared_ptr<const llmq::CRecoveredSig>&) override;
+    bool NotifyInstantSendDoubleSpendAttempt(const CTransaction &currentTx, const CTransaction &previousTx) override;
 };
 
 class CZMQPublishRawBlockNotifier : public CZMQAbstractPublishNotifier
@@ -87,13 +81,13 @@ public:
 class CZMQPublishRawChainLockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyChainLock(const CBlockIndex *pindex, const std::shared_ptr<const llmq::CChainLockSig>& clsig) override;
+    bool NotifyChainLock(const CBlockIndex *pindex, const llmq::CChainLockSig& clsig) override;
 };
 
 class CZMQPublishRawChainLockSigNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyChainLock(const CBlockIndex *pindex, const std::shared_ptr<const llmq::CChainLockSig>& clsig) override;
+    bool NotifyChainLock(const CBlockIndex *pindex, const llmq::CChainLockSig& clsig) override;
 };
 
 class CZMQPublishRawTransactionNotifier : public CZMQAbstractPublishNotifier
@@ -105,36 +99,30 @@ public:
 class CZMQPublishRawTransactionLockNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyTransactionLock(const CTransactionRef& transaction, const std::shared_ptr<const llmq::CInstantSendLock>& islock) override;
+    bool NotifyTransactionLock(const CTransaction &transaction, const llmq::CInstantSendLock& islock) override;
 };
 
 class CZMQPublishRawTransactionLockSigNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyTransactionLock(const CTransactionRef& transaction, const std::shared_ptr<const llmq::CInstantSendLock>& islock) override;
+    bool NotifyTransactionLock(const CTransaction &transaction, const llmq::CInstantSendLock& islock) override;
 };
 
 class CZMQPublishRawGovernanceVoteNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyGovernanceVote(const std::shared_ptr<const CGovernanceVote>& vote) override;
+    bool NotifyGovernanceVote(const CGovernanceVote &vote) override;
 };
 
 class CZMQPublishRawGovernanceObjectNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyGovernanceObject(const std::shared_ptr<const CGovernanceObject>& object) override;
+    bool NotifyGovernanceObject(const CGovernanceObject &object) override;
 };
 
 class CZMQPublishRawInstantSendDoubleSpendNotifier : public CZMQAbstractPublishNotifier
 {
 public:
-    bool NotifyInstantSendDoubleSpendAttempt(const CTransactionRef& currentTx, const CTransactionRef& previousTx) override;
-};
-
-class CZMQPublishRawRecoveredSigNotifier : public CZMQAbstractPublishNotifier
-{
-public:
-    bool NotifyRecoveredSig(const std::shared_ptr<const llmq::CRecoveredSig> &sig) override;
+    bool NotifyInstantSendDoubleSpendAttempt(const CTransaction &currentTx, const CTransaction &previousTx) override;
 };
 #endif // BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H

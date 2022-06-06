@@ -9,7 +9,7 @@ rm -f doc/man/Makefile
 rm -f doc/man/Makefile.in
 
 rm -f src/config/stamp-h1
-rm -f src/config/yerbas-config.h
+rm -f src/config/bitcoin-config.h
 rm -f src/obj/build.h
 rm -f src/leveldb/build_config.mk
 
@@ -73,15 +73,14 @@ clean_exe src/yerbas-cli
 clean_exe src/yerbasd
 clean_exe src/yerbas-gtest
 clean_exe src/yerbas-tx
-clean_exe src/test/test_yerbas
-clean_exe src/test/test_yerbas_fuzzy
+clean_exe src/test/test_bitcoin
 
 clean_exe src/leveldb/db_bench
 clean_exe src/leveldb/leveldbutil
 rm -f src/leveldb/*_test src/leveldb/*_test.exe
 rm -f src/leveldb/*.so src/leveldb/*.so.*
 
-clean_dep . src/config/yerbas-config.h.in
+clean_dep . src/config/bitcoin-config.h.in
 
 clean_dep src/secp256k1 src/libsecp256k1-config.h.in
 rm -f src/secp256k1/src/ecmult_static_context.h

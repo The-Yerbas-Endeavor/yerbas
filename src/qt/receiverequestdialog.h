@@ -5,12 +5,14 @@
 #ifndef BITCOIN_QT_RECEIVEREQUESTDIALOG_H
 #define BITCOIN_QT_RECEIVEREQUESTDIALOG_H
 
-#include <qt/walletmodel.h>
+#include "walletmodel.h"
 
 #include <QDialog>
 #include <QImage>
 #include <QLabel>
 #include <QPainter>
+
+class OptionsModel;
 
 namespace Ui {
     class ReceiveRequestDialog;
@@ -51,7 +53,7 @@ public:
     explicit ReceiveRequestDialog(QWidget *parent = 0);
     ~ReceiveRequestDialog();
 
-    void setModel(WalletModel *model);
+    void setModel(OptionsModel *model);
     void setInfo(const SendCoinsRecipient &info);
 
 private Q_SLOTS:
@@ -62,9 +64,8 @@ private Q_SLOTS:
 
 private:
     Ui::ReceiveRequestDialog *ui;
-    WalletModel *model;
+    OptionsModel *model;
     SendCoinsRecipient info;
-    SendFuturesRecipient _info;
 };
 
 #endif // BITCOIN_QT_RECEIVEREQUESTDIALOG_H

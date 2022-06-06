@@ -6,10 +6,9 @@
 #ifndef BITCOIN_COMPRESSOR_H
 #define BITCOIN_COMPRESSOR_H
 
-#include <primitives/transaction.h>
-#include <script/script.h>
-#include <serialize.h>
-#include <span.h>
+#include "primitives/transaction.h"
+#include "script/script.h"
+#include "serialize.h"
 
 class CKeyID;
 class CPubKey;
@@ -54,18 +53,18 @@ protected:
     unsigned int GetSpecialSize(unsigned int nSize) const;
     bool Decompress(unsigned int nSize, const std::vector<unsigned char> &out);
 public:
-    explicit CScriptCompressor(CScript &scriptIn) : script(scriptIn) { }
+    CScriptCompressor(CScript &scriptIn) : script(scriptIn) { }
 
     template<typename Stream>
     void Serialize(Stream &s) const {
         std::vector<unsigned char> compr;
         if (Compress(compr)) {
-            s << MakeSpan(compr);
+            s << CFlatData(compr);
             return;
         }
         unsigned int nSize = script.size() + nSpecialScripts;
         s << VARINT(nSize);
-        s << MakeSpan(script);
+        s << CFlatData(script);
     }
 
     template<typename Stream>
@@ -74,7 +73,7 @@ public:
         s >> VARINT(nSize);
         if (nSize < nSpecialScripts) {
             std::vector<unsigned char> vch(GetSpecialSize(nSize), 0x00);
-            s >> MakeSpan(vch);
+            s >> REF(CFlatData(vch));
             Decompress(nSize, vch);
             return;
         }
@@ -85,7 +84,7 @@ public:
             s.ignore(nSize);
         } else {
             script.resize(nSize);
-            s >> MakeSpan(script);
+            s >> REF(CFlatData(script));
         }
     }
 };
@@ -100,7 +99,7 @@ public:
     static uint64_t CompressAmount(uint64_t nAmount);
     static uint64_t DecompressAmount(uint64_t nAmount);
 
-    explicit CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
+    CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
 
     ADD_SERIALIZE_METHODS;
 

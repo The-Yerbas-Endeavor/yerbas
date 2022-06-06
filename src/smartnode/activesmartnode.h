@@ -1,19 +1,19 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef ACTIVESMARTNODE_H
 #define ACTIVESMARTNODE_H
 
-#include <chainparams.h>
-#include <key.h>
-#include <net.h>
-#include <primitives/transaction.h>
-#include <validationinterface.h>
+#include "chainparams.h"
+#include "key.h"
+#include "net.h"
+#include "primitives/transaction.h"
+#include "validationinterface.h"
 
-#include <evo/deterministicmns.h>
-#include <evo/providertx.h>
+#include "evo/deterministicmns.h"
+#include "evo/providertx.h"
 
 struct CActiveSmartnodeInfo;
 class CActiveSmartnodeManager;
@@ -51,9 +51,9 @@ private:
     std::string strError;
 
 public:
-    void UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload) override;
+    virtual void UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload);
 
-    void Init(const CBlockIndex* pindex);
+    void Init();
 
     std::string GetStateString() const;
     std::string GetStatus() const;

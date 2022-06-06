@@ -1,16 +1,16 @@
 // Copyright (c) 2014-2020 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CACHEMAP_H
-#define BITCOIN_CACHEMAP_H
+#ifndef CACHEMAP_H_
+#define CACHEMAP_H_
 
 #include <map>
 #include <list>
 #include <cstddef>
 
-#include <serialize.h>
+#include "serialize.h"
 
 /**
  * Serializable structure for key/value items
@@ -71,13 +71,13 @@ private:
     map_t mapIndex;
 
 public:
-    explicit CacheMap(size_type nMaxSizeIn = 0)
+    CacheMap(size_type nMaxSizeIn = 0)
         : nMaxSize(nMaxSizeIn),
           listItems(),
           mapIndex()
     {}
 
-    explicit CacheMap(const CacheMap<K,V>& other)
+    CacheMap(const CacheMap<K,V>& other)
         : nMaxSize(other.nMaxSize),
           listItems(other.listItems),
           mapIndex()
@@ -187,4 +187,4 @@ private:
     }
 };
 
-#endif // BITCOIN_CACHEMAP_H
+#endif /* CACHEMAP_H_ */

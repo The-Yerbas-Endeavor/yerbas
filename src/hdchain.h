@@ -1,11 +1,11 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 #ifndef YERBAS_HDCHAIN_H
 #define YERBAS_HDCHAIN_H
 
-#include <key.h>
-#include <sync.h>
+#include "key.h"
+#include "sync.h"
 
 /* hd account data model */
 class CHDAccount

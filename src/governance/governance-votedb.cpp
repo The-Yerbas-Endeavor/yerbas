@@ -1,9 +1,9 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <governance/governance-votedb.h>
+#include "governance-votedb.h"
 
 CGovernanceObjectVoteFile::CGovernanceObjectVoteFile() :
     nMemoryVotes(0),
@@ -39,7 +39,7 @@ bool CGovernanceObjectVoteFile::HasVote(const uint256& nHash) const
 
 bool CGovernanceObjectVoteFile::SerializeVoteToStream(const uint256& nHash, CDataStream& ss) const
 {
-    auto it = mapVoteIndex.find(nHash);
+    vote_m_cit it = mapVoteIndex.find(nHash);
     if (it == mapVoteIndex.end()) {
         return false;
     }
@@ -50,7 +50,7 @@ bool CGovernanceObjectVoteFile::SerializeVoteToStream(const uint256& nHash, CDat
 std::vector<CGovernanceVote> CGovernanceObjectVoteFile::GetVotes() const
 {
     std::vector<CGovernanceVote> vecResult;
-    for (auto it = listVotes.begin(); it != listVotes.end(); ++it) {
+    for (vote_l_cit it = listVotes.begin(); it != listVotes.end(); ++it) {
         vecResult.push_back(*it);
     }
     return vecResult;
@@ -58,7 +58,7 @@ std::vector<CGovernanceVote> CGovernanceObjectVoteFile::GetVotes() const
 
 void CGovernanceObjectVoteFile::RemoveVotesFromSmartnode(const COutPoint& outpointSmartnode)
 {
-    auto it = listVotes.begin();
+    vote_l_it it = listVotes.begin();
     while (it != listVotes.end()) {
         if (it->GetSmartnodeOutpoint() == outpointSmartnode) {
             --nMemoryVotes;
@@ -74,7 +74,7 @@ std::set<uint256> CGovernanceObjectVoteFile::RemoveInvalidVotes(const COutPoint&
 {
     std::set<uint256> removedVotes;
 
-    auto it = listVotes.begin();
+    vote_l_it it = listVotes.begin();
     while (it != listVotes.end()) {
         if (it->GetSmartnodeOutpoint() == outpointSmartnode) {
             bool useVotingKey = fProposal && (it->GetSignal() == VOTE_SIGNAL_FUNDING);
@@ -94,7 +94,7 @@ std::set<uint256> CGovernanceObjectVoteFile::RemoveInvalidVotes(const COutPoint&
 
 void CGovernanceObjectVoteFile::RemoveOldVotes(const CGovernanceVote& vote)
 {
-    auto it = listVotes.begin();
+    vote_l_it it = listVotes.begin();
     while (it != listVotes.end()) {
         if (it->GetSmartnodeOutpoint() == vote.GetSmartnodeOutpoint() // same smartnode
             && it->GetParentHash() == vote.GetParentHash() // same governance object (e.g. same proposal)
@@ -114,7 +114,7 @@ void CGovernanceObjectVoteFile::RebuildIndex()
 {
     mapVoteIndex.clear();
     nMemoryVotes = 0;
-    auto it = listVotes.begin();
+    vote_l_it it = listVotes.begin();
     while (it != listVotes.end()) {
         CGovernanceVote& vote = *it;
         uint256 nHash = vote.GetHash();

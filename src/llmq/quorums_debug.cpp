@@ -1,16 +1,15 @@
 // Copyright (c) 2018-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <llmq/quorums_debug.h>
+#include "quorums_debug.h"
 
-#include <chainparams.h>
-#include <timedata.h>
-#include <validation.h>
+#include "chainparams.h"
+#include "validation.h"
 
-#include <evo/deterministicmns.h>
-#include <llmq/quorums_utils.h>
+#include "evo/deterministicmns.h"
+#include "quorums_utils.h"
 
 namespace llmq
 {
@@ -29,23 +28,26 @@ UniValue CDKGDebugSessionStatus::ToJson(int detailLevel) const
         const CBlockIndex* pindex = nullptr;
         {
             LOCK(cs_main);
-            pindex = LookupBlockIndex(quorumHash);
+            auto it = mapBlockIndex.find(quorumHash);
+            if (it != mapBlockIndex.end()) {
+                pindex = it->second;
+            }
         }
         if (pindex != nullptr) {
             dmnMembers = CLLMQUtils::GetAllQuorumMembers((Consensus::LLMQType) llmqType, pindex);
         }
     }
 
-    ret.pushKV("llmqType", llmqType);
-    ret.pushKV("quorumHash", quorumHash.ToString());
-    ret.pushKV("quorumHeight", (int)quorumHeight);
-    ret.pushKV("phase", (int)phase);
+    ret.push_back(Pair("llmqType", llmqType));
+    ret.push_back(Pair("quorumHash", quorumHash.ToString()));
+    ret.push_back(Pair("quorumHeight", (int)quorumHeight));
+    ret.push_back(Pair("phase", (int)phase));
 
-    ret.pushKV("sentContributions", sentContributions);
-    ret.pushKV("sentComplaint", sentComplaint);
-    ret.pushKV("sentJustification", sentJustification);
-    ret.pushKV("sentPrematureCommitment", sentPrematureCommitment);
-    ret.pushKV("aborted", aborted);
+    ret.push_back(Pair("sentContributions", sentContributions));
+    ret.push_back(Pair("sentComplaint", sentComplaint));
+    ret.push_back(Pair("sentJustification", sentJustification));
+    ret.push_back(Pair("sentPrematureCommitment", sentPrematureCommitment));
+    ret.push_back(Pair("aborted", aborted));
 
     struct ArrOrCount {
         int count{0};
@@ -68,9 +70,9 @@ UniValue CDKGDebugSessionStatus::ToJson(int detailLevel) const
                 v.arr.push_back((int)idx);
             } else if (detailLevel == 2) {
                 UniValue a(UniValue::VOBJ);
-                a.pushKV("memberIndex", (int)idx);
+                a.push_back(Pair("memberIndex", (int)idx));
                 if (idx < dmnMembers.size()) {
-                    a.pushKV("proTxHash", dmnMembers[idx]->proTxHash.ToString());
+                    a.push_back(Pair("proTxHash", dmnMembers[idx]->proTxHash.ToString()));
                 }
                 v.arr.push_back(a);
             }
@@ -78,9 +80,9 @@ UniValue CDKGDebugSessionStatus::ToJson(int detailLevel) const
     };
     auto push = [&](ArrOrCount& v, const std::string& name) {
         if (detailLevel == 0) {
-            ret.pushKV(name, v.count);
+            ret.push_back(Pair(name, v.count));
         } else {
-            ret.pushKV(name, v.arr);
+            ret.push_back(Pair(name, v.arr));
         }
     };
 
@@ -105,20 +107,22 @@ UniValue CDKGDebugSessionStatus::ToJson(int detailLevel) const
         for (const auto& dmn : dmnMembers) {
             arr.push_back(dmn->proTxHash.ToString());
         }
-        ret.pushKV("allMembers", arr);
+        ret.push_back(Pair("allMembers", arr));
     }
 
     return ret;
 }
 
-CDKGDebugManager::CDKGDebugManager() = default;
+CDKGDebugManager::CDKGDebugManager()
+{
+}
 
 UniValue CDKGDebugStatus::ToJson(int detailLevel) const
 {
     UniValue ret(UniValue::VOBJ);
 
-    ret.pushKV("time", nTime);
-    ret.pushKV("timeStr", DateTimeStrFormat("%Y-%m-%d %H:%M:%S", nTime));
+    ret.push_back(Pair("time", nTime));
+    ret.push_back(Pair("timeStr", DateTimeStrFormat("%Y-%m-%d %H:%M:%S", nTime)));
 
     UniValue sessionsJson(UniValue::VOBJ);
     for (const auto& p : sessions) {
@@ -126,10 +130,10 @@ UniValue CDKGDebugStatus::ToJson(int detailLevel) const
             continue;
         }
         const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)p.first);
-        sessionsJson.pushKV(params.name, p.second.ToJson(detailLevel));
+        sessionsJson.push_back(Pair(params.name, p.second.ToJson(detailLevel)));
     }
 
-    ret.pushKV("session", sessionsJson);
+    ret.push_back(Pair("session", sessionsJson));
 
     return ret;
 }

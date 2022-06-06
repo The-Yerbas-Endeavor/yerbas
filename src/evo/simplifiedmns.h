@@ -1,17 +1,17 @@
-// Copyright (c) 2017-2021 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2017-2020 The Dash Core developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SIMPLIFIEDMNS_H
-#define BITCOIN_EVO_SIMPLIFIEDMNS_H
+#ifndef YERBAS_SIMPLIFIEDMNS_H
+#define YERBAS_SIMPLIFIEDMNS_H
 
-#include <bls/bls.h>
-#include <merkleblock.h>
-#include <netaddress.h>
-#include <pubkey.h>
-#include <serialize.h>
-#include <version.h>
+#include "bls/bls.h"
+#include "merkleblock.h"
+#include "netaddress.h"
+#include "pubkey.h"
+#include "serialize.h"
+#include "version.h"
 
 class UniValue;
 class CDeterministicMNList;
@@ -33,8 +33,8 @@ public:
     bool isValid;
 
 public:
-    CSimplifiedMNListEntry() = default;
-    explicit CSimplifiedMNListEntry(const CDeterministicMN& dmn);
+    CSimplifiedMNListEntry() {}
+    CSimplifiedMNListEntry(const CDeterministicMN& dmn);
 
     bool operator==(const CSimplifiedMNListEntry& rhs) const
     {
@@ -78,9 +78,9 @@ public:
     std::vector<std::unique_ptr<CSimplifiedMNListEntry>> mnList;
 
 public:
-    CSimplifiedMNList() = default;
-    explicit CSimplifiedMNList(const std::vector<CSimplifiedMNListEntry>& smlEntries);
-    explicit CSimplifiedMNList(const CDeterministicMNList& dmnList);
+    CSimplifiedMNList() {}
+    CSimplifiedMNList(const std::vector<CSimplifiedMNListEntry>& smlEntries);
+    CSimplifiedMNList(const CDeterministicMNList& dmnList);
 
     uint256 CalcMerkleRoot(bool* pmutated = nullptr) const;
 };
@@ -148,4 +148,4 @@ public:
 
 bool BuildSimplifiedMNListDiff(const uint256& baseBlockHash, const uint256& blockHash, CSimplifiedMNListDiff& mnListDiffRet, std::string& errorRet);
 
-#endif // BITCOIN_EVO_SIMPLIFIEDMNS_H
+#endif //YERBAS_SIMPLIFIEDMNS_H

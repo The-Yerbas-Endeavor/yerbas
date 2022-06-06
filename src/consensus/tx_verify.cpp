@@ -2,74 +2,18 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <consensus/tx_verify.h>
+#include "tx_verify.h"
 
-#include <consensus/consensus.h>
-#include <primitives/transaction.h>
-#include <script/interpreter.h>
-#include <consensus/validation.h>
-
-#include <chainparams.h>
-#include <future/fee.h>
-#include <spork.h>
-//#include <future/utils.h>
-#include <evo/specialtx.h>
-#include <evo/providertx.h>
-#include <timedata.h>
+#include "consensus.h"
+#include "chainparams.h"
+#include "primitives/transaction.h"
+#include "script/interpreter.h"
+#include "validation.h"
 
 // TODO remove the following dependencies
-#include <chain.h>
-#include <coins.h>
-#include <utilmoneystr.h>
-
-extern CChain& chainActive;
-
-static bool checkSpecialTxFee(const CTransaction &tx, CAmount& nFeeTotal, CAmount& specialTxFee, bool fFeeVerify = false) {
-	if(tx.nVersion >= 3) {
-		switch(tx.nType){
-		case TRANSACTION_FUTURE:
-			CFutureTx ftx;
-			if(GetTxPayload(tx.vExtraPayload, ftx)) {
-                if(!Params().IsFutureActive(chainActive.Tip())) {
-                    return false;
-                }
-                bool futureEnabled = sporkManager.IsSporkActive(SPORK_22_SPECIAL_TX_FEE);
-                if(futureEnabled && fFeeVerify && ftx.fee != getFutureFees()) {
-                    return false;
-                }
-                specialTxFee = ftx.fee * COIN;
-                nFeeTotal -= specialTxFee;
-			}
-			break;
-		}
-	}
-    return true;
-}
-
-static const char *validateFutureCoin(const Coin& coin, int nSpendHeight) {
-	if(coin.nType == TRANSACTION_FUTURE) {
-		CBlockIndex* confirmedBlockIndex = chainActive[coin.nHeight];
-		if(confirmedBlockIndex) {
-			int64_t adjustCurrentTime = GetAdjustedTime();
-			uint32_t confirmedTime = confirmedBlockIndex->GetBlockTime();
-			CFutureTx futureTx;
-			if(GetTxPayload(coin.vExtraPayload, futureTx)) {
-				bool isBlockMature = futureTx.maturity > 0 && nSpendHeight - coin.nHeight >= futureTx.maturity;
-				bool isTimeMature = futureTx.lockTime > 0 && adjustCurrentTime - confirmedTime  >= futureTx.lockTime;
-				bool canSpend = isBlockMature || isTimeMature;
-				if(!canSpend) {
-					return "bad-txns-premature-spend-of-future";
-				}
-				return nullptr;
-			}
-			return "bad-txns-unable-to-parse-future";
-		}
-		// should not get here
-		return "bad-txns-unable-to-block-index-for-future";
-	}
-	return nullptr;
-}
-
+#include "chain.h"
+#include "coins.h"
+#include "utilmoneystr.h"
 
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
@@ -78,7 +22,7 @@ bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
     if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
         return true;
     for (const auto& txin : tx.vin) {
-        if (txin.nSequence != CTxIn::SEQUENCE_FINAL)
+        if (!(txin.nSequence == CTxIn::SEQUENCE_FINAL))
             return false;
     }
     return true;
@@ -257,6 +201,7 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, int nHeig
 		FounderPayment founderPayment = Params().GetConsensus().nFounderPayment;
 		CAmount founderReward = founderPayment.getFounderPaymentAmount(nHeight, blockReward);
 		int founderStartHeight = founderPayment.getStartBlock();
+		//std::cout << "height=" << nHeight << ", reward=" << founderReward << endl;
 		if(nHeight > founderStartHeight && founderReward && !founderPayment.IsBlockPayeeValid(tx,nHeight,blockReward)) {
 			return state.DoS(100, false, REJECT_INVALID, "bad-cb-founder-payment-not-found");
 		}
@@ -271,7 +216,7 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, int nHeig
     return true;
 }
 
-bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, int nSpendHeight, CAmount& txfee, CAmount& specialTxFee, bool fFeeVerify)
+bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, int nSpendHeight, CAmount& txfee)
 {
     // are the actual inputs available?
     if (!inputs.HaveInputs(tx)) {
@@ -291,17 +236,12 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
                 REJECT_INVALID, "bad-txns-premature-spend-of-coinbase",
                 strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));
         }
+
         // Check for negative or overflow input values
         nValueIn += coin.out.nValue;
         if (!MoneyRange(coin.out.nValue) || !MoneyRange(nValueIn)) {
             return state.DoS(100, false, REJECT_INVALID, "bad-txns-inputvalues-outofrange");
         }
-
-        const char* futureValidationError = validateFutureCoin(coin, nSpendHeight);
-		if(futureValidationError) {
-			return state.DoS(100, false, REJECT_INVALID, futureValidationError);
-
-		}
     }
 
     const CAmount value_out = tx.GetValueOut();
@@ -315,16 +255,7 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
     if (!MoneyRange(txfee_aux)) {
         return state.DoS(100, false, REJECT_INVALID, "bad-txns-fee-outofrange");
     }
+
     txfee = txfee_aux;
-
-	if(!checkSpecialTxFee(tx, txfee, specialTxFee, fFeeVerify)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-txns-wrong-future-fee-or-not-enable");
-
-    }
-
-	if(txfee < 0) {
-		return state.DoS(100, false, REJECT_INVALID, "bad-txns-fee-too-low", false,
-		            strprintf("fee (%s), special tx fee (%s)", FormatMoney(txfee), FormatMoney(specialTxFee)));
-	}
     return true;
 }

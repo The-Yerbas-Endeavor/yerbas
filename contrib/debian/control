@@ -27,8 +27,8 @@ Build-Depends: debhelper,
  libzmq3-dev
 Standards-Version: 3.9.2
 Homepage: https://www.yerbas.org/
-Vcs-Git: git://github.com/yerbas/yerbas.git
-Vcs-Browser: https://github.com/yerbas/yerbas
+Vcs-Git: git://github.com/The-Yerbas-Endeavor/yerbas.git
+Vcs-Browser: https://github.com/The-Yerbas-Endeavor/yerbas
 
 Package: yerbasd
 Architecture: any

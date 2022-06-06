@@ -1,11 +1,11 @@
 // Copyright (c) 2018-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <evo/evodb.h>
+#include "evodb.h"
 
-std::unique_ptr<CEvoDB> evoDb;
+CEvoDB* evoDb;
 
 CEvoDBScopedCommitter::CEvoDBScopedCommitter(CEvoDB &_evoDB) :
     evoDB(_evoDB)
@@ -54,7 +54,6 @@ void CEvoDB::RollbackCurTransaction()
 
 bool CEvoDB::CommitRootTransaction()
 {
-    LOCK(cs);
     assert(curDBTransaction.IsClean());
     rootDBTransaction.Commit();
     bool ret = db.WriteBatch(rootBatch);
@@ -66,17 +65,12 @@ bool CEvoDB::VerifyBestBlock(const uint256& hash)
 {
     // Make sure evodb is consistent.
     // If we already have best block hash saved, the previous block should match it.
-//    uint256 hashBestBlock;
-//    bool fHasBestBlock = Read(EVODB_BEST_BLOCK, hashBestBlock);
-//    uint256 hashBlockIndex = fHasBestBlock ? hash : uint256();
-//    assert(hashBestBlock == hashBlockIndex);
-//
-//    return fHasBestBlock || hashBestBlock == uint256();
     uint256 hashBestBlock;
-    if (!Read(EVODB_BEST_BLOCK, hashBestBlock)) {
-        return false;
-    }
-    return hashBestBlock == hash;
+    bool fHasBestBlock = Read(EVODB_BEST_BLOCK, hashBestBlock);
+    uint256 hashBlockIndex = fHasBestBlock ? hash : uint256();
+    assert(hashBestBlock == hashBlockIndex);
+
+    return fHasBestBlock || hashBestBlock == uint256();
 }
 
 void CEvoDB::WriteBestBlock(const uint256& hash)

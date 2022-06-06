@@ -2,12 +2,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <qt/transactionfilterproxy.h>
+#include "transactionfilterproxy.h"
 
-#include <qt/transactiontablemodel.h>
-#include <qt/transactionrecord.h>
+#include "transactiontablemodel.h"
+#include "transactionrecord.h"
 
 #include <cstdlib>
+
+#include <QDateTime>
 
 // Earliest date that can be represented (far in the past)
 const QDateTime TransactionFilterProxy::MIN_DATE = QDateTime::fromTime_t(0);
@@ -18,9 +20,10 @@ TransactionFilterProxy::TransactionFilterProxy(QObject *parent) :
     QSortFilterProxyModel(parent),
     dateFrom(MIN_DATE.toTime_t()),
     dateTo(MAX_DATE.toTime_t()),
-    m_search_string(),
+    addrPrefix(),
     typeFilter(COMMON_TYPES),
     watchOnlyFilter(WatchOnlyFilter_All),
+    instantsendFilter(InstantSendFilter_All),
     minAmount(0),
     limitRows(-1),
     showInactive(true)
@@ -31,34 +34,32 @@ bool TransactionFilterProxy::filterAcceptsRow(int sourceRow, const QModelIndex &
 {
     QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
 
-    int status = index.data(TransactionTableModel::StatusRole).toInt();
-    if (!showInactive && status == TransactionStatus::Conflicted)
-        return false;
-
     int type = index.data(TransactionTableModel::TypeRole).toInt();
-    if (!(TYPE(type) & typeFilter))
-        return false;
-
+    qint64 datetime = index.data(TransactionTableModel::DateRoleInt).toLongLong();
     bool involvesWatchAddress = index.data(TransactionTableModel::WatchonlyRole).toBool();
+    bool lockedByInstantSend = index.data(TransactionTableModel::InstantSendRole).toBool();
+    QString address = index.data(TransactionTableModel::AddressRole).toString();
+    QString label = index.data(TransactionTableModel::LabelRole).toString();
+    qint64 amount = llabs(index.data(TransactionTableModel::AmountRole).toLongLong());
+    int status = index.data(TransactionTableModel::StatusRole).toInt();
+
+    if(!showInactive && status == TransactionStatus::Conflicted)
+        return false;
+    if(!(TYPE(type) & typeFilter))
+        return false;
     if (involvesWatchAddress && watchOnlyFilter == WatchOnlyFilter_No)
         return false;
     if (!involvesWatchAddress && watchOnlyFilter == WatchOnlyFilter_Yes)
         return false;
-    qint64 datetime = index.data(TransactionTableModel::DateRoleInt).toLongLong();
-    if (datetime < dateFrom || datetime > dateTo)
+    if (lockedByInstantSend && instantsendFilter == InstantSendFilter_No)
         return false;
-
-    QString address = index.data(TransactionTableModel::AddressRole).toString();
-    QString label = index.data(TransactionTableModel::LabelRole).toString();
-    QString txid = index.data(TransactionTableModel::TxHashRole).toString();
-    if (!address.contains(m_search_string, Qt::CaseInsensitive) &&
-        !  label.contains(m_search_string, Qt::CaseInsensitive) &&
-        !   txid.contains(m_search_string, Qt::CaseInsensitive)) {
+    if (!lockedByInstantSend && instantsendFilter == InstantSendFilter_Yes)
         return false;
-    }
-
-    qint64 amount = llabs(index.data(TransactionTableModel::AmountRole).toLongLong());
-    if (amount < minAmount)
+    if(datetime < dateFrom || datetime > dateTo)
+        return false;
+    if (!address.contains(addrPrefix, Qt::CaseInsensitive) && !label.contains(addrPrefix, Qt::CaseInsensitive))
+        return false;
+    if(amount < minAmount)
         return false;
 
     return true;
@@ -71,10 +72,9 @@ void TransactionFilterProxy::setDateRange(const QDateTime &from, const QDateTime
     invalidateFilter();
 }
 
-void TransactionFilterProxy::setSearchString(const QString &search_string)
+void TransactionFilterProxy::setAddressPrefix(const QString &_addrPrefix)
 {
-    if (m_search_string == search_string) return;
-    m_search_string = search_string;
+    this->addrPrefix = _addrPrefix;
     invalidateFilter();
 }
 
@@ -96,11 +96,15 @@ void TransactionFilterProxy::setWatchOnlyFilter(WatchOnlyFilter filter)
     invalidateFilter();
 }
 
+void TransactionFilterProxy::setInstantSendFilter(InstantSendFilter filter)
+{
+    this->instantsendFilter = filter;
+    invalidateFilter();
+}
+
 void TransactionFilterProxy::setLimit(int limit)
 {
-    Q_EMIT layoutAboutToBeChanged();
     this->limitRows = limit;
-    Q_EMIT layoutChanged();
 }
 
 void TransactionFilterProxy::setShowInactive(bool _showInactive)

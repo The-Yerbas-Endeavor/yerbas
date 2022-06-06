@@ -6,10 +6,10 @@
 #ifndef BITCOIN_SPENTINDEX_H
 #define BITCOIN_SPENTINDEX_H
 
-#include <uint256.h>
-#include <amount.h>
-#include <script/script.h>
-#include <serialize.h>
+#include "uint256.h"
+#include "amount.h"
+#include "script/script.h"
+#include "serialize.h"
 
 struct CSpentIndexKey {
     uint256 txid;
@@ -210,8 +210,6 @@ struct CAddressUnspentValue {
     CAmount satoshis;
     CScript script;
     int blockHeight;
-    int fSpendableHeight;
-    int64_t fSpendableTime;
 
     ADD_SERIALIZE_METHODS;
 
@@ -220,16 +218,12 @@ struct CAddressUnspentValue {
         READWRITE(satoshis);
         READWRITE(script);
         READWRITE(blockHeight);
-        READWRITE(fSpendableHeight);
-		READWRITE(fSpendableTime);
     }
 
-    CAddressUnspentValue(CAmount sats, CScript scriptPubKey, int height, int spendableHeight, int spendableTime) {
+    CAddressUnspentValue(CAmount sats, CScript scriptPubKey, int height) {
         satoshis = sats;
         script = scriptPubKey;
         blockHeight = height;
-        fSpendableHeight = spendableHeight;
-        fSpendableTime = spendableTime;
     }
 
     CAddressUnspentValue() {
@@ -240,8 +234,6 @@ struct CAddressUnspentValue {
         satoshis = -1;
         script.clear();
         blockHeight = 0;
-        fSpendableHeight = 0;
-        fSpendableTime = 0;
     }
 
     bool IsNull() const {

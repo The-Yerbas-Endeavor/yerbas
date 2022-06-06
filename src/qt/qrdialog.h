@@ -5,11 +5,13 @@
 #ifndef BITCOIN_QT_QRDIALOG_H
 #define BITCOIN_QT_QRDIALOG_H
 
-#include <qt/walletmodel.h>
+#include "walletmodel.h"
 
 #include <QDialog>
 #include <QImage>
 #include <QLabel>
+
+class OptionsModel;
 
 namespace Ui {
     class QRDialog;
@@ -50,6 +52,7 @@ public:
     explicit QRDialog(QWidget *parent = 0);
     ~QRDialog();
 
+    void setModel(OptionsModel *model);
     void setInfo(QString strWindowtitle, QString strQRCode, QString strTextInfo, QString strQRCodeTitle);
 
 private Q_SLOTS:
@@ -57,6 +60,7 @@ private Q_SLOTS:
 
 private:
     Ui::QRDialog *ui;
+    OptionsModel *model;
     QString strWindowtitle;
     QString strQRCode;
     QString strTextInfo;

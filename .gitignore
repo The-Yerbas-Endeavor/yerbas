@@ -13,7 +13,6 @@ src/yerbas-tx
 src/test/test_yerbas
 src/test/test_yerbas_fuzzy
 src/qt/test/test_yerbas-qt
-src/qt/res/css/colors/*
 src/bench/bench_yerbas
 
 # autoreconf
@@ -63,6 +62,8 @@ libconftest.dylib*
 *.pyc
 *.o
 *.o-*
+*.patch
+!depends/patches/*/*.patch
 *.a
 *.pb.cc
 *.pb.h
@@ -74,10 +75,6 @@ libconftest.dylib*
 *.json.h
 *.raw.h
 
-# Only ignore unexpected patches
-*.patch
-!depends/patches/**/*.patch
-
 #libtool object files
 *.lo
 *.la
@@ -87,7 +84,6 @@ libconftest.dylib*
 Makefile
 yerbas-qt
 Yerbas-Qt.app
-background.tiff*
 !/depends/Makefile
 
 # Unit-tests
@@ -100,7 +96,6 @@ qrc_*.cpp
 # Mac specific
 .DS_Store
 build
-*.dSYM
 
 #lcov
 *.gcno
@@ -146,8 +141,4 @@ depends/x86_64-pc-linux-gnu
 depends/sdk-sources/
 dist/
 *.conf
-.settings/language.settings.xml
 
-/yerbas.iml
-/testnet3_binary/
-/testnet4/

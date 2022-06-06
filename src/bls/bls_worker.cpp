@@ -1,13 +1,13 @@
 // Copyright (c) 2018-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <bls/bls_worker.h>
-#include <hash.h>
-#include <serialize.h>
+#include "bls_worker.h"
+#include "hash.h"
+#include "serialize.h"
 
-#include <util.h>
+#include "util.h"
 
 template <typename T>
 bool VerifyVectorHelper(const std::vector<T>& vec, size_t start, size_t count)
@@ -73,11 +73,11 @@ void CBLSWorker::Stop()
     workerPool.stop(true);
 }
 
-bool CBLSWorker::GenerateContributions(int quorumThreshold, const BLSIdVector& ids, BLSVerificationVectorPtr& vvecRet, BLSSecretKeyVector& skSharesRet)
+bool CBLSWorker::GenerateContributions(int quorumThreshold, const BLSIdVector& ids, BLSVerificationVectorPtr& vvecRet, BLSSecretKeyVector& skShares)
 {
     BLSSecretKeyVectorPtr svec = std::make_shared<BLSSecretKeyVector>((size_t)quorumThreshold);
     vvecRet = std::make_shared<BLSVerificationVector>((size_t)quorumThreshold);
-    skSharesRet.resize(ids.size());
+    skShares.resize(ids.size());
 
     for (int i = 0; i < quorumThreshold; i++) {
         (*svec)[i].MakeNewKey();
@@ -102,7 +102,7 @@ bool CBLSWorker::GenerateContributions(int quorumThreshold, const BLSIdVector& i
         size_t count = std::min(batchSize, ids.size() - start);
         auto f = [&, start, count](int threadId) {
             for (size_t j = start; j < start + count; j++) {
-                if (!skSharesRet[j].SecretKeyShare(*svec, ids[j])) {
+                if (!skShares[j].SecretKeyShare(*svec, ids[j])) {
                     return false;
                 }
             }

@@ -1,16 +1,14 @@
-// Copyright (c) 2014-2021 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2014-2020 The Dash Core developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SMARTNODE_MASTERNODE_META_H
-#define BITCOIN_SMARTNODE_MASTERNODE_META_H
+#ifndef SMARTNODE_META_H
+#define SMARTNODE_META_H
 
-#include <serialize.h>
+#include "serialize.h"
 
-#include <evo/deterministicmns.h>
-
-#include <univalue.h>
+#include "evo/deterministicmns.h"
 
 #include <memory>
 
@@ -36,19 +34,14 @@ private:
     // KEEP TRACK OF GOVERNANCE ITEMS EACH SMARTNODE HAS VOTE UPON FOR RECALCULATION
     std::map<uint256, int> mapGovernanceObjectsVotedOn;
 
-    int64_t lastOutboundAttempt = 0;
-    int64_t lastOutboundSuccess = 0;
-
 public:
-    CSmartnodeMetaInfo() = default;
-    explicit CSmartnodeMetaInfo(const uint256& _proTxHash) : proTxHash(_proTxHash) {}
+    CSmartnodeMetaInfo() {}
+    CSmartnodeMetaInfo(const uint256& _proTxHash) : proTxHash(_proTxHash) {}
     CSmartnodeMetaInfo(const CSmartnodeMetaInfo& ref) :
         proTxHash(ref.proTxHash),
         nLastDsq(ref.nLastDsq),
         nMixingTxCount(ref.nMixingTxCount),
-        mapGovernanceObjectsVotedOn(ref.mapGovernanceObjectsVotedOn),
-        lastOutboundAttempt(ref.lastOutboundAttempt),
-        lastOutboundSuccess(ref.lastOutboundSuccess)
+        mapGovernanceObjectsVotedOn(ref.mapGovernanceObjectsVotedOn)
     {
     }
 
@@ -61,11 +54,7 @@ public:
         READWRITE(nLastDsq);
         READWRITE(nMixingTxCount);
         READWRITE(mapGovernanceObjectsVotedOn);
-        READWRITE(lastOutboundAttempt);
-        READWRITE(lastOutboundSuccess);
     }
-
-    UniValue ToJson() const;
 
 public:
     const uint256& GetProTxHash() const { LOCK(cs); return proTxHash; }
@@ -74,15 +63,10 @@ public:
 
     bool IsValidForMixingTxes() const { return GetMixingTxCount() <= SMARTNODE_MAX_MIXING_TXES; }
 
-    // KEEP TRACK OF EACH GOVERNANCE ITEM IN CASE THIS NODE GOES OFFLINE, SO WE CAN RECALCULATE THEIR STATUS
+    // KEEP TRACK OF EACH GOVERNANCE ITEM INCASE THIS NODE GOES OFFLINE, SO WE CAN RECALC THEIR STATUS
     void AddGovernanceVote(const uint256& nGovernanceObjectHash);
 
     void RemoveGovernanceObject(const uint256& nGovernanceObjectHash);
-
-    void SetLastOutboundAttempt(int64_t t) { LOCK(cs); lastOutboundAttempt = t; }
-    int64_t GetLastOutboundAttempt() const { LOCK(cs); return lastOutboundAttempt; }
-    void SetLastOutboundSuccess(int64_t t) { LOCK(cs); lastOutboundSuccess = t; }
-    int64_t GetLastOutboundSuccess() const { LOCK(cs); return lastOutboundSuccess; }
 };
 typedef std::shared_ptr<CSmartnodeMetaInfo> CSmartnodeMetaInfoPtr;
 
@@ -96,7 +80,7 @@ private:
     std::map<uint256, CSmartnodeMetaInfoPtr> metaInfos;
     std::vector<uint256> vecDirtyGovernanceObjectHashes;
 
-    // keep track of dsq count to prevent smartnodes from gaming coinjoin queue
+    // keep track of dsq count to prevent smartnodes from gaming privatesend queue
     int64_t nDsqCount = 0;
 
 public:
@@ -141,7 +125,6 @@ public:
     CSmartnodeMetaInfoPtr GetMetaInfo(const uint256& proTxHash, bool fCreate = true);
 
     int64_t GetDsqCount() { LOCK(cs); return nDsqCount; }
-    int64_t GetDsqThreshold(const uint256& proTxHash, int nMnCount);
 
     void AllowMixing(const uint256& proTxHash);
     void DisallowMixing(const uint256& proTxHash);
@@ -159,4 +142,4 @@ public:
 
 extern CSmartnodeMetaMan mmetaman;
 
-#endif // BITCOIN_SMARTNODE_MASTERNODE_META_H
+#endif//SMARTNODE_META_H

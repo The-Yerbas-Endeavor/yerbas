@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 #
 
 try:
@@ -7,8 +7,8 @@ except ImportError as e:
     raise ImportError("This script must be run in GDB: ", str(e))
 import sys
 import os
-import common_helpers
 sys.path.append(os.getcwd())
+import common_helpers
 
 
 def find_type(orig, name):

@@ -77,6 +77,15 @@
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">font-weight:bold;</string>
+            </property>
             <property name="text">
              <string>Coin Control Features</string>
             </property>
@@ -117,6 +126,15 @@
           </item>
           <item>
            <widget class="QLabel" name="labelCoinControlInsuffFunds">
+            <property name="font">
+             <font>
+              <weight>75</weight>
+              <bold>true</bold>
+             </font>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">font-weight:bold;</string>
+            </property>
             <property name="text">
              <string>Insufficient funds!</string>
             </property>
@@ -200,6 +218,12 @@
                </property>
                <item row="0" column="0">
                 <widget class="QLabel" name="labelCoinControlQuantityText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Quantity:</string>
                  </property>
@@ -229,6 +253,12 @@
                </item>
                <item row="1" column="0">
                 <widget class="QLabel" name="labelCoinControlBytesText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Bytes:</string>
                  </property>
@@ -271,6 +301,12 @@
                </property>
                <item row="0" column="0">
                 <widget class="QLabel" name="labelCoinControlAmountText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Amount:</string>
                  </property>
@@ -297,6 +333,12 @@
                </item>
                <item row="1" column="0">
                 <widget class="QLabel" name="labelCoinControlLowOutputText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Dust:</string>
                  </property>
@@ -339,6 +381,12 @@
                </property>
                <item row="0" column="0">
                 <widget class="QLabel" name="labelCoinControlFeeText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Fee:</string>
                  </property>
@@ -384,6 +432,12 @@
                </property>
                <item row="0" column="0">
                 <widget class="QLabel" name="labelCoinControlAfterFeeText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>After Fee:</string>
                  </property>
@@ -410,6 +464,12 @@
                </item>
                <item row="1" column="0">
                 <widget class="QLabel" name="labelCoinControlChangeText">
+                 <property name="font">
+                  <font>
+                   <weight>75</weight>
+                   <bold>true</bold>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Change:</string>
                  </property>
@@ -654,6 +714,15 @@
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
+                <property name="font">
+                 <font>
+                  <weight>75</weight>
+                  <bold>true</bold>
+                 </font>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">font-weight:bold;</string>
+                </property>
                 <property name="text">
                  <string>Transaction Fee:</string>
                 </property>
@@ -692,6 +761,12 @@
              <widget class="QLabel" name="fallbackFeeWarningLabel">
               <property name="toolTip">
                <string>Using the fallbackfee can result in sending a transaction that will take several hours or days (or never) to confirm. Consider choosing your fee manually or wait until you have validated the complete chain.</string>
+              </property>
+              <property name="font">
+              <font>
+                  <weight>75</weight>
+                  <bold>true</bold>
+              </font>
               </property>
               <property name="text">
                <string>Note: Not enough data for fee estimation, using the fallback fee instead.</string>
@@ -778,15 +853,12 @@
                <property name="spacing">
                 <number>6</number>
                </property>
-               <property name="topMargin">
-                <number>3</number>
-               </property>
                <item>
-                <layout class="QHBoxLayout" name="horizontalLayoutFee13" stretch="0,0,1">
+                <layout class="QHBoxLayout" name="horizontalLayoutFee13">
                  <item>
                   <widget class="QLabel" name="labelCustomPerKilobyte">
                    <property name="toolTip">
-                    <string>If the custom fee is set to 1000 weeds and the transaction is only 250 bytes, then &quot;per kilobyte&quot; only pays 250 weeds in fee,&lt;br /&gt;while &quot;at least&quot; pays 1000 weeds. For transactions bigger than a kilobyte both pay by kilobyte.</string>
+                    <string>If the custom fee is set to 1000 duffs and the transaction is only 250 bytes, then &quot;per kilobyte&quot; only pays 250 duffs in fee,&lt;br /&gt;while &quot;at least&quot; pays 1000 duffs. For transactions bigger than a kilobyte both pay by kilobyte.</string>
                    </property>
                    <property name="text">
                     <string>per kilobyte</string>
@@ -858,12 +930,6 @@
              </item>
              <item row="0" column="0">
               <layout class="QVBoxLayout" name="verticalLayoutFee4" stretch="0,1">
-               <property name="topMargin">
-                <number>20</number>
-               </property>
-               <property name="bottomMargin">
-                <number>3</number>
-               </property>
                <item>
                 <widget class="QRadioButton" name="radioSmartFee">
                  <property name="text">
@@ -894,9 +960,6 @@
              </item>
              <item row="1" column="0">
               <layout class="QVBoxLayout" name="verticalLayoutFee9" stretch="0,1">
-               <property name="topMargin">
-                <number>30</number>
-               </property>
                <item>
                 <widget class="QRadioButton" name="radioCustomFee">
                  <property name="text">
@@ -928,10 +991,7 @@
                 <number>6</number>
                </property>
                <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>3</number>
+                <number>2</number>
                </property>
                <item>
                 <layout class="QHBoxLayout" name="horizontalLayoutFee12">
@@ -990,6 +1050,19 @@
                       <number>2</number>
                      </property>
                     </widget>
+                   </item>
+                   <item>
+                    <spacer name="verticalSpacer_3">
+                     <property name="orientation">
+                      <enum>Qt::Vertical</enum>
+                     </property>
+                     <property name="sizeHint" stdset="0">
+                      <size>
+                       <width>1</width>
+                       <height>1</height>
+                      </size>
+                     </property>
+                    </spacer>
                    </item>
                   </layout>
                  </item>
@@ -1138,7 +1211,23 @@
         <number>3</number>
        </property>
        <item>
-        <widget class="QLabel" name="labelBalanceText">
+        <widget class="QCheckBox" name="checkUsePrivateSend">
+         <property name="minimumSize">
+          <size>
+           <width>95</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>PrivateSend</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="label">
          <property name="text">
           <string>Balance:</string>
          </property>
@@ -1147,7 +1236,7 @@
        <item>
         <widget class="QLabel" name="labelBalance">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -1173,12 +1262,12 @@
   <customwidget>
    <class>QValidatedLineEdit</class>
    <extends>QLineEdit</extends>
-   <header>qt/qvalidatedlineedit.h</header>
+   <header>qvalidatedlineedit.h</header>
   </customwidget>
   <customwidget>
    <class>BitcoinAmountField</class>
    <extends>QLineEdit</extends>
-   <header>qt/bitcoinamountfield.h</header>
+   <header>bitcoinamountfield.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

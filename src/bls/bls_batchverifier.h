@@ -1,12 +1,12 @@
 // Copyright (c) 2018-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef YERBAS_CRYPTO_BLS_BATCHVERIFIER_H
 #define YERBAS_CRYPTO_BLS_BATCHVERIFIER_H
 
-#include <bls/bls.h>
+#include "bls.h"
 
 #include <map>
 #include <vector>
@@ -62,11 +62,6 @@ public:
     {
         messages.clear();
         messagesBySource.clear();
-    }
-
-    size_t GetUniqueSourceCount() const
-    {
-        return messagesBySource.size();
     }
 
     void Verify()

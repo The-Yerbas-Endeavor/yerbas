@@ -5,25 +5,19 @@
 #ifndef BITCOIN_WALLET_COINCONTROL_H
 #define BITCOIN_WALLET_COINCONTROL_H
 
-#include <key.h>
-#include <policy/feerate.h>
-#include <policy/fees.h>
-#include <primitives/transaction.h>
-#include <script/standard.h>
+#include "policy/feerate.h"
+#include "policy/fees.h"
+#include "primitives/transaction.h"
 
 #include <boost/optional.hpp>
 
 enum class CoinType
 {
     ALL_COINS,
-    ONLY_FULLY_MIXED,
-    ONLY_READY_TO_MIX,
+    ONLY_DENOMINATED,
     ONLY_NONDENOMINATED,
-    ONLY_SMARTNODE_COLLATERAL, // find smartnode outputs including locked ones (use with caution)
-    ONLY_COINJOIN_COLLATERAL,
-    // Attributes
-    MIN_COIN_TYPE = ALL_COINS,
-    MAX_COIN_TYPE = ONLY_COINJOIN_COLLATERAL,
+    SMARTNODE_COLLATERAL, // find smartnode outputs including locked ones (use with caution)
+    ONLY_PRIVATESEND_COLLATERAL,
 };
 
 /** Coin Control Features. */
@@ -41,8 +35,6 @@ public:
     bool fOverrideFeeRate;
     //! Override the default payTxFee if set
     boost::optional<CFeeRate> m_feerate;
-    //! Override the discard feerate estimation with m_discard_feerate in CreateTransaction if set
-    boost::optional<CFeeRate> m_discard_feerate;
     //! Override the default confirmation target if set
     boost::optional<unsigned int> m_confirm_target;
     //! Fee estimation mode to control arguments to estimateSmartFee
@@ -55,7 +47,7 @@ public:
         SetNull();
     }
 
-    void SetNull(bool fResetCoinType = true)
+    void SetNull()
     {
         destChange = CNoDestination();
         fAllowOtherInputs = false;
@@ -63,13 +55,10 @@ public:
         fAllowWatchOnly = false;
         setSelected.clear();
         m_feerate.reset();
-        m_discard_feerate.reset();
         fOverrideFeeRate = false;
         m_confirm_target.reset();
         m_fee_mode = FeeEstimateMode::UNSET;
-        if (fResetCoinType) {
-            nCoinType = CoinType::ALL_COINS;
-        }
+        nCoinType = CoinType::ALL_COINS;
     }
 
     bool HasSelected() const
@@ -104,14 +93,14 @@ public:
 
     // Yerbas-specific helpers
 
-    void UseCoinJoin(bool fUseCoinJoin)
+    void UsePrivateSend(bool fUsePrivateSend)
     {
-        nCoinType = fUseCoinJoin ? CoinType::ONLY_FULLY_MIXED : CoinType::ALL_COINS;
+        nCoinType = fUsePrivateSend ? CoinType::ONLY_DENOMINATED : CoinType::ALL_COINS;
     }
 
-    bool IsUsingCoinJoin() const
+    bool IsUsingPrivateSend() const
     {
-        return nCoinType == CoinType::ONLY_FULLY_MIXED;
+        return nCoinType == CoinType::ONLY_DENOMINATED;
     }
 
 private:

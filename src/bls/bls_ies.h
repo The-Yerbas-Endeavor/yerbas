@@ -1,22 +1,22 @@
 // Copyright (c) 2018 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef YERBAS_CRYPTO_BLS_IES_H
 #define YERBAS_CRYPTO_BLS_IES_H
 
-#include <bls/bls.h>
-#include <streams.h>
+#include "bls.h"
+#include "streams.h"
 
 class CBLSIESEncryptedBlob
 {
 public:
     CBLSPublicKey ephemeralPubKey;
-    uint256 ivSeed;
+    unsigned char iv[16];
     std::vector<unsigned char> data;
 
-    uint256 GetIV(size_t idx) const;
+    bool valid{false};
 
 public:
     ADD_SERIALIZE_METHODS
@@ -24,15 +24,22 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
+        if (!ser_action.ForRead()) {
+            assert(valid);
+        } else {
+            valid = false;
+        }
         READWRITE(ephemeralPubKey);
-        READWRITE(ivSeed);
+        READWRITE(FLATDATA(iv));
         READWRITE(data);
-    }
+        if (ser_action.ForRead()) {
+            valid = true;
+        }
+    };
 
 public:
-    bool Encrypt(size_t idx, const CBLSPublicKey& peerPubKey, const void* data, size_t dataSize);
-    bool Decrypt(size_t idx, const CBLSSecretKey& secretKey, CDataStream& decryptedDataRet) const;
-    bool IsValid() const;
+    bool Encrypt(const CBLSPublicKey& peerPubKey, const void* data, size_t dataSize);
+    bool Decrypt(const CBLSSecretKey& secretKey, CDataStream& decryptedDataRet) const;
 };
 
 template <typename Object>
@@ -43,28 +50,21 @@ public:
     {
     }
 
-    CBLSIESEncryptedObject(const CBLSPublicKey& ephemeralPubKeyIn, const uint256& ivSeedIn, const std::vector<unsigned char>& dataIn)
-    {
-        ephemeralPubKey = ephemeralPubKeyIn;
-        ivSeed = ivSeedIn;
-        data = dataIn;
-    }
-
-    bool Encrypt(size_t idx, const CBLSPublicKey& peerPubKey, const Object& obj, int nVersion)
+    bool Encrypt(const CBLSPublicKey& peerPubKey, const Object& obj, int nVersion)
     {
         try {
             CDataStream ds(SER_NETWORK, nVersion);
             ds << obj;
-            return CBLSIESEncryptedBlob::Encrypt(idx, peerPubKey, ds.data(), ds.size());
+            return CBLSIESEncryptedBlob::Encrypt(peerPubKey, ds.data(), ds.size());
         } catch (std::exception&) {
             return false;
         }
     }
 
-    bool Decrypt(size_t idx, const CBLSSecretKey& secretKey, Object& objRet, int nVersion) const
+    bool Decrypt(const CBLSSecretKey& secretKey, Object& objRet, int nVersion) const
     {
         CDataStream ds(SER_NETWORK, nVersion);
-        if (!CBLSIESEncryptedBlob::Decrypt(idx, secretKey, ds)) {
+        if (!CBLSIESEncryptedBlob::Decrypt(secretKey, ds)) {
             return false;
         }
         try {
@@ -159,11 +159,6 @@ public:
         } catch (std::exception&) {
             return false;
         }
-    }
-
-    CBLSIESEncryptedObject<Object> Get(const size_t idx)
-    {
-        return {ephemeralPubKey, ivSeed, blobs[idx]};
     }
 };
 

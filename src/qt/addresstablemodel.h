@@ -5,7 +5,7 @@
 #ifndef BITCOIN_QT_ADDRESSTABLEMODEL_H
 #define BITCOIN_QT_ADDRESSTABLEMODEL_H
 
-#include <script/standard.h>
+#include "base58.h"
 
 #include <QAbstractTableModel>
 #include <QStringList>
@@ -13,9 +13,7 @@
 class AddressTablePriv;
 class WalletModel;
 
-namespace interfaces {
-class Wallet;
-}
+class CWallet;
 
 /**
    Qt model of the address book in the core. This allows views to access and modify the address book.
@@ -25,7 +23,7 @@ class AddressTableModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    explicit AddressTableModel(WalletModel *parent = 0);
+    explicit AddressTableModel(CWallet *wallet, WalletModel *parent = 0);
     ~AddressTableModel();
 
     enum ColumnIndex {
@@ -70,6 +68,7 @@ public:
     /* Look up label for address in address book, if not found return empty string.
      */
     QString labelForAddress(const QString &address) const;
+    QString labelForAddress(const CBitcoinAddress &address) const;
     QString labelForDestination(const CTxDestination &dest) const;
 
     /* Look up row index of an address in the model.
@@ -81,6 +80,7 @@ public:
 
 private:
     WalletModel *walletModel;
+    CWallet *wallet;
     AddressTablePriv *priv;
     QStringList columns;
     EditStatus editStatus;

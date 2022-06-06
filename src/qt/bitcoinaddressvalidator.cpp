@@ -1,13 +1,12 @@
 // Copyright (c) 2011-2014 The Bitcoin Core developers
-// Copyright (c) 2014-2020 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2014-2019 The Dash Core developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <qt/bitcoinaddressvalidator.h>
-#include <qt/guiutil.h>
+#include "bitcoinaddressvalidator.h"
 
-#include <key_io.h>
+#include "base58.h"
 
 /* Base58 characters are:
      "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -18,8 +17,8 @@
   - All lower-case letters except for 'l'
 */
 
-BitcoinAddressEntryValidator::BitcoinAddressEntryValidator(QObject *parent, bool fAllowURI) :
-    QValidator(parent), fAllowURI(fAllowURI)
+BitcoinAddressEntryValidator::BitcoinAddressEntryValidator(QObject *parent) :
+    QValidator(parent)
 {
 }
 
@@ -30,10 +29,6 @@ QValidator::State BitcoinAddressEntryValidator::validate(QString &input, int &po
     // Empty address is "intermediate" input
     if (input.isEmpty())
         return QValidator::Intermediate;
-
-    if (fAllowURI && GUIUtil::validateBitcoinURI(input)) {
-        return QValidator::Acceptable;
-    }
 
     // Correction
     for (int idx = 0; idx < input.size();)
@@ -96,9 +91,9 @@ QValidator::State BitcoinAddressCheckValidator::validate(QString &input, int &po
 {
     Q_UNUSED(pos);
     // Validate the passed Yerbas address
-    if (IsValidDestinationString(input.toStdString())) {
+    CBitcoinAddress addr(input.toStdString());
+    if (addr.IsValid())
         return QValidator::Acceptable;
-    }
 
     return QValidator::Invalid;
 }

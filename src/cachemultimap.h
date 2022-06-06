@@ -1,19 +1,19 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CACHEMULTIMAP_H
-#define BITCOIN_CACHEMULTIMAP_H
+#ifndef CACHEMULTIMAP_H_
+#define CACHEMULTIMAP_H_
 
 #include <cstddef>
 #include <map>
 #include <list>
 #include <set>
 
-#include <serialize.h>
+#include "serialize.h"
 
-#include <cachemap.h>
+#include "cachemap.h"
 
 /**
  * Map like container that keeps the N most recently added items
@@ -52,13 +52,13 @@ private:
     map_t mapIndex;
 
 public:
-    explicit CacheMultiMap(size_type nMaxSizeIn = 0)
+    CacheMultiMap(size_type nMaxSizeIn = 0)
         : nMaxSize(nMaxSizeIn),
           listItems(),
           mapIndex()
     {}
 
-    explicit CacheMultiMap(const CacheMap<K,V>& other)
+    CacheMultiMap(const CacheMap<K,V>& other)
         : nMaxSize(other.nMaxSize),
           listItems(other.listItems),
           mapIndex()
@@ -246,4 +246,4 @@ private:
     }
 };
 
-#endif // BITCOIN_CACHEMULTIMAP_H
+#endif /* CACHEMULTIMAP_H_ */

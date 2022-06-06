@@ -3,7 +3,7 @@ name: Yerbas Build
 on:
   push:
     branches:
-      - master
+      - main
       - develop
   pull_request:
     branches:
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Read build.properties key for master
-        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master'}}
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main'}}
         id: release-version
         uses: christian-draeger/read-properties@1.0.1
         with:
@@ -38,7 +38,7 @@ jobs:
           path: build.properties
           property: 'snapshot-version'
       - name: create version
-        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master'}}
+        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main'}}
         run: |
           echo "BUILD_VERSION=${{ steps.release-version.outputs.value }}" > version.txt
       - name: create snapshot version
@@ -193,7 +193,7 @@ jobs:
       - name: configure
         run: |
           ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin19.6.0
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11
       - name: build binary
         run: |
           make -j8
@@ -232,7 +232,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
-          path: Yerbas-Qt.dmg
+          path: yerbas-Qt.dmg
   build-win:
     name: window build
     needs: checking-build-version
@@ -292,5 +292,121 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-win-${{ env.BUILD_VERSION }}
+          path: ${{ env.COMPRESS_DIR }}
+  build-arm-32:
+    name: arm 32 bit build
+    needs: checking-build-version
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Getting Version
+        uses: actions/download-artifact@v1
+        with:
+          name: version
+      - name: Extract version
+        run: |
+          cat version/version.txt >> $GITHUB_ENV
+      - name: Install Required Packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt-get install curl build-essential libtool g++-arm-linux-gnueabihf autotools-dev automake pkg-config python3 bsdmainutils cmake
+      - name: build depends
+        run: |
+          echo "building with $(nproc) threads"
+          make -C depends -j$(nproc) HOST=arm-linux-gnueabihf
+      - name: configure
+        run: |
+          ./autogen.sh
+          ./configure --prefix=`pwd`/depends/arm-linux-gnueabihf
+      - name: build binary
+        run: |
+          make -j$(nproc)
+          mkdir -p $BUILD_DIR
+          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+      - name: generate checksum and compress binary
+        run: |
+          echo "buildng $BUILD_VERSION version"
+          cd $BUILD_DIR
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
+          cat checksums.txt
+          cd ..
+          tar -cvzf ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          mkdir -p ${COMPRESS_DIR}
+          mv ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
+          cd ${COMPRESS_DIR}
+          echo "sha256: `shasum ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz`" >> checksums.txt
+          cat checksums.txt
+          cd ..
+      - name: Upload Binary Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-arm32-${{ env.BUILD_VERSION }}
+          path: ${{ env.COMPRESS_DIR }}
+  build-arm-64:
+    name: arm 64 bit build
+    needs: checking-build-version
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Getting Version
+        uses: actions/download-artifact@v1
+        with:
+          name: version
+      - name: Extract version
+        run: |
+          cat version/version.txt >> $GITHUB_ENV
+      - name: Install Required Packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt-get install curl build-essential libtool g++-aarch64-linux-gnu autotools-dev automake pkg-config python3 bsdmainutils cmake
+      - name: build depends
+        run: |
+          echo "building with $(nproc) threads"
+          make -C depends -j$(nproc) HOST=aarch64-linux-gnu
+      - name: configure
+        run: |
+          ./autogen.sh
+          ./configure --prefix=`pwd`/depends/aarch64-linux-gnu
+      - name: build binary
+        run: |
+          make -j$(nproc)
+          mkdir -p $BUILD_DIR
+          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+      - name: generate checksum and compress binary
+        run: |
+          echo "buildng $BUILD_VERSION version"
+          cd $BUILD_DIR
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
+          cat checksums.txt
+          cd ..
+          tar -cvzf ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          mkdir -p ${COMPRESS_DIR}
+          mv ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
+          cd ${COMPRESS_DIR}
+          echo "sha256: `shasum ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz`" >> checksums.txt
+          cat checksums.txt
+          cd ..
+      - name: Upload Binary Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-arm64-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
 

@@ -1,12 +1,12 @@
 /*
- * Copyright (c) 2022 The Yerbas Endeavor developers
+ * Copyright (c) 2020 The Yerbas developers
  * Distributed under the MIT/X11 software license, see the accompanying
  * file COPYING or http://www.opensource.org/licenses/mit-license.php.
  *
  *      Author: tri
  */
 
-#include <amount.h>
+#include "amount.h"
 #include <vector>
 #include <unordered_map>
 using namespace std;
@@ -34,9 +34,8 @@ public:
 	SmartnodeCollaterals(vector<Collateral> collaterals = {}, vector<RewardPercentage> rewardPercentages = {});
 	CAmount getCollateral(int height) const;
 	bool isValidCollateral(CAmount collateralAmount) const;
-	bool isPayableCollateral(int height,CAmount collateralAmount) const;
+	bool isPayableCollateral(int height,CAmount collateralAnount) const;
 	int getRewardPercentage(int height) const;
-	void printCollateral() const;
 	virtual ~SmartnodeCollaterals();
 };
 

@@ -5,13 +5,11 @@
 #ifndef BITCOIN_QT_BITCOINAMOUNTFIELD_H
 #define BITCOIN_QT_BITCOINAMOUNTFIELD_H
 
-#include <amount.h>
+#include "amount.h"
 
-#include <QValidator>
 #include <QWidget>
 
-class AmountLineEdit;
-class BitcoinUnits;
+class AmountSpinBox;
 
 QT_BEGIN_NAMESPACE
 class QValueComboBox;
@@ -32,6 +30,9 @@ public:
 
     CAmount value(bool *value=0) const;
     void setValue(const CAmount& value);
+
+    /** Set single step in satoshis **/
+    void setSingleStep(const CAmount& step);
 
     /** Make read-only **/
     void setReadOnly(bool fReadOnly);
@@ -63,10 +64,12 @@ protected:
     bool eventFilter(QObject *object, QEvent *event);
 
 private:
-    AmountLineEdit *amount;
-    BitcoinUnits *units;
+    AmountSpinBox *amount;
+    QValueComboBox *unit;
 
+private Q_SLOTS:
     void unitChanged(int idx);
+
 };
 
 #endif // BITCOIN_QT_BITCOINAMOUNTFIELD_H

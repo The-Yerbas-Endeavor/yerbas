@@ -5,13 +5,11 @@
 #ifndef BITCOIN_QT_GUIUTIL_H
 #define BITCOIN_QT_GUIUTIL_H
 
-#include <amount.h>
-#include <fs.h>
-#include <qt/guiconstants.h>
+#include "amount.h"
+#include "fs.h"
 
 #include <QEvent>
 #include <QHeaderView>
-#include <QItemDelegate>
 #include <QMessageBox>
 #include <QObject>
 #include <QProgressBar>
@@ -20,19 +18,10 @@
 #include <QLabel>
 
 class QValidatedLineEdit;
-class OptionsModel;
 class SendCoinsRecipient;
-class SendFuturesRecipient;
-
-namespace interfaces
-{
-class Node;
-}
 
 QT_BEGIN_NAMESPACE
-class QAbstractButton;
 class QAbstractItemView;
-class QButtonGroup;
 class QDateTime;
 class QFont;
 class QLineEdit;
@@ -50,30 +39,18 @@ namespace GUIUtil
         DEFAULT,
         /* Transaction list -- unconfirmed transaction */
         UNCONFIRMED,
-        /* Theme related blue color */
-        BLUE,
-        /* Eye-friendly orange color */
-        ORANGE,
-        /* Eye-friendly red color, e.g. Transaction list -- negative amount */
-        RED,
-        /* Eye-friendly green color */
-        GREEN,
+        /* Transaction list -- negative amount */
+        NEGATIVE,
         /* Transaction list -- bare address (without label) */
         BAREADDRESS,
         /* Transaction list -- TX status decoration - open until date */
         TX_STATUS_OPENUNTILDATE,
-        /* Background used for some widgets. Its slightly darker than the wallets frame background. */
-        BACKGROUND_WIDGET,
-        /* Border color used for some widgets. Its slightly brighter than BACKGROUND_WIDGET. */
-        BORDER_WIDGET,
-        /* Border color of network statistics overlay in debug window. */
-        BORDER_NETSTATS,
-        /* Background color of network statistics overlay in debug window. */
-        BACKGROUND_NETSTATS,
-        /* Pixel color of generated QR codes. */
-        QR_PIXEL,
-        /* Alternative color for black/white icons. White part will be filled with this color by default. */
-        ICON_ALTERNATIVE_COLOR,
+        /* Transaction list -- TX status decoration - offline */
+        TX_STATUS_OFFLINE,
+        /* Transaction list -- TX status decoration - danger, tx needs attention */
+        TX_STATUS_DANGER,
+        /* Transaction list -- TX status decoration - LockedByInstantSend color */
+        TX_STATUS_LOCKED,
     };
 
     /* Enumeration of possible "styles" */
@@ -97,32 +74,24 @@ namespace GUIUtil
     /** Helper to get css style strings which are injected into rich text through qt */
     QString getThemedStyleQString(ThemedStyle style);
 
-    /** Helper to get an icon colorized with the given color (replaces black) and colorAlternative (replaces white)  */
-    QIcon getIcon(const QString& strIcon, ThemedColor color, ThemedColor colorAlternative, const QString& strIconPath = ICONS_PATH);
-    QIcon getIcon(const QString& strIcon, ThemedColor color = ThemedColor::BLUE, const QString& strIconPath = ICONS_PATH);
-
-    /** Helper to set an icon for a button with the given color (replaces black) and colorAlternative (replaces white). */
-    void setIcon(QAbstractButton* button, const QString& strIcon, ThemedColor color, ThemedColor colorAlternative, const QSize& size);
-    void setIcon(QAbstractButton* button, const QString& strIcon, ThemedColor color = ThemedColor::BLUE, const QSize& size = QSize(BUTTON_ICONSIZE, BUTTON_ICONSIZE));
-
     // Create human-readable string from date
     QString dateTimeStr(const QDateTime &datetime);
     QString dateTimeStr(qint64 nTime);
 
-    // Set up widget for address
-    void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent, bool fAllowURI = false);
+    // Return a monospace font
+    QFont fixedPitchFont();
 
-    // Setup appearance settings if not done yet
-    void setupAppearance(QWidget* parent, OptionsModel* model);
+    // Set up widgets for address and amounts
+    void setupAddressWidget(QValidatedLineEdit *widget, QWidget *parent);
+    void setupAmountWidget(QLineEdit *widget, QWidget *parent);
 
     // Parse "yerbas:" URI into recipient object, return true on successful parsing
     bool parseBitcoinURI(const QUrl &uri, SendCoinsRecipient *out);
     bool parseBitcoinURI(QString uri, SendCoinsRecipient *out);
-    bool validateBitcoinURI(const QString& uri);
     QString formatBitcoinURI(const SendCoinsRecipient &info);
 
     // Returns true if given address+amount meets "dust" definition
-    bool isDust(interfaces::Node& node, const QString& address, const CAmount& amount);
+    bool isDust(const QString& address, const CAmount& amount);
 
     // HTML escaping for rich text controls
     QString HtmlEscape(const QString& str, bool fMultiLine=false);
@@ -182,17 +151,17 @@ namespace GUIUtil
     // Determine whether a widget is hidden behind other windows
     bool isObscured(QWidget *w);
 
-    // Activate, show and raise the widget
-    void bringToFront(QWidget* w);
-
     // Open debug.log
     void openDebugLogfile();
-
+	
     // Open yerbas.conf
-    void openConfigfile();
+    void openConfigfile();	
 
     // Browse backup folder
     void showBackups();
+
+    // Replace invalid default fonts with known good ones
+    void SubstituteFonts(const QString& language);
 
     /** Qt event filter that intercepts ToolTipChange events, and replaces the tooltip with a rich text
       representation if needed. This assures that Qt can word-wrap long tooltip messages.
@@ -216,7 +185,7 @@ namespace GUIUtil
      * Makes a QTableView last column feel as if it was being resized from its left border.
      * Also makes sure the column widths are never larger than the table's viewport.
      * In Qt, all columns are resizable from the right, but it's not intuitive resizing the last column from the right.
-     * Usually our second to last columns behave as if stretched, and when on stretch mode, columns aren't resizable
+     * Usually our second to last columns behave as if stretched, and when on strech mode, columns aren't resizable
      * interactively or programmatically.
      *
      * This helper object takes care of this issue.
@@ -254,131 +223,11 @@ namespace GUIUtil
     bool GetStartOnSystemStartup();
     bool SetStartOnSystemStartup(bool fAutoStart);
 
-    /** Change the stylesheet directory. This is used by
-        the parameter -custom-css-dir.*/
-    void setStyleSheetDirectory(const QString& path);
+    /** Modify Qt network specific settings on migration */
+    void migrateQtSettings();
 
-    /** Check if a custom css directory has been set with -custom-css-dir */
-    bool isStyleSheetDirectoryCustom();
-
-    /** Return a list of all required css files */
-    const std::vector<QString> listStyleSheets();
-
-    /** Return a list of all theme css files */
-    const std::vector<QString> listThemes();
-
-    /** Return the name of the default theme `*/
-    const QString getDefaultTheme();
-
-    /** Check if the given theme name is valid or not */
-    const bool isValidTheme(const QString& strTheme);
-
-    /** Sets the stylesheet of the whole app and updates it if the
-    related css files has been changed and -debug-ui mode is active. */
-    void loadStyleSheet(bool fForceUpdate = false);
-
-    enum class FontFamily {
-        SystemDefault,
-        Montserrat,
-    };
-
-    FontFamily fontFamilyFromString(const QString& strFamily);
-    QString fontFamilyToString(FontFamily family);
-
-    /** set/get font family: GUIUtil::fontFamily */
-    FontFamily getFontFamilyDefault();
-    FontFamily getFontFamily();
-    void setFontFamily(FontFamily family);
-
-    enum class FontWeight {
-        Normal, // Font weight for normal text
-        Bold,   // Font weight for bold text
-    };
-
-    /** Convert weight value from args (0-8) to QFont::Weight */
-    bool weightFromArg(int nArg, QFont::Weight& weight);
-    /** Convert QFont::Weight to an arg value (0-8) */
-    int weightToArg(const QFont::Weight weight);
-    /** Convert GUIUtil::FontWeight to QFont::Weight */
-    QFont::Weight toQFontWeight(FontWeight weight);
-
-    /** set/get normal font weight: GUIUtil::fontWeightNormal */
-    QFont::Weight getFontWeightNormalDefault();
-    QFont::Weight getFontWeightNormal();
-    void setFontWeightNormal(QFont::Weight weight);
-
-    /** set/get bold font weight: GUIUtil::fontWeightBold */
-    QFont::Weight getFontWeightBoldDefault();
-    QFont::Weight getFontWeightBold();
-    void setFontWeightBold(QFont::Weight weight);
-
-    /** set/get font scale: GUIUtil::fontScale */
-    int getFontScaleDefault();
-    int getFontScale();
-    void setFontScale(int nScale);
-
-    /** get font size with GUIUtil::fontScale applied */
-    double getScaledFontSize(int nSize);
-
-    /** Load yerbas specific appliciation fonts */
-    bool loadFonts();
-    /** Check if the fonts have been loaded successfully */
-    bool fontsLoaded();
-
-    /** Set an application wide default font, depends on the selected theme */
-    void setApplicationFont();
-
-    /** Workaround to set correct font styles in all themes since there is a bug in macOS which leads to
-        issues loading variations of montserrat in css it also keeps track of the set fonts to update on
-        theme changes. */
-    void setFont(const std::vector<QWidget*>& vecWidgets, FontWeight weight, int nPointSize = -1, bool fItalic = false);
-
-    /** Update the font of all widgets where a custom font has been set with
-        GUIUtil::setFont */
-    void updateFonts();
-
-    /** Get a properly weighted QFont object with the selected font. */
-    QFont getFont(FontFamily family, QFont::Weight qWeight, bool fItalic = false, int nPointSize = -1);
-    QFont getFont(QFont::Weight qWeight, bool fItalic = false, int nPointSize = -1);
-    QFont getFont(FontWeight weight, bool fItalic = false, int nPointSize = -1);
-
-    /** Get the default normal QFont */
-    QFont getFontNormal();
-
-    /** Get the default bold QFont */
-    QFont getFontBold();
-
-    /** Return supported normal default for the current font family */
-    QFont::Weight getSupportedFontWeightNormalDefault();
-    /** Return supported bold default for the current font family */
-    QFont::Weight getSupportedFontWeightBoldDefault();
-    /** Return supported weights for the current font family */
-    std::vector<QFont::Weight> getSupportedWeights();
-    /** Convert an index to a weight in the supported weights vector */
-    QFont::Weight supportedWeightFromIndex(int nIndex);
-    /** Convert a weight to an index in the supported weights vector */
-    int supportedWeightToIndex(QFont::Weight weight);
-    /** Check if a weight is supported by the current font family */
-    bool isSupportedWeight(QFont::Weight weight);
-
-    /** Return the name of the currently active theme.*/
-    QString getActiveTheme();
-
-    /** Check if a yerbas specific theme is activated (light/dark).*/
-    bool yerbasThemeActive();
-
-    /** Load the theme and update all UI elements according to the appearance settings. */
-    void loadTheme(bool fForce = false);
-
-    /** Disable the OS default focus rect for macOS because we have custom focus rects
-     * set in the css files */
-    void disableMacFocusRect(const QWidget* w);
-
-    /** Enable/Disable the macOS focus rects depending on the current theme. */
-    void updateMacFocusRects();
-
-    /** Update shortcuts for individual buttons in QButtonGroup based on their visibility. */
-    void updateButtonGroupShortcuts(QButtonGroup* buttonGroup);
+    /** Load global CSS theme */
+    QString loadStyleSheet();
 
     /* Convert QString to OS specific boost path through UTF-8 */
     fs::path qstringToBoostPath(const QString &path);
@@ -400,10 +249,6 @@ namespace GUIUtil
 
     QString formatNiceTimeOffset(qint64 secs);
 
-    QString formatBytes(uint64_t bytes);
-
-    qreal calculateIdealFontSize(int width, const QString& text, QFont font, qreal minPointSize = 4, qreal startPointSize = 14);
-
     class ClickableLabel : public QLabel
     {
         Q_OBJECT
@@ -416,11 +261,11 @@ namespace GUIUtil
     protected:
         void mouseReleaseEvent(QMouseEvent *event);
     };
-
+    
     class ClickableProgressBar : public QProgressBar
     {
         Q_OBJECT
-
+        
     Q_SIGNALS:
         /** Emitted when the progressbar is clicked. The relative mouse coordinates of the click are
          * passed to the signal.
@@ -430,20 +275,20 @@ namespace GUIUtil
         void mouseReleaseEvent(QMouseEvent *event);
     };
 
-    typedef ClickableProgressBar ProgressBar;
-
-    class ItemDelegate : public QItemDelegate
+#if defined(Q_OS_MAC) && QT_VERSION >= 0x050000
+    // workaround for Qt OSX Bug:
+    // https://bugreports.qt-project.org/browse/QTBUG-15631
+    // QProgressBar uses around 10% CPU even when app is in background
+    class ProgressBar : public ClickableProgressBar
     {
-        Q_OBJECT
-    public:
-        ItemDelegate(QObject* parent) : QItemDelegate(parent) {}
-
-    Q_SIGNALS:
-        void keyEscapePressed();
-
-    private:
-        bool eventFilter(QObject *object, QEvent *event);
+        bool event(QEvent *e) {
+            return (e->type() != QEvent::StyleAnimationUpdate) ? QProgressBar::event(e) : false;
+        }
     };
+#else
+    typedef ClickableProgressBar ProgressBar;
+#endif
+
 } // namespace GUIUtil
 
 #endif // BITCOIN_QT_GUIUTIL_H

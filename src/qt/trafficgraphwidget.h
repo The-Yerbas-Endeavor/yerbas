@@ -5,7 +5,7 @@
 #ifndef BITCOIN_QT_TRAFFICGRAPHWIDGET_H
 #define BITCOIN_QT_TRAFFICGRAPHWIDGET_H
 
-#include <qt/trafficgraphdata.h>
+#include "trafficgraphdata.h"
 
 #include <boost/function.hpp>
 

@@ -3,9 +3,15 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <keystore.h>
+#include "keystore.h"
 
-#include <util.h>
+#include "key.h"
+#include "pubkey.h"
+#include "util.h"
+
+bool CKeyStore::AddKey(const CKey &key) {
+    return AddKeyPubKey(key, key.GetPubKey());
+}
 
 bool CBasicKeyStore::GetPubKey(const CKeyID &address, CPubKey &vchPubKeyOut) const
 {
@@ -30,33 +36,6 @@ bool CBasicKeyStore::AddKeyPubKey(const CKey& key, const CPubKey &pubkey)
     return true;
 }
 
-bool CBasicKeyStore::HaveKey(const CKeyID &address) const
-{
-    LOCK(cs_KeyStore);
-    return mapKeys.count(address) > 0;
-}
-
-std::set<CKeyID> CBasicKeyStore::GetKeys() const
-{
-    LOCK(cs_KeyStore);
-    std::set<CKeyID> set_address;
-    for (const auto& mi : mapKeys) {
-        set_address.insert(mi.first);
-    }
-    return set_address;
-}
-
-bool CBasicKeyStore::GetKey(const CKeyID &address, CKey &keyOut) const
-{
-    LOCK(cs_KeyStore);
-    KeyMap::const_iterator mi = mapKeys.find(address);
-    if (mi != mapKeys.end()) {
-        keyOut = mi->second;
-        return true;
-    }
-    return false;
-}
-
 bool CBasicKeyStore::AddCScript(const CScript& redeemScript)
 {
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE)
@@ -71,16 +50,6 @@ bool CBasicKeyStore::HaveCScript(const CScriptID& hash) const
 {
     LOCK(cs_KeyStore);
     return mapScripts.count(hash) > 0;
-}
-
-std::set<CScriptID> CBasicKeyStore::GetCScripts() const
-{
-    LOCK(cs_KeyStore);
-    std::set<CScriptID> set_script;
-    for (const auto& mi : mapScripts) {
-        set_script.insert(mi.first);
-    }
-    return set_script;
 }
 
 bool CBasicKeyStore::GetCScript(const CScriptID &hash, CScript& redeemScriptOut) const
@@ -101,7 +70,7 @@ static bool ExtractPubKey(const CScript &dest, CPubKey& pubKeyOut)
     CScript::const_iterator pc = dest.begin();
     opcodetype opcode;
     std::vector<unsigned char> vch;
-    if (!dest.GetOp(pc, opcode, vch) || !CPubKey::ValidSize(vch))
+    if (!dest.GetOp(pc, opcode, vch) || vch.size() < 33 || vch.size() > 65)
         return false;
     pubKeyOut = CPubKey(vch);
     if (!pubKeyOut.IsFullyValid())
@@ -145,7 +114,6 @@ bool CBasicKeyStore::HaveWatchOnly() const
 
 bool CBasicKeyStore::GetHDChain(CHDChain& hdChainRet) const
 {
-    LOCK(cs_KeyStore);
     hdChainRet = hdChain;
     return !hdChain.IsNull();
 }

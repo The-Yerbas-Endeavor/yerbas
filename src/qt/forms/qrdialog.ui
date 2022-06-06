@@ -13,6 +13,12 @@
   <layout class="QVBoxLayout" name="verticalLayout_3">
    <item>
     <widget class="QLabel" name="labelQRCodeTitle">
+     <property name="font">
+      <font>
+       <weight>75</weight>
+       <bold>true</bold>
+      </font>
+     </property>
      <property name="text">
       <string>QR-Code Title</string>
      </property>
@@ -117,7 +123,7 @@
   <customwidget>
    <class>QRGeneralImageWidget</class>
    <extends>QLabel</extends>
-   <header>qt/qrdialog.h</header>
+   <header>qrdialog.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

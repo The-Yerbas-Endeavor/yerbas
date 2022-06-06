@@ -4,8 +4,8 @@
  * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
-#ifndef SECP256K1_UTIL_H
-#define SECP256K1_UTIL_H
+#ifndef _SECP256K1_UTIL_H_
+#define _SECP256K1_UTIL_H_
 
 #if defined HAVE_CONFIG_H
 #include "libsecp256k1-config.h"
@@ -36,7 +36,7 @@ static SECP256K1_INLINE void secp256k1_callback_call(const secp256k1_callback * 
 } while(0)
 #endif
 
-#if SECP256K1_GNUC_PREREQ(3, 0)
+#ifdef HAVE_BUILTIN_EXPECT
 #define EXPECT(x,c) __builtin_expect((x),(c))
 #else
 #define EXPECT(x,c) (x)
@@ -70,14 +70,6 @@ static SECP256K1_INLINE void secp256k1_callback_call(const secp256k1_callback * 
 
 static SECP256K1_INLINE void *checked_malloc(const secp256k1_callback* cb, size_t size) {
     void *ret = malloc(size);
-    if (ret == NULL) {
-        secp256k1_callback_call(cb, "Out of memory");
-    }
-    return ret;
-}
-
-static SECP256K1_INLINE void *checked_realloc(const secp256k1_callback* cb, void *ptr, size_t size) {
-    void *ret = realloc(ptr, size);
     if (ret == NULL) {
         secp256k1_callback_call(cb, "Out of memory");
     }
@@ -118,4 +110,4 @@ static SECP256K1_INLINE void *checked_realloc(const secp256k1_callback* cb, void
 SECP256K1_GNUC_EXT typedef unsigned __int128 uint128_t;
 #endif
 
-#endif /* SECP256K1_UTIL_H */
+#endif

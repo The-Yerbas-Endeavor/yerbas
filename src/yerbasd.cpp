@@ -1,27 +1,27 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
-// Copyright (c) 2014-2021 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2014-2019 The Dash Core developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/yerbas-config.h>
+#include "config/yerbas-config.h"
 #endif
 
-#include <chainparams.h>
-#include <clientversion.h>
-#include <compat.h>
-#include <fs.h>
-#include <rpc/server.h>
-#include <init.h>
-#include <noui.h>
-#include <util.h>
-#include <httpserver.h>
-#include <httprpc.h>
-#include <utilstrencodings.h>
-#include <walletinitinterface.h>
-#include <stacktraces.h>
+#include "chainparams.h"
+#include "clientversion.h"
+#include "compat.h"
+#include "fs.h"
+#include "rpc/server.h"
+#include "init.h"
+#include "noui.h"
+#include "scheduler.h"
+#include "util.h"
+#include "httpserver.h"
+#include "httprpc.h"
+#include "utilstrencodings.h"
+#include "stacktraces.h"
 
 #include <boost/thread.hpp>
 
@@ -43,13 +43,20 @@
  * Use the buttons <code>Namespaces</code>, <code>Classes</code> or <code>Files</code> at the top of the page to start navigating the code.
  */
 
-void WaitForShutdown()
+void WaitForShutdown(boost::thread_group* threadGroup)
 {
-    while (!ShutdownRequested())
+    bool fShutdown = ShutdownRequested();
+    // Tell the main threads to shutdown.
+    while (!fShutdown)
     {
         MilliSleep(200);
+        fShutdown = ShutdownRequested();
     }
-    Interrupt();
+    if (threadGroup)
+    {
+        Interrupt(*threadGroup);
+        threadGroup->join_all();
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -58,16 +65,15 @@ void WaitForShutdown()
 //
 bool AppInit(int argc, char* argv[])
 {
+    boost::thread_group threadGroup;
+    CScheduler scheduler;
+
     bool fRet = false;
 
     //
     // Parameters
     //
-    // If Qt is used, parameters/yerbas.conf are parsed in qt/dash.cpp's main()
-    SetupServerArgs();
-#if HAVE_DECL_DAEMON
-    gArgs.AddArg("-daemon", "Run in the background as a daemon and accept commands", false, OptionsCategory::OPTIONS);
-#endif
+    // If Qt is used, parameters/yerbas.conf are parsed in qt/yerbas.cpp's main()
     gArgs.ParseParameters(argc, argv);
 
     if (gArgs.IsArgSet("-printcrashinfo")) {
@@ -78,7 +84,7 @@ bool AppInit(int argc, char* argv[])
     // Process help and version before taking care about datadir
     if (gArgs.IsArgSet("-?") || gArgs.IsArgSet("-h") ||  gArgs.IsArgSet("-help") || gArgs.IsArgSet("-version"))
     {
-        std::string strUsage = strprintf("%s Daemon", PACKAGE_NAME) + " version " + FormatFullVersion() + "\n";
+        std::string strUsage = strprintf(_("%s Daemon"), _(PACKAGE_NAME)) + " " + _("version") + " " + FormatFullVersion() + "\n";
 
         if (gArgs.IsArgSet("-version"))
         {
@@ -86,10 +92,10 @@ bool AppInit(int argc, char* argv[])
         }
         else
         {
-            strUsage += "\nUsage:\n"
-                  "  yerbasd [options]                     " + strprintf("Start %s Daemon", PACKAGE_NAME) + "\n";
+            strUsage += "\n" + _("Usage:") + "\n" +
+                  "  yerbasd [options]                     " + strprintf(_("Start %s Daemon"), _(PACKAGE_NAME)) + "\n";
 
-            strUsage += "\n" + gArgs.GetHelpMessage();
+            strUsage += "\n" + HelpMessage(HMM_BITCOIND);
         }
 
         fprintf(stdout, "%s", strUsage.c_str());
@@ -118,7 +124,7 @@ bool AppInit(int argc, char* argv[])
         }
         // Check for -testnet or -regtest parameter (Params() calls are only valid after this clause)
         try {
-            SelectParams(gArgs.GetChainName());
+            SelectParams(ChainNameFromCommandLine());
         } catch (const std::exception& e) {
             fprintf(stderr, "Error: %s\n", e.what());
             return false;
@@ -128,11 +134,11 @@ bool AppInit(int argc, char* argv[])
         for (int i = 1; i < argc; i++) {
             if (!IsSwitchChar(argv[i][0])) {
                 fprintf(stderr, "Error: Command line contains unexpected token '%s', see yerbasd -h for a list of options.\n", argv[i]);
-                return false;
+                exit(EXIT_FAILURE);
             }
         }
 
-        // -server defaults to true for yerbasd but not for the GUI so do this here
+        // -server defaults to true for bitcoind but not for the GUI so do this here
         gArgs.SoftSetBoolArg("-server", true);
         // Set this early so that parameter interactions go to console
         InitLogging();
@@ -140,25 +146,21 @@ bool AppInit(int argc, char* argv[])
         if (!AppInitBasicSetup())
         {
             // InitError will have been called with detailed error, which ends up on console
-            return false;
+            exit(EXIT_FAILURE);
         }
         if (!AppInitParameterInteraction())
         {
             // InitError will have been called with detailed error, which ends up on console
-            return false;
+            exit(EXIT_FAILURE);
         }
         if (!AppInitSanityChecks())
         {
             // InitError will have been called with detailed error, which ends up on console
-            return false;
+            exit(EXIT_FAILURE);
         }
         if (gArgs.GetBoolArg("-daemon", false))
         {
 #if HAVE_DECL_DAEMON
-#if defined(MAC_OSX)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
             fprintf(stdout, "Yerbas Core server starting\n");
 
             // Daemonize
@@ -166,9 +168,6 @@ bool AppInit(int argc, char* argv[])
                 fprintf(stderr, "Error: daemon() failed: %s\n", strerror(errno));
                 return false;
             }
-#if defined(MAC_OSX)
-#pragma GCC diagnostic pop
-#endif
 #else
             fprintf(stderr, "Error: -daemon is not supported on this operating system\n");
             return false;
@@ -178,18 +177,19 @@ bool AppInit(int argc, char* argv[])
         if (!AppInitLockDataDirectory())
         {
             // If locking the data directory failed, exit immediately
-            return false;
+            exit(EXIT_FAILURE);
         }
-        fRet = AppInitMain();
+        fRet = AppInitMain(threadGroup, scheduler);
     } catch (...) {
         PrintExceptionContinue(std::current_exception(), "AppInit()");
     }
 
     if (!fRet)
     {
-        Interrupt();
+        Interrupt(threadGroup);
+        threadGroup.join_all();
     } else {
-        WaitForShutdown();
+        WaitForShutdown(&threadGroup);
     }
     Shutdown();
 

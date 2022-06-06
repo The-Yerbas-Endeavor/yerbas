@@ -2,12 +2,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <script/script.h>
-#include <test/test_yerbas.h>
+#include "script/script.h"
+#include "test/test_yerbas.h"
 
 #include <boost/test/unit_test.hpp>
 
-BOOST_FIXTURE_TEST_SUITE(script_p2pkh_tests, BasicTestingSetup)
+BOOST_FIXTURE_TEST_SUITE(script_P2PKH_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(IsPayToPublicKeyHash)
 {

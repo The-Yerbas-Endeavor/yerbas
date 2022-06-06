@@ -1,4 +1,4 @@
-# TOR SUPPORT IN YERBAS CORE
+TOR SUPPORT IN YERBAS CORE
 =======================
 
 It is possible to run Yerbas Core as a Tor hidden service, and connect to such services.
@@ -10,7 +10,7 @@ See [Tor Project FAQ:TBBSocksPort](https://www.torproject.org/docs/faq.html.en#T
 for how to properly configure Tor.
 
 
-## 1. Run Yerbas Core behind a Tor proxy
+1. Run Yerbas Core behind a Tor proxy
 ----------------------------------
 
 The first step is running Yerbas Core behind a Tor proxy. This will already make all
@@ -44,13 +44,12 @@ In a typical situation, this suffices to run behind a Tor proxy:
 	./yerbasd -proxy=127.0.0.1:9050
 
 
-## 2. Run a Yerbas Core hidden server
+2. Run a Yerbas Core hidden server
 -------------------------------
 
 If you configure your Tor system accordingly, it is possible to make your node also
 reachable from the Tor network. Add these lines to your /etc/tor/torrc (or equivalent
-config file): *Needed for Tor version 0.2.7.0 and older versions of Tor only. For newer
-versions of Tor see [Section 4](#4-automatically-listen-on-tor).*
+config file):
 
 	HiddenServiceDir /var/lib/tor/yerbascore-service/
 	HiddenServicePort 9999 127.0.0.1:9999
@@ -100,7 +99,7 @@ for normal IPv4/IPv6 communication, use:
 	./yerbasd -onion=127.0.0.1:9050 -externalip=ssapp53tmftyjmjb.onion -discover
 
 
-## 3. List of known Yerbas Core Tor relays
+3. List of known Yerbas Core Tor relays
 ------------------------------------
 
 Note: All these nodes are hosted by smartnodehosting.com
@@ -117,14 +116,15 @@ Note: All these nodes are hosted by smartnodehosting.com
 * fijy6aikzxfea54i.onion
 
 
-## 4. Automatically listen on Tor
+4. Automatically listen on Tor
+--------------------------------
 
 Starting with Tor version 0.2.7.1 it is possible, through Tor's control socket
 API, to create and destroy 'ephemeral' hidden services programmatically.
 Yerbas Core has been updated to make use of this.
 
 This means that if Tor is running (and proper authentication has been configured),
-Yerbas Core automatically creates a hidden service to listen on. This will positively
+Yerbas Core automatically creates a hidden service to listen on. This will positively 
 affect the number of available .onion nodes.
 
 This new feature is enabled by default if Yerbas Core is listening (`-listen`), and
@@ -132,20 +132,21 @@ requires a Tor connection to work. It can be explicitly disabled with `-listenon
 and, if not disabled, configured using the `-torcontrol` and `-torpassword` settings.
 To show verbose debugging information, pass `-debug=tor`.
 
-Connecting to Tor's control socket API requires one of two authentication methods to be
-configured. For cookie authentication the user running yerbasd must have write access
-to the `CookieAuthFile` specified in Tor configuration. In some cases this is
-preconfigured and the creation of a hidden service is automatic. If permission problems
-are seen with `-debug=tor` they can be resolved by adding both the user running tor and
-the user running yerbasd to the same group and setting permissions appropriately. On
-Debian-based systems the user running yerbasd can be added to the debian-tor group,
-which has the appropriate permissions. An alternative authentication method is the use
-of the `-torpassword` flag and a `hash-password` which can be enabled and specified in
+Connecting to Tor's control socket API requires one of two authentication methods to be 
+configured. For cookie authentication the user running yerbasd must have write access 
+to the `CookieAuthFile` specified in Tor configuration. In some cases this is 
+preconfigured and the creation of a hidden service is automatic. If permission problems 
+are seen with `-debug=tor` they can be resolved by adding both the user running tor and 
+the user running yerbasd to the same group and setting permissions appropriately. On 
+Debian-based systems the user running yerbasd can be added to the debian-tor group, 
+which has the appropriate permissions. An alternative authentication method is the use 
+of the `-torpassword` flag and a `hash-password` which can be enabled and specified in 
 Tor configuration.
 
-## 5. Privacy recommendations
+5. Privacy recommendations
+---------------------------
 
-- Do not add anything but Yerbas Core ports to the hidden service created in section 2.
+- Do not add anything but bitcoin ports to the hidden service created in section 2.
   If you run a web service too, create a new hidden service for that.
   Otherwise it is trivial to link them, which may reduce privacy. Hidden
   services created automatically (as in section 3) always have only one port

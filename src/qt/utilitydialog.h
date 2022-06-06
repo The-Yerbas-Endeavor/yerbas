@@ -10,10 +10,6 @@
 
 class BitcoinGUI;
 
-namespace interfaces {
-    class Node;
-}
-
 namespace Ui {
     class HelpMessageDialog;
 }
@@ -30,7 +26,7 @@ public:
         pshelp
     };
 
-    explicit HelpMessageDialog(interfaces::Node& node, QWidget *parent, HelpMode helpMode);
+    explicit HelpMessageDialog(QWidget *parent, HelpMode helpMode);
     ~HelpMessageDialog();
 
     void printToConsole();
@@ -51,8 +47,8 @@ class ShutdownWindow : public QWidget
     Q_OBJECT
 
 public:
-    explicit ShutdownWindow(interfaces::Node& node, QWidget *parent=0, Qt::WindowFlags f=0);
-    static QWidget *showShutdownWindow(interfaces::Node& node, BitcoinGUI *window);
+    ShutdownWindow(QWidget *parent=0, Qt::WindowFlags f=0);
+    static QWidget *showShutdownWindow(BitcoinGUI *window);
 
 protected:
     void closeEvent(QCloseEvent *event);

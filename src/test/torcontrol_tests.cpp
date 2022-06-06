@@ -2,18 +2,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 //
-#include <test/test_yerbas.h>
-#include <torcontrol.h>
+#include "test/test_yerbas.h"
+#include "torcontrol.cpp"
 
 #include <boost/test/unit_test.hpp>
-
-#include <map>
-#include <string>
-#include <utility>
-
-
-std::pair<std::string, std::string> SplitTorReplyLine(const std::string& s);
-std::map<std::string, std::string> ParseTorReplyMapping(const std::string& s);
 
 
 BOOST_FIXTURE_TEST_SUITE(torcontrol_tests, BasicTestingSetup)

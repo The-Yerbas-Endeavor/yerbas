@@ -3,63 +3,51 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/yerbas-config.h>
+#include "config/yerbas-config.h"
 #endif
 
-#include <qt/optionsdialog.h>
-#include <qt/forms/ui_optionsdialog.h>
+#include "optionsdialog.h"
+#include "ui_optionsdialog.h"
 
-#include <qt/appearancewidget.h>
-#include <qt/bitcoinunits.h>
-#include <qt/guiutil.h>
-#include <qt/optionsmodel.h>
+#include "bitcoinunits.h"
+#include "guiutil.h"
+#include "optionsmodel.h"
 
-#include <interfaces/node.h>
-#include <interfaces/wallet.h>
-#include <validation.h> // for DEFAULT_SCRIPTCHECK_THREADS and MAX_SCRIPTCHECK_THREADS
-#include <netbase.h>
-#include <txdb.h> // for -dbcache defaults
+#include "validation.h" // for DEFAULT_SCRIPTCHECK_THREADS and MAX_SCRIPTCHECK_THREADS
+#include "netbase.h"
+#include "txdb.h" // for -dbcache defaults
 
-#include <QButtonGroup>
+#ifdef ENABLE_WALLET
+#include "wallet/wallet.h" // for CWallet::GetRequiredFee()
+
+#include "privatesend/privatesend-client.h"
+#endif // ENABLE_WALLET
+
 #include <QDataWidgetMapper>
 #include <QDir>
 #include <QIntValidator>
 #include <QLocale>
 #include <QMessageBox>
-#include <QSettings>
-#include <QShowEvent>
 #include <QTimer>
+
+#ifdef ENABLE_WALLET
+typedef CWallet* CWalletRef;
+extern std::vector<CWalletRef> vpwallets;
+#endif //ENABLE_WALLET
 
 OptionsDialog::OptionsDialog(QWidget *parent, bool enableWallet) :
     QDialog(parent),
     ui(new Ui::OptionsDialog),
     model(0),
-    mapper(0),
-    pageButtons(0)
+    mapper(0)
 {
     ui->setupUi(this);
-
-    GUIUtil::setFont({ui->statusLabel}, GUIUtil::FontWeight::Bold, 16);
-
-    GUIUtil::updateFonts();
-
-    GUIUtil::disableMacFocusRect(this);
-
-#ifdef Q_OS_MAC
-    /* Hide some options on Mac */
-    ui->hideTrayIcon->hide();
-    ui->minimizeToTray->hide();
-    ui->minimizeOnClose->hide();
-#endif
 
     /* Main elements init */
     ui->databaseCache->setMinimum(nMinDbCache);
     ui->databaseCache->setMaximum(nMaxDbCache);
     ui->threadsScriptVerif->setMinimum(-GetNumCores());
     ui->threadsScriptVerif->setMaximum(MAX_SCRIPTCHECK_THREADS);
-
-    /* Wallet */
-    ui->coinJoinEnabled->setText(tr("Enable %1 features").arg("CoinJoin"));
 
     /* Network elements init */
 #ifndef USE_UPNP
@@ -82,33 +70,30 @@ OptionsDialog::OptionsDialog(QWidget *parent, bool enableWallet) :
     connect(ui->connectSocksTor, SIGNAL(toggled(bool)), ui->proxyPortTor, SLOT(setEnabled(bool)));
     connect(ui->connectSocksTor, SIGNAL(toggled(bool)), this, SLOT(updateProxyValidationState()));
 
-    pageButtons = new QButtonGroup(this);
-    pageButtons->addButton(ui->btnMain, pageButtons->buttons().size());
-    /* Remove Wallet/CoinJoin tabs in case of -disablewallet */
+    /* Window elements init */
+#ifdef Q_OS_MAC
+    /* remove Window tab on Mac */
+    ui->tabWidget->removeTab(ui->tabWidget->indexOf(ui->tabWindow));
+#endif
+
+    /* remove Wallet tab in case of -disablewallet */
     if (!enableWallet) {
-        ui->stackedWidgetOptions->removeWidget(ui->pageWallet);
-        ui->btnWallet->hide();
-        ui->stackedWidgetOptions->removeWidget(ui->pageCoinJoin);
-        ui->btnCoinJoin->hide();
-    } else {
-        pageButtons->addButton(ui->btnWallet, pageButtons->buttons().size());
-        pageButtons->addButton(ui->btnCoinJoin, pageButtons->buttons().size());
+        ui->tabWidget->removeTab(ui->tabWidget->indexOf(ui->tabWallet));
     }
-    pageButtons->addButton(ui->btnNetwork, pageButtons->buttons().size());
-    pageButtons->addButton(ui->btnDisplay, pageButtons->buttons().size());
-    pageButtons->addButton(ui->btnAppearance, pageButtons->buttons().size());
-
-    connect(pageButtons, SIGNAL(buttonClicked(int)), this, SLOT(showPage(int)));
-
-    showPage(0);
 
     /* Display elements init */
-
+    
     /* Number of displayed decimal digits selector */
     QString digits;
     for(int index = 2; index <=8; index++){
         digits.setNum(index);
         ui->digits->addItem(digits, digits);
+    }
+    
+    /* Theme selector */
+    QDir themes(":themes");
+    for (const QString &entry : themes.entryList()) {
+        ui->theme->addItem(entry, QVariant(entry));
     }
 
     /* Language selector */
@@ -126,16 +111,28 @@ OptionsDialog::OptionsDialog(QWidget *parent, bool enableWallet) :
         /** check if the locale name consists of 2 parts (language_country) */
         if(langStr.contains("_"))
         {
+#if QT_VERSION >= 0x040800
             /** display language strings as "native language - native country (locale name)", e.g. "Deutsch - Deutschland (de)" */
             ui->lang->addItem(locale.nativeLanguageName() + QString(" - ") + locale.nativeCountryName() + QString(" (") + langStr + QString(")"), QVariant(langStr));
+#else
+            /** display language strings as "language - country (locale name)", e.g. "German - Germany (de)" */
+            ui->lang->addItem(QLocale::languageToString(locale.language()) + QString(" - ") + QLocale::countryToString(locale.country()) + QString(" (") + langStr + QString(")"), QVariant(langStr));
+#endif
         }
         else
         {
+#if QT_VERSION >= 0x040800
             /** display language strings as "native language (locale name)", e.g. "Deutsch (de)" */
             ui->lang->addItem(locale.nativeLanguageName() + QString(" (") + langStr + QString(")"), QVariant(langStr));
+#else
+            /** display language strings as "language (locale name)", e.g. "German (de)" */
+            ui->lang->addItem(QLocale::languageToString(locale.language()) + QString(" (") + langStr + QString(")"), QVariant(langStr));
+#endif
         }
     }
+#if QT_VERSION >= 0x040700
     ui->thirdPartyTxUrls->setPlaceholderText("https://example.com/tx/%s");
+#endif
 
     ui->unit->setModel(new BitcoinUnits(this));
 
@@ -144,10 +141,6 @@ OptionsDialog::OptionsDialog(QWidget *parent, bool enableWallet) :
     mapper->setSubmitPolicy(QDataWidgetMapper::ManualSubmit);
     mapper->setOrientation(Qt::Vertical);
 
-    GUIUtil::ItemDelegate* delegate = new GUIUtil::ItemDelegate(mapper);
-    connect(delegate, &GUIUtil::ItemDelegate::keyEscapePressed, this, &OptionsDialog::reject);
-    mapper->setItemDelegate(delegate);
-
     /* setup/change UI elements when proxy IPs are invalid/valid */
     ui->proxyIp->setCheckValidator(new ProxyAddressValidator(parent));
     ui->proxyIpTor->setCheckValidator(new ProxyAddressValidator(parent));
@@ -155,22 +148,10 @@ OptionsDialog::OptionsDialog(QWidget *parent, bool enableWallet) :
     connect(ui->proxyIpTor, SIGNAL(validationDidChange(QValidatedLineEdit *)), this, SLOT(updateProxyValidationState()));
     connect(ui->proxyPort, SIGNAL(textChanged(const QString&)), this, SLOT(updateProxyValidationState()));
     connect(ui->proxyPortTor, SIGNAL(textChanged(const QString&)), this, SLOT(updateProxyValidationState()));
-
-    QVBoxLayout* appearanceLayout = new QVBoxLayout();
-    appearanceLayout->setContentsMargins(0, 0, 0, 0);
-    appearance = new AppearanceWidget(ui->widgetAppearance);
-    appearanceLayout->addWidget(appearance);
-    ui->widgetAppearance->setLayout(appearanceLayout);
-
-    connect(appearance, &AppearanceWidget::appearanceChanged, [=](){
-        updateWidth();
-        Q_EMIT appearanceChanged();
-    });
 }
 
 OptionsDialog::~OptionsDialog()
 {
-    delete pageButtons;
     delete ui;
 }
 
@@ -185,27 +166,13 @@ void OptionsDialog::setModel(OptionsModel *_model)
             showRestartWarning(true);
 
         QString strLabel = _model->getOverriddenByCommandLine();
-        if (strLabel.isEmpty()) {
-            ui->frame->setHidden(true);
-        } else {
-            ui->overriddenByCommandLineLabel->setText(strLabel);
-        }
-
-
-#ifdef ENABLE_WALLET
-        // If -enablecoinjoin was passed in on the command line, set the checkbox
-        // to the value given via commandline and disable it (make it unclickable).
-        if (strLabel.contains("-enablecoinjoin")) {
-            ui->coinJoinEnabled->setChecked(_model->node().coinJoinOptions().isEnabled());
-            ui->coinJoinEnabled->setEnabled(false);
-        }
-#endif
+        if (strLabel.isEmpty())
+            strLabel = tr("none");
+        ui->overriddenByCommandLineLabel->setText(strLabel);
 
         mapper->setModel(_model);
         setMapper();
         mapper->toFirst();
-
-        appearance->setModel(_model);
 
         updateDefaultProxyNets();
     }
@@ -224,56 +191,28 @@ void OptionsDialog::setModel(OptionsModel *_model)
     connect(ui->connectSocksTor, SIGNAL(clicked(bool)), this, SLOT(showRestartWarning()));
     /* Display */
     connect(ui->digits, SIGNAL(valueChanged()), this, SLOT(showRestartWarning()));
+    connect(ui->theme, SIGNAL(valueChanged()), this, SLOT(showRestartWarning()));
     connect(ui->lang, SIGNAL(valueChanged()), this, SLOT(showRestartWarning()));
     connect(ui->thirdPartyTxUrls, SIGNAL(textChanged(const QString &)), this, SLOT(showRestartWarning()));
-
-    connect(ui->coinJoinEnabled, &QCheckBox::clicked, [=](bool fChecked) {
-#ifdef ENABLE_WALLET
-        model->node().coinJoinOptions().setEnabled(fChecked);
-#endif
-        updateCoinJoinVisibility();
-        if (_model != nullptr) {
-            _model->emitCoinJoinEnabledChanged();
-        }
-        updateWidth();
-    });
-
-    updateCoinJoinVisibility();
-
-    // Store the current CoinJoin enabled state to recover it if it gets changed but the dialog gets not accepted but declined.
-#ifdef ENABLE_WALLET
-    fCoinJoinEnabledPrev = model->node().coinJoinOptions().isEnabled();
-    connect(this, &OptionsDialog::rejected, [=]() {
-        if (fCoinJoinEnabledPrev != model->node().coinJoinOptions().isEnabled()) {
-            ui->coinJoinEnabled->click();
-        }
-    });
-#endif
 }
 
 void OptionsDialog::setMapper()
 {
     /* Main */
     mapper->addMapping(ui->bitcoinAtStartup, OptionsModel::StartAtStartup);
-#ifndef Q_OS_MAC
-    mapper->addMapping(ui->hideTrayIcon, OptionsModel::HideTrayIcon);
-    mapper->addMapping(ui->minimizeToTray, OptionsModel::MinimizeToTray);
-    mapper->addMapping(ui->minimizeOnClose, OptionsModel::MinimizeOnClose);
-#endif
     mapper->addMapping(ui->threadsScriptVerif, OptionsModel::ThreadsScriptVerif);
     mapper->addMapping(ui->databaseCache, OptionsModel::DatabaseCache);
-    mapper->addMapping(ui->coinJoinEnabled, OptionsModel::CoinJoinEnabled);
 
     /* Wallet */
     mapper->addMapping(ui->coinControlFeatures, OptionsModel::CoinControlFeatures);
     mapper->addMapping(ui->showSmartnodesTab, OptionsModel::ShowSmartnodesTab);
-    mapper->addMapping(ui->showAdvancedCJUI, OptionsModel::ShowAdvancedCJUI);
-    mapper->addMapping(ui->showCoinJoinPopups, OptionsModel::ShowCoinJoinPopups);
+    mapper->addMapping(ui->showAdvancedPSUI, OptionsModel::ShowAdvancedPSUI);
+    mapper->addMapping(ui->showPrivateSendPopups, OptionsModel::ShowPrivateSendPopups);
     mapper->addMapping(ui->lowKeysWarning, OptionsModel::LowKeysWarning);
-    mapper->addMapping(ui->coinJoinMultiSession, OptionsModel::CoinJoinMultiSession);
+    mapper->addMapping(ui->privateSendMultiSession, OptionsModel::PrivateSendMultiSession);
     mapper->addMapping(ui->spendZeroConfChange, OptionsModel::SpendZeroConfChange);
-    mapper->addMapping(ui->coinJoinRounds, OptionsModel::CoinJoinRounds);
-    mapper->addMapping(ui->coinJoinAmount, OptionsModel::CoinJoinAmount);
+    mapper->addMapping(ui->privateSendRounds, OptionsModel::PrivateSendRounds);
+    mapper->addMapping(ui->privateSendAmount, OptionsModel::PrivateSendAmount);
 
     /* Network */
     mapper->addMapping(ui->mapPortUpnp, OptionsModel::MapPortUPnP);
@@ -287,33 +226,20 @@ void OptionsDialog::setMapper()
     mapper->addMapping(ui->proxyIpTor, OptionsModel::ProxyIPTor);
     mapper->addMapping(ui->proxyPortTor, OptionsModel::ProxyPortTor);
 
+    /* Window */
+#ifndef Q_OS_MAC
+    mapper->addMapping(ui->hideTrayIcon, OptionsModel::HideTrayIcon);
+    mapper->addMapping(ui->minimizeToTray, OptionsModel::MinimizeToTray);
+    mapper->addMapping(ui->minimizeOnClose, OptionsModel::MinimizeOnClose);
+#endif
+
     /* Display */
     mapper->addMapping(ui->digits, OptionsModel::Digits);
+    mapper->addMapping(ui->theme, OptionsModel::Theme);
     mapper->addMapping(ui->lang, OptionsModel::Language);
     mapper->addMapping(ui->unit, OptionsModel::DisplayUnit);
     mapper->addMapping(ui->thirdPartyTxUrls, OptionsModel::ThirdPartyTxUrls);
 
-    /* Appearance
-       See AppearanceWidget::setModel
-    */
-}
-
-void OptionsDialog::showPage(int index)
-{
-    std::vector<QWidget*> vecNormal;
-    QAbstractButton* btnActive = pageButtons->button(index);
-    for (QAbstractButton* button : pageButtons->buttons()) {
-        if (button != btnActive) {
-            vecNormal.push_back(button);
-        }
-    }
-
-    GUIUtil::setFont({btnActive}, GUIUtil::FontWeight::Bold, 16);
-    GUIUtil::setFont(vecNormal, GUIUtil::FontWeight::Normal, 16);
-    GUIUtil::updateFonts();
-
-    ui->stackedWidgetOptions->setCurrentIndex(index);
-    btnActive->setChecked(true);
 }
 
 void OptionsDialog::setOkButtonState(bool fState)
@@ -335,7 +261,6 @@ void OptionsDialog::on_resetButton_clicked()
 
         /* reset all options and close GUI */
         model->Reset();
-        model->resetSettingsOnShutdown = true;
         QApplication::quit();
     }
 }
@@ -343,12 +268,10 @@ void OptionsDialog::on_resetButton_clicked()
 void OptionsDialog::on_okButton_clicked()
 {
     mapper->submit();
-    appearance->accept();
 #ifdef ENABLE_WALLET
-    for (auto& wallet : model->node().getWallets()) {
-        wallet->coinJoin().resetCachedBlocks();
-        wallet->markDirty();
-    }
+    privateSendClient.nCachedNumBlocks = std::numeric_limits<int>::max();
+    if(!vpwallets.empty())
+        vpwallets[0]->MarkDirty();
 #endif // ENABLE_WALLET
     accept();
     updateDefaultProxyNets();
@@ -420,58 +343,20 @@ void OptionsDialog::updateDefaultProxyNets()
     std::string strProxy;
     QString strDefaultProxyGUI;
 
-    model->node().getProxy(NET_IPV4, proxy);
+    GetProxy(NET_IPV4, proxy);
     strProxy = proxy.proxy.ToStringIP() + ":" + proxy.proxy.ToStringPort();
     strDefaultProxyGUI = ui->proxyIp->text() + ":" + ui->proxyPort->text();
     (strProxy == strDefaultProxyGUI.toStdString()) ? ui->proxyReachIPv4->setChecked(true) : ui->proxyReachIPv4->setChecked(false);
 
-    model->node().getProxy(NET_IPV6, proxy);
+    GetProxy(NET_IPV6, proxy);
     strProxy = proxy.proxy.ToStringIP() + ":" + proxy.proxy.ToStringPort();
     strDefaultProxyGUI = ui->proxyIp->text() + ":" + ui->proxyPort->text();
     (strProxy == strDefaultProxyGUI.toStdString()) ? ui->proxyReachIPv6->setChecked(true) : ui->proxyReachIPv6->setChecked(false);
 
-    model->node().getProxy(NET_ONION, proxy);
+    GetProxy(NET_TOR, proxy);
     strProxy = proxy.proxy.ToStringIP() + ":" + proxy.proxy.ToStringPort();
     strDefaultProxyGUI = ui->proxyIp->text() + ":" + ui->proxyPort->text();
     (strProxy == strDefaultProxyGUI.toStdString()) ? ui->proxyReachTor->setChecked(true) : ui->proxyReachTor->setChecked(false);
-}
-
-void OptionsDialog::updateCoinJoinVisibility()
-{
-#ifdef ENABLE_WALLET
-    bool fEnabled = model->node().coinJoinOptions().isEnabled();
-#else
-    bool fEnabled = false;
-#endif
-    ui->btnCoinJoin->setVisible(fEnabled);
-    GUIUtil::updateButtonGroupShortcuts(pageButtons);
-}
-
-void OptionsDialog::updateWidth()
-{
-    int nWidthWidestButton{0};
-    int nButtonsVisible{0};
-    for (QAbstractButton* button : pageButtons->buttons()) {
-        if (!button->isVisible()) {
-            continue;
-        }
-        QFontMetrics fm(button->font());
-        nWidthWidestButton = std::max<int>(nWidthWidestButton, fm.width(button->text()));
-        ++nButtonsVisible;
-    }
-    // Add 10 per button as padding and use minimum 585 which is what we used in css before
-    int nWidth = std::max<int>(585, (nWidthWidestButton + 10) * nButtonsVisible);
-    setMinimumWidth(nWidth);
-    resize(nWidth, height());
-}
-
-void OptionsDialog::showEvent(QShowEvent* event)
-{
-    if (!event->spontaneous()) {
-        updateWidth();
-        GUIUtil::updateButtonGroupShortcuts(pageButtons);
-    }
-    QDialog::showEvent(event);
 }
 
 ProxyAddressValidator::ProxyAddressValidator(QObject *parent) :
@@ -483,7 +368,7 @@ QValidator::State ProxyAddressValidator::validate(QString &input, int &pos) cons
 {
     Q_UNUSED(pos);
     // Validate the proxy
-    CService serv(LookupNumeric(input.toStdString().c_str(), DEFAULT_GUI_PROXY_PORT));
+    CService serv(LookupNumeric(input.toStdString().c_str(), 9050));
     proxyType addrProxy = proxyType(serv, true);
     if (addrProxy.IsValid())
         return QValidator::Acceptable;

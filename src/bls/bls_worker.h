@@ -1,14 +1,14 @@
 // Copyright (c) 2018-2020 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef YERBAS_CRYPTO_BLS_WORKER_H
 #define YERBAS_CRYPTO_BLS_WORKER_H
 
-#include <bls/bls.h>
+#include "bls.h"
 
-#include <ctpl.h>
+#include "ctpl.h"
 
 #include <future>
 #include <mutex>
@@ -57,7 +57,7 @@ public:
     void Start();
     void Stop();
 
-    bool GenerateContributions(int threshold, const BLSIdVector& ids, BLSVerificationVectorPtr& vvecRet, BLSSecretKeyVector& skSharesRet);
+    bool GenerateContributions(int threshold, const BLSIdVector& ids, BLSVerificationVectorPtr& vvecRet, BLSSecretKeyVector& skShares);
 
     // The following functions are all used to aggregate verification (public key) vectors
     // Inputs are in the following form:
@@ -159,7 +159,7 @@ private:
     std::map<uint256, std::shared_future<CBLSPublicKey> > publicKeyShareCache;
 
 public:
-    explicit CBLSWorkerCache(CBLSWorker& _worker) :
+    CBLSWorkerCache(CBLSWorker& _worker) :
         worker(_worker) {}
 
     BLSVerificationVectorPtr BuildQuorumVerificationVector(const uint256& cacheKey, const std::vector<BLSVerificationVectorPtr>& vvecs)

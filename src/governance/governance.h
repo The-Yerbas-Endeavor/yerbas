@@ -1,24 +1,24 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_GOVERNANCE_GOVERNANCE_H
-#define BITCOIN_GOVERNANCE_GOVERNANCE_H
+#ifndef GOVERNANCE_H
+#define GOVERNANCE_H
 
-#include <bloom.h>
-#include <cachemap.h>
-#include <cachemultimap.h>
-#include <chain.h>
-#include <governance/governance-exceptions.h>
-#include <governance/governance-object.h>
-#include <governance/governance-vote.h>
-#include <net.h>
-#include <sync.h>
-#include <timedata.h>
-#include <util.h>
+#include "bloom.h"
+#include "cachemap.h"
+#include "cachemultimap.h"
+#include "chain.h"
+#include "governance-exceptions.h"
+#include "governance-object.h"
+#include "governance-vote.h"
+#include "net.h"
+#include "sync.h"
+#include "timedata.h"
+#include "util.h"
 
-#include <evo/deterministicmns.h>
+#include "evo/deterministicmns.h"
 
 #include <univalue.h>
 
@@ -28,6 +28,16 @@ class CGovernanceObject;
 class CGovernanceVote;
 
 extern CGovernanceManager governance;
+
+struct ExpirationInfo {
+    ExpirationInfo(int64_t _nExpirationTime, int _idFrom) :
+        nExpirationTime(_nExpirationTime), idFrom(_idFrom) {}
+
+    int64_t nExpirationTime;
+    NodeId idFrom;
+};
+
+typedef std::pair<CGovernanceObject, ExpirationInfo> object_info_pair_t;
 
 static const int RATE_BUFFER_SIZE = 5;
 
@@ -94,15 +104,19 @@ public:
         return nMax;
     }
 
-    int GetCount() const
+    int GetCount()
     {
+        int nCount = 0;
         if (fBufferEmpty) {
             return 0;
         }
         if (nDataEnd > nDataStart) {
-            return nDataEnd - nDataStart;
+            nCount = nDataEnd - nDataStart;
+        } else {
+            nCount = RATE_BUFFER_SIZE - nDataStart + nDataEnd;
         }
-        return RATE_BUFFER_SIZE - nDataStart + nDataEnd;
+
+        return nCount;
     }
 
     double GetRate()
@@ -141,7 +155,7 @@ class CGovernanceManager
 
 public: // Types
     struct last_object_rec {
-        explicit last_object_rec(bool fStatusOKIn = true) :
+        last_object_rec(bool fStatusOKIn = true) :
             triggerBuffer(),
             fStatusOK(fStatusOKIn)
         {
@@ -161,13 +175,43 @@ public: // Types
     };
 
 
+    typedef std::map<uint256, CGovernanceObject> object_m_t;
+
+    typedef object_m_t::iterator object_m_it;
+
+    typedef object_m_t::const_iterator object_m_cit;
+
     typedef CacheMap<uint256, CGovernanceObject*> object_ref_cm_t;
+
+    typedef std::map<uint256, CGovernanceVote> vote_m_t;
+
+    typedef vote_m_t::iterator vote_m_it;
+
+    typedef vote_m_t::const_iterator vote_m_cit;
+
+    typedef CacheMap<uint256, CGovernanceVote> vote_cm_t;
 
     typedef CacheMultiMap<uint256, vote_time_pair_t> vote_cmm_t;
 
+    typedef object_m_t::size_type size_type;
+
     typedef std::map<COutPoint, last_object_rec> txout_m_t;
 
+    typedef txout_m_t::iterator txout_m_it;
+
     typedef std::set<uint256> hash_s_t;
+
+    typedef hash_s_t::iterator hash_s_it;
+
+    typedef hash_s_t::const_iterator hash_s_cit;
+
+    typedef std::map<uint256, object_info_pair_t> object_info_m_t;
+
+    typedef object_info_m_t::iterator object_info_m_it;
+
+    typedef std::map<uint256, int64_t> hash_time_m_t;
+
+    typedef hash_time_m_t::iterator hash_time_m_it;
 
 private:
     static const int MAX_CACHE_SIZE = 1000000;
@@ -183,19 +227,19 @@ private:
     int nCachedBlockHeight;
 
     // keep track of the scanning errors
-    std::map<uint256, CGovernanceObject> mapObjects;
+    object_m_t mapObjects;
 
     // mapErasedGovernanceObjects contains key-value pairs, where
     //   key   - governance object's hash
     //   value - expiration time for deleted objects
-    std::map<uint256, int64_t> mapErasedGovernanceObjects;
+    hash_time_m_t mapErasedGovernanceObjects;
 
-    std::map<uint256, CGovernanceObject> mapPostponedObjects;
+    object_m_t mapPostponedObjects;
     hash_s_t setAdditionalRelayObjects;
 
     object_ref_cm_t cmapVoteToObject;
 
-    CacheMap<uint256, CGovernanceVote> cmapInvalidVotes;
+    vote_cm_t cmapInvalidVotes;
 
     vote_cmm_t cmmapOrphanVotes;
 
@@ -236,7 +280,7 @@ public:
 
     CGovernanceManager();
 
-    virtual ~CGovernanceManager() = default;
+    virtual ~CGovernanceManager() {}
 
     /**
      * This is called by AlreadyHave in net_processing.cpp as part of the inventory
@@ -248,7 +292,7 @@ public:
     void SyncSingleObjVotes(CNode* pnode, const uint256& nProp, const CBloomFilter& filter, CConnman& connman);
     void SyncObjects(CNode* pnode, CConnman& connman) const;
 
-    void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman, bool enable_bip61);
+    void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
 
     void DoMaintenance(CConnman& connman);
 
@@ -389,6 +433,4 @@ private:
 
 };
 
-bool AreSuperblocksEnabled();
-
-#endif // BITCOIN_GOVERNANCE_GOVERNANCE_H
+#endif

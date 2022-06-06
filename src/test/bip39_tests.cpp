@@ -1,16 +1,15 @@
 // Copyright (c) 2014-2020 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <test/data/bip39_vectors.json.h>
-
-#include <key.h>
-#include <key_io.h>
-#include <util.h>
-#include <utilstrencodings.h>
-#include <test/test_yerbas.h>
-#include <bip39.h>
+#include "base58.h"
+#include "data/bip39_vectors.json.h"
+#include "key.h"
+#include "util.h"
+#include "utilstrencodings.h"
+#include "test/test_yerbas.h"
+#include "bip39.h"
 
 #include <boost/test/unit_test.hpp>
 
@@ -56,11 +55,13 @@ BOOST_AUTO_TEST_CASE(bip39_vectors)
         CExtKey key;
         CExtPubKey pubkey;
 
-        key.SetMaster(seed.data(), 64);
+        key.SetMaster(&seed[0], 64);
         pubkey = key.Neuter();
 
-        // printf("CBitcoinExtKey: %s\n", EncodeExtKey(key).c_str());
-        BOOST_CHECK(EncodeExtKey(key) == test[3].get_str());
+        CBitcoinExtKey b58key;
+        b58key.SetKey(key);
+        // printf("CBitcoinExtKey: %s\n", b58key.ToString().c_str());
+        BOOST_CHECK(b58key.ToString() == test[3].get_str());
     }
 }
 

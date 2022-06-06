@@ -1,13 +1,13 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <governance/governance-classes.h>
-#include <core_io.h>
-#include <init.h>
-#include <utilstrencodings.h>
-#include <validation.h>
+#include "governance-classes.h"
+#include "core_io.h"
+#include "init.h"
+#include "utilstrencodings.h"
+#include "validation.h"
 
 #include <boost/algorithm/string.hpp>
 
@@ -138,7 +138,7 @@ void CGovernanceTriggerManager::CleanAndRemove()
     // Remove triggers that are invalid or expired
     LogPrint(BCLog::GOBJECT, "CGovernanceTriggerManager::CleanAndRemove -- mapTrigger.size() = %d\n", mapTrigger.size());
 
-    auto it = mapTrigger.begin();
+    trigger_m_it it = mapTrigger.begin();
     while (it != mapTrigger.end()) {
         bool remove = false;
         CGovernanceObject* pObj = nullptr;
@@ -346,13 +346,14 @@ bool CSuperblockManager::GetSuperblockPayments(int nBlockHeight, std::vector<CTx
 
             // PRINT NICE LOG OUTPUT FOR SUPERBLOCK PAYMENT
 
-            CTxDestination dest;
-            ExtractDestination(payment.script, dest);
+            CTxDestination address1;
+            ExtractDestination(payment.script, address1);
+            CBitcoinAddress address2(address1);
 
             // TODO: PRINT NICE N.N YERBAS OUTPUT
 
             LogPrint(BCLog::GOBJECT, "CSuperblockManager::GetSuperblockPayments -- NEW Superblock: output %d (addr %s, amount %lld)\n",
-                        i, EncodeDestination(dest), payment.nAmount);
+                        i, address2.ToString(), payment.nAmount);
         } else {
             LogPrint(BCLog::GOBJECT, "CSuperblockManager::GetSuperblockPayments -- Payment not found\n");
         }
@@ -416,10 +417,6 @@ CSuperblock::
     }
 
     UniValue obj = pGovObj->GetJSONObject();
-
-    if (obj["type"].get_int() != GOVERNANCE_OBJECT_TRIGGER) {
-        throw std::runtime_error("CSuperblock: invalid data type");
-    }
 
     // FIRST WE GET THE START HEIGHT, THE BLOCK HEIGHT AT WHICH THE PAYMENT SHALL OCCUR
     nBlockHeight = obj["event_block_height"].get_int();
@@ -515,8 +512,8 @@ void CSuperblock::ParsePaymentSchedule(const std::string& strPaymentAddresses, c
     */
 
     for (int i = 0; i < (int)vecParsed1.size(); i++) {
-        CTxDestination dest = DecodeDestination(vecParsed1[i]);
-        if (!IsValidDestination(dest)) {
+        CBitcoinAddress address(vecParsed1[i]);
+        if (!address.IsValid()) {
             std::ostringstream ostr;
             ostr << "CSuperblock::ParsePaymentSchedule -- Invalid Yerbas Address : " << vecParsed1[i];
             LogPrintf("%s\n", ostr.str());
@@ -528,8 +525,7 @@ void CSuperblock::ParsePaymentSchedule(const std::string& strPaymentAddresses, c
             - There might be an issue with multisig in the coinbase on mainnet, we will add support for it in a future release.
             - Post 12.3+ (test multisig coinbase transaction)
         */
-        const CScriptID *scriptID = boost::get<CScriptID>(&dest);
-        if (scriptID) {
+        if (address.IsScript()) {
             std::ostringstream ostr;
             ostr << "CSuperblock::ParsePaymentSchedule -- Script addresses are not supported yet : " << vecParsed1[i];
             LogPrintf("%s\n", ostr.str());
@@ -540,13 +536,13 @@ void CSuperblock::ParsePaymentSchedule(const std::string& strPaymentAddresses, c
 
         LogPrint(BCLog::GOBJECT, "CSuperblock::ParsePaymentSchedule -- i = %d, amount string = %s, nAmount = %lld\n", i, vecParsed2[i], nAmount);
 
-        CGovernancePayment payment(dest, nAmount);
+        CGovernancePayment payment(address, nAmount);
         if (payment.IsValid()) {
             vecPayments.push_back(payment);
         } else {
             vecPayments.clear();
             std::ostringstream ostr;
-            ostr << "CSuperblock::ParsePaymentSchedule -- Invalid payment found: address = " << EncodeDestination(dest)
+            ostr << "CSuperblock::ParsePaymentSchedule -- Invalid payment found: address = " << address.ToString()
                  << ", amount = " << nAmount;
             LogPrintf("%s\n", ostr.str());
             throw std::runtime_error(ostr.str());
@@ -593,6 +589,8 @@ bool CSuperblock::IsValid(const CTransaction& txNew, int nBlockHeight, CAmount b
         LogPrintf("CSuperblock::IsValid -- ERROR: Block invalid, incorrect block height\n");
         return false;
     }
+
+    std::string strPayeesPossible = "";
 
     // CONFIGURE SUPERBLOCK OUTPUTS
 
@@ -654,9 +652,10 @@ bool CSuperblock::IsValid(const CTransaction& txNew, int nBlockHeight, CAmount b
         if (!fPaymentMatch) {
             // Superblock payment not found!
 
-            CTxDestination dest;
-            ExtractDestination(payment.script, dest);
-            LogPrintf("CSuperblock::IsValid -- ERROR: Block invalid: %d payment %d to %s not found\n", i, payment.nAmount, EncodeDestination(dest));
+            CTxDestination address1;
+            ExtractDestination(payment.script, address1);
+            CBitcoinAddress address2(address1);
+            LogPrintf("CSuperblock::IsValid -- ERROR: Block invalid: %d payment %d to %s not found\n", i, payment.nAmount, address2.ToString());
 
             return false;
         }
@@ -667,7 +666,7 @@ bool CSuperblock::IsValid(const CTransaction& txNew, int nBlockHeight, CAmount b
 
 bool CSuperblock::IsExpired() const
 {
-    int nExpirationBlocks;
+    int nExpirationBlocks{0};
     // Executed triggers are kept for another superblock cycle (approximately 1 month),
     // other valid triggers are kept for ~1 day only, everything else is pruned after ~1h.
     switch (nStatus) {
@@ -692,4 +691,47 @@ bool CSuperblock::IsExpired() const
     }
 
     return false;
+}
+
+/**
+*   Get Required Payment String
+*
+*   - Get a string representing the payments required for a given superblock
+*/
+
+std::string CSuperblockManager::GetRequiredPaymentsString(int nBlockHeight)
+{
+    LOCK(governance.cs);
+    std::string ret = "Unknown";
+
+    // GET BEST SUPERBLOCK
+
+    CSuperblock_sptr pSuperblock;
+    if (!GetBestSuperblock(pSuperblock, nBlockHeight)) {
+        LogPrint(BCLog::GOBJECT, "CSuperblockManager::GetRequiredPaymentsString -- Can't find superblock for height %d\n", nBlockHeight);
+        return "error";
+    }
+
+    // LOOP THROUGH SUPERBLOCK PAYMENTS, CONFIGURE OUTPUT STRING
+
+    for (int i = 0; i < pSuperblock->CountPayments(); i++) {
+        CGovernancePayment payment;
+        if (pSuperblock->GetPayment(i, payment)) {
+            // PRINT NICE LOG OUTPUT FOR SUPERBLOCK PAYMENT
+
+            CTxDestination address1;
+            ExtractDestination(payment.script, address1);
+            CBitcoinAddress address2(address1);
+
+            // RETURN NICE OUTPUT FOR CONSOLE
+
+            if (ret != "Unknown") {
+                ret += ", " + address2.ToString();
+            } else {
+                ret = address2.ToString();
+            }
+        }
+    }
+
+    return ret;
 }

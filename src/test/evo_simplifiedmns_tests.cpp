@@ -1,13 +1,13 @@
 // Copyright (c) 2018-2020 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <test/test_yerbas.h>
+#include "test/test_yerbas.h"
 
-#include <bls/bls.h>
-#include <evo/simplifiedmns.h>
-#include <netbase.h>
+#include "bls/bls.h"
+#include "evo/simplifiedmns.h"
+#include "netbase.h"
 
 #include <boost/test/unit_test.hpp>
 
@@ -24,10 +24,13 @@ BOOST_AUTO_TEST_CASE(simplifiedmns_merkleroots)
         std::string ip = strprintf("%d.%d.%d.%d", 0, 0, 0, i);
         Lookup(ip.c_str(), smle.service, i, false);
 
-        std::vector<unsigned char> vecBytes{static_cast<unsigned char>(i)};
-        vecBytes.resize(CBLSSecretKey::SerSize);
+        uint8_t skBuf[CBLSSecretKey::SerSize];
+        memset(skBuf, 0, sizeof(skBuf));
+        skBuf[0] = (uint8_t)i;
+        CBLSSecretKey sk;
+        sk.SetBuf(skBuf, sizeof(skBuf));
 
-        smle.pubKeyOperator.Set(CBLSSecretKey(vecBytes).GetPublicKey());
+        smle.pubKeyOperator.Set(sk.GetPublicKey());
         smle.keyIDVoting.SetHex(strprintf("%040x", i));
         smle.isValid = true;
 

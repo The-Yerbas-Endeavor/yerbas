@@ -1,16 +1,15 @@
-// Copyright (c) 2018-2020 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_QUORUMS_DEBUG_H
-#define BITCOIN_LLMQ_QUORUMS_DEBUG_H
+#ifndef YERBAS_QUORUMS_DEBUG_H
+#define YERBAS_QUORUMS_DEBUG_H
 
-#include <consensus/params.h>
-#include <sync.h>
-#include <univalue.h>
+#include "consensus/params.h"
+#include "sync.h"
+#include "univalue.h"
 
-#include <functional>
 #include <set>
 
 class CDataStream;
@@ -109,4 +108,4 @@ extern CDKGDebugManager* quorumDKGDebugManager;
 
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_QUORUMS_DEBUG_H
+#endif //YERBAS_QUORUMS_DEBUG_H

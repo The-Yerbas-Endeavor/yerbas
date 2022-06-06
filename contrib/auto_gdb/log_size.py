@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 #
 
 try:
@@ -9,8 +9,8 @@ import traceback
 import datetime
 import sys
 import os
-import common_helpers
 sys.path.append(os.getcwd())
+import common_helpers
 
 
 class LogSizeCommand (gdb.Command):
@@ -23,7 +23,7 @@ class LogSizeCommand (gdb.Command):
         try:
             args = gdb.string_to_argv(arg)
             obj = gdb.parse_and_eval(args[0])
-            logfile = open(args[1], 'a', encoding="utf8")
+            logfile = open(args[1], 'a')
             size = common_helpers.get_instance_size(obj)
             logfile.write("%s %s: %d\n" % (str(datetime.datetime.now()), args[0], size))
             logfile.close()

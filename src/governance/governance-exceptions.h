@@ -1,10 +1,10 @@
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2022 The Yerbas Endeavor developers
+// Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_GOVERNANCE_GOVERNANCE_EXCEPTIONS_H
-#define BITCOIN_GOVERNANCE_GOVERNANCE_EXCEPTIONS_H
+#ifndef GOVERNANCE_EXCEPTIONS_H
+#define GOVERNANCE_EXCEPTIONS_H
 
 #include <exception>
 #include <iostream>
@@ -63,7 +63,7 @@ private:
     int nNodePenalty;
 
 public:
-    explicit CGovernanceException(const std::string& strMessageIn = "",
+    CGovernanceException(const std::string& strMessageIn = "",
         governance_exception_type_enum_t eTypeIn = GOVERNANCE_EXCEPTION_NONE,
         int nNodePenaltyIn = 0) :
         strMessage(),
@@ -75,9 +75,9 @@ public:
         strMessage = ostr.str();
     }
 
-    ~CGovernanceException() noexcept override = default;
+    virtual ~CGovernanceException() throw() {}
 
-    const char* what() const noexcept override
+    virtual const char* what() const throw() override
     {
         return strMessage.c_str();
     }
@@ -98,4 +98,4 @@ public:
     }
 };
 
-#endif // BITCOIN_GOVERNANCE_GOVERNANCE_EXCEPTIONS_H
+#endif

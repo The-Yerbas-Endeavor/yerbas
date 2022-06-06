@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
-export LC_ALL=C
-
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd $DIR/.. || exit
+cd $DIR/..
 
 DOCKER_IMAGE=${DOCKER_IMAGE:-yerbas/yerbasd-develop}
 DOCKER_TAG=${DOCKER_TAG:-latest}

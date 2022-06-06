@@ -1,19 +1,16 @@
 # Copyright (c) 2013-2016 The Bitcoin Core developers
 # Copyright (c) 2014-2018 The Dash Core developers
-# Copyright (c) 2022 The Yerbas Endeavor developers
+# Copyright (c) 2020 The Yerbas developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 DIST_SUBDIRS = secp256k1 univalue
 
-AM_LDFLAGS = $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS) $(GPROF_LDFLAGS) $(SANITIZER_LDFLAGS)
-AM_CXXFLAGS = $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS) $(GPROF_CXXFLAGS) $(SANITIZER_CXXFLAGS)
+AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS)
+AM_CXXFLAGS = $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS)
 AM_CPPFLAGS = $(HARDENED_CPPFLAGS)
-AM_LIBTOOLFLAGS = --preserve-dup-deps
-PTHREAD_FLAGS = $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)
 EXTRA_LIBRARIES =
 
-if ENABLE_STACKTRACES
 if ENABLE_CRASH_HOOKS
 if CRASH_HOOKS_WRAPPED_CXX_ABI
 # Wrap internal C++ ABI's so that we can attach stacktraces to exceptions
@@ -31,7 +28,6 @@ BACKTRACE_LIB = -ldbghelp -lbacktrace
 else
 BACKTRACE_LIB = -lbacktrace
 endif
-endif #ENABLE_STACKTRACES
 
 if EMBEDDED_UNIVALUE
 LIBUNIVALUE = univalue/libunivalue.la
@@ -42,12 +38,13 @@ else
 LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
-BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+BITCOIN_CONFIG_INCLUDES=-I$(builddir)/config
+BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 
-BLS_LIBS=-lbls-dash -lgmp
+BLS_LIBS=-lchiabls -lgmp
 
 LIBBITCOIN_SERVER=libyerbas_server.a
 LIBBITCOIN_COMMON=libyerbas_common.a
@@ -82,7 +79,7 @@ LIBBITCOIN_CRYPTO_SHANI = crypto/libyerbas_crypto_shani.a
 LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_SHANI)
 endif
 
-$(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(wildcard secp256k1/include/*)
+$(LIBSECP256K1): $(wildcard secp256k1/src/*) $(wildcard secp256k1/include/*)
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D) $(@F)
 
 # Make is not made aware of per-object dependencies to avoid limiting building parallelization
@@ -118,19 +115,15 @@ BITCOIN_CORE_H = \
   addrdb.h \
   addressindex.h \
   spentindex.h \
-  indices/future_index.h \
   addrman.h \
-  attributes.h \
   base58.h \
   batchedlogger.h \
-  bech32.h \
   bip39.h \
   bip39_english.h \
   blockencodings.h \
   bloom.h \
   cachemap.h \
   cachemultimap.h \
-  blockfilter.h \
   chain.h \
   chainparams.h \
   chainparamsbase.h \
@@ -138,11 +131,6 @@ BITCOIN_CORE_H = \
   checkpoints.h \
   checkqueue.h \
   clientversion.h \
-  coinjoin/coinjoin.h \
-  coinjoin/coinjoin-client.h \
-  coinjoin/coinjoin-client-options.h \
-  coinjoin/coinjoin-server.h \
-  coinjoin/coinjoin-util.h \
   coins.h \
   compat.h \
   compat/byteswap.h \
@@ -163,6 +151,10 @@ BITCOIN_CORE_H = \
   evo/providertx.h \
   evo/simplifiedmns.h \
   evo/specialtx.h \
+  privatesend/privatesend.h \
+  privatesend/privatesend-client.h \
+  privatesend/privatesend-server.h \
+  privatesend/privatesend-util.h \
   dsnotificationinterface.h \
   governance/governance.h \
   governance/governance-classes.h \
@@ -171,8 +163,6 @@ BITCOIN_CORE_H = \
   governance/governance-validators.h \
   governance/governance-vote.h \
   governance/governance-votedb.h \
-  future/fee.h \
-  future/utils.h \
   flat-database.h \
   hdchain.h \
   fs.h \
@@ -180,11 +170,7 @@ BITCOIN_CORE_H = \
   httpserver.h \
   indirectmap.h \
   init.h \
-  interfaces/handler.h \
-  interfaces/node.h \
-  interfaces/wallet.h \
   key.h \
-  key_io.h \
   keepass.h \
   keystore.h \
   dbwrapper.h \
@@ -202,7 +188,6 @@ BITCOIN_CORE_H = \
   llmq/quorums_signing.h \
   llmq/quorums_signing_shares.h \
   llmq/quorums_utils.h \
-  logging.h \
   smartnode/activesmartnode.h \
   smartnode/smartnode-meta.h \
   smartnode/smartnode-payments.h \
@@ -219,7 +204,6 @@ BITCOIN_CORE_H = \
   netbase.h \
   netfulfilledman.h \
   netmessagemaker.h \
-  node/coinstats.h \
   noui.h \
   policy/feerate.h \
   policy/fees.h \
@@ -234,20 +218,16 @@ BITCOIN_CORE_H = \
   rpc/mining.h \
   rpc/protocol.h \
   rpc/server.h \
-  rpc/rawtransaction.h \
   rpc/register.h \
-  rpc/util.h \
-  rpc/specialtx_utilities.h \
   saltedhasher.h \
   scheduler.h \
-  script/ismine.h \
   script/sigcache.h \
   script/sign.h \
   script/standard.h \
+  script/ismine.h \
   spork.h \
   stacktraces.h \
   streams.h \
-  statsd_client.h \
   support/allocators/mt_pooled_secure.h \
   support/allocators/pooled_secure.h \
   support/allocators/secure.h \
@@ -266,28 +246,22 @@ BITCOIN_CORE_H = \
   undo.h \
   unordered_lru_cache.h \
   util.h \
-  utilmemory.h \
   utilmoneystr.h \
   utiltime.h \
   validation.h \
   validationinterface.h \
   versionbits.h \
-  walletinitinterface.h \
   wallet/coincontrol.h \
   wallet/crypter.h \
   wallet/db.h \
-  wallet/fees.h \
   wallet/rpcwallet.h \
   wallet/wallet.h \
   wallet/walletdb.h \
-  wallet/walletutil.h \
-  wallet/coinselection.h \
   warnings.h \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h\
   zmq/zmqnotificationinterface.h \
-  zmq/zmqpublishnotifier.h \
-  zmq/zmqrpc.h
+  zmq/zmqpublishnotifier.h
 
 
 obj/build.h: FORCE
@@ -305,11 +279,8 @@ libyerbas_server_a_SOURCES = \
   batchedlogger.cpp \
   bloom.cpp \
   blockencodings.cpp \
-  blockfilter.cpp \
   chain.cpp \
   checkpoints.cpp \
-  coinjoin/coinjoin.cpp \
-  coinjoin/coinjoin-server.cpp \
   consensus/tx_verify.cpp \
   dsnotificationinterface.cpp \
   evo/cbtx.cpp \
@@ -329,7 +300,6 @@ libyerbas_server_a_SOURCES = \
   governance/governance-validators.cpp \
   governance/governance-vote.cpp \
   governance/governance-votedb.cpp \
-  future/fee.cpp \
   llmq/quorums.cpp \
   llmq/quorums_blockprocessor.cpp \
   llmq/quorums_commitment.cpp \
@@ -354,11 +324,12 @@ libyerbas_server_a_SOURCES = \
   net.cpp \
   netfulfilledman.cpp \
   net_processing.cpp \
-  node/coinstats.cpp \
   noui.cpp \
   policy/fees.cpp \
   policy/policy.cpp \
   pow.cpp \
+  privatesend/privatesend.cpp \
+  privatesend/privatesend-server.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
   rpc/smartnode.cpp \
@@ -370,11 +341,10 @@ libyerbas_server_a_SOURCES = \
   rpc/rpcevo.cpp \
   rpc/rpcquorums.cpp \
   rpc/server.cpp \
-  rpc/coinjoin.cpp \
-  rpc/util.cpp \
+  rpc/privatesend.cpp \
   script/sigcache.cpp \
+  script/ismine.cpp \
   spork.cpp \
-  statsd_client.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
@@ -391,8 +361,7 @@ libyerbas_zmq_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libyerbas_zmq_a_SOURCES = \
   zmq/zmqabstractnotifier.cpp \
   zmq/zmqnotificationinterface.cpp \
-  zmq/zmqpublishnotifier.cpp \
-  zmq/zmqrpc.cpp
+  zmq/zmqpublishnotifier.cpp
 endif
 
 
@@ -401,25 +370,19 @@ endif
 libyerbas_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libyerbas_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libyerbas_wallet_a_SOURCES = \
-  coinjoin/coinjoin-client.cpp \
-  coinjoin/coinjoin-client-options.cpp \
-  coinjoin/coinjoin-util.cpp \
-  interfaces/wallet.cpp \
   keepass.cpp \
+  privatesend/privatesend-client.cpp \
+  privatesend/privatesend-util.cpp \
   wallet/crypter.cpp \
   wallet/db.cpp \
-  wallet/fees.cpp \
-  wallet/init.cpp \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/wallet.cpp \
   wallet/walletdb.cpp \
-  wallet/walletutil.cpp \
-  wallet/coinselection.cpp \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library
-crypto_libyerbas_crypto_base_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS)
+crypto_libyerbas_crypto_base_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_CONFIG_INCLUDES) $(PIC_FLAGS)
 crypto_libyerbas_crypto_base_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS)
 crypto_libyerbas_crypto_base_a_SOURCES = \
   crypto/aes.cpp \
@@ -460,6 +423,7 @@ crypto_libyerbas_crypto_base_a_SOURCES = \
   crypto/sha1.h \
   crypto/sha256.cpp \
   crypto/sha256.h \
+  crypto/sha512.h \
   crypto/sph_blake.h \
   crypto/sph_bmw.h \
   crypto/sph_cubehash.h \
@@ -478,6 +442,31 @@ crypto_libyerbas_crypto_base_a_SOURCES = \
   crypto/sph_sha2.h \
   crypto/sph_types.h \
   crypto/sha512.cpp \
+  crypto/sha512.h
+
+if USE_ASM
+crypto_libyerbas_crypto_base_a_SOURCES += crypto/sha256_sse4.cpp
+endif
+
+crypto_libyerbas_crypto_sse41_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+crypto_libyerbas_crypto_sse41_a_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libyerbas_crypto_sse41_a_CXXFLAGS += $(SSE41_CXXFLAGS)
+crypto_libyerbas_crypto_sse41_a_CPPFLAGS += -DENABLE_SSE41
+crypto_libyerbas_crypto_sse41_a_SOURCES = crypto/sha256_sse41.cpp
+
+crypto_libyerbas_crypto_avx2_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+crypto_libyerbas_crypto_avx2_a_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libyerbas_crypto_avx2_a_CXXFLAGS += $(AVX2_CXXFLAGS)
+crypto_libyerbas_crypto_avx2_a_CPPFLAGS += -DENABLE_AVX2
+crypto_libyerbas_crypto_avx2_a_SOURCES = crypto/sha256_avx2.cpp
+
+crypto_libyerbas_crypto_shani_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+crypto_libyerbas_crypto_shani_a_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libyerbas_crypto_shani_a_CXXFLAGS += $(SHANI_CXXFLAGS)
+crypto_libyerbas_crypto_shani_a_CPPFLAGS += -DENABLE_SHANI
+crypto_libyerbas_crypto_shani_a_SOURCES = crypto/sha256_shani.cpp
+
+crypto_libyerbas_crypto_base_a_SOURCES += \
   cryptonote/aesb.c \
   cryptonote/c_blake256.c \
   cryptonote/c_groestl.c \
@@ -503,30 +492,7 @@ crypto_libyerbas_crypto_base_a_SOURCES = \
   cryptonote/skein_port.h \
   cryptonote/variant2_int_sqrt.h \
   cryptonote/wild_keccak.h \
-  cryptonote/warnings.h \
-  crypto/sha512.h
-
-if USE_ASM
-crypto_libyerbas_crypto_base_a_SOURCES += crypto/sha256_sse4.cpp
-endif
-
-crypto_libyerbas_crypto_sse41_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-crypto_libyerbas_crypto_sse41_a_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libyerbas_crypto_sse41_a_CXXFLAGS += $(SSE41_CXXFLAGS)
-crypto_libyerbas_crypto_sse41_a_CPPFLAGS += -DENABLE_SSE41
-crypto_libyerbas_crypto_sse41_a_SOURCES = crypto/sha256_sse41.cpp
-
-crypto_libyerbas_crypto_avx2_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-crypto_libyerbas_crypto_avx2_a_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libyerbas_crypto_avx2_a_CXXFLAGS += $(AVX2_CXXFLAGS)
-crypto_libyerbas_crypto_avx2_a_CPPFLAGS += -DENABLE_AVX2
-crypto_libyerbas_crypto_avx2_a_SOURCES = crypto/sha256_avx2.cpp
-
-crypto_libyerbas_crypto_shani_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-crypto_libyerbas_crypto_shani_a_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libyerbas_crypto_shani_a_CXXFLAGS += $(SHANI_CXXFLAGS)
-crypto_libyerbas_crypto_shani_a_CPPFLAGS += -DENABLE_SHANI
-crypto_libyerbas_crypto_shani_a_SOURCES = crypto/sha256_shani.cpp
+  cryptonote/warnings.h
 
 # consensus: shared between all executables that validate any consensus rules.
 libyerbas_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
@@ -549,8 +515,6 @@ libyerbas_consensus_a_SOURCES = \
   prevector.h \
   primitives/block.cpp \
   primitives/block.h \
-  primitives/powcache.cpp \
-  primitives/powcache.h \
   primitives/transaction.cpp \
   primitives/transaction.h \
   pubkey.cpp \
@@ -563,7 +527,6 @@ libyerbas_consensus_a_SOURCES = \
   script/script_error.cpp \
   script/script_error.h \
   serialize.h \
-  span.h \
   streams.h \
   tinyformat.h \
   uint256.cpp \
@@ -577,19 +540,16 @@ libyerbas_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libyerbas_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libyerbas_common_a_SOURCES = \
   base58.cpp \
-  bech32.cpp \
   founder_payment.cpp \
   bip39.cpp \
   chainparams.cpp \
   smartnode/smartnode-collaterals.cpp \
-  future/utils.cpp \
   coins.cpp \
   compressor.cpp \
   core_read.cpp \
   core_write.cpp \
   hdchain.cpp \
   key.cpp \
-  key_io.cpp \
   keystore.cpp \
   netaddress.cpp \
   netbase.cpp \
@@ -597,7 +557,6 @@ libyerbas_common_a_SOURCES = \
   protocol.cpp \
   saltedhasher.cpp \
   scheduler.cpp \
-  script/ismine.cpp \
   script/sign.cpp \
   script/standard.cpp \
   warnings.cpp \
@@ -621,9 +580,6 @@ libyerbas_util_a_SOURCES = \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
   fs.cpp \
-  interfaces/handler.cpp \
-  interfaces/node.cpp \
-  logging.cpp \
   random.cpp \
   rpc/protocol.cpp \
   stacktraces.cpp \
@@ -655,7 +611,7 @@ nodist_libyerbas_util_a_SOURCES = $(srcdir)/obj/build.h
 yerbasd_SOURCES = yerbasd.cpp
 yerbasd_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 yerbasd_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-yerbasd_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
+yerbasd_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 yerbasd_SOURCES += yerbasd-res.rc
@@ -663,10 +619,10 @@ endif
 
 yerbasd_LDADD = \
   $(LIBBITCOIN_SERVER) \
-  $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_COMMON) \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_ZMQ) \
   $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO) \
@@ -681,7 +637,7 @@ yerbasd_LDADD += $(BACKTRACE_LIB) $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO
 yerbas_cli_SOURCES = yerbas-cli.cpp
 yerbas_cli_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(EVENT_CFLAGS)
 yerbas_cli_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-yerbas_cli_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
+yerbas_cli_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 yerbas_cli_SOURCES += yerbas-cli-res.rc
@@ -699,7 +655,7 @@ yerbas_cli_LDADD += $(BACKTRACE_LIB) $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(
 yerbas_tx_SOURCES = yerbas-tx.cpp
 yerbas_tx_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 yerbas_tx_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-yerbas_tx_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
+yerbas_tx_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
 yerbas_tx_SOURCES += yerbas-tx-res.rc
@@ -725,7 +681,7 @@ if GLIBC_BACK_COMPAT
   libyerbasconsensus_la_SOURCES += compat/glibc_compat.cpp
 endif
 
-libyerbasconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+libyerbasconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
 libyerbasconsensus_la_LIBADD = $(LIBSECP256K1) $(BLS_LIBS)
 libyerbasconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
 libyerbasconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
@@ -753,9 +709,10 @@ CLEANFILES += univalue/*.gcda univalue/*.gcno
 CLEANFILES += wallet/*.gcda wallet/*.gcno
 CLEANFILES += wallet/test/*.gcda wallet/test/*.gcno
 CLEANFILES += zmq/*.gcda zmq/*.gcno
-CLEANFILES += obj/build.h
 
 IMMER_DIST = immer
+
+DISTCLEANFILES = obj/build.h
 
 EXTRA_DIST = $(CTAES_DIST)
 EXTRA_DIST += $(IMMER_DIST)
@@ -781,6 +738,10 @@ clean-local:
 	@test -f $(WINDRES)
 	## FIXME: How to get the appropriate modulename_CPPFLAGS in here?
 	$(AM_V_GEN) $(WINDRES) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -DWINDRES_PREPROC -i $< -o $@
+
+.mm.o:
+	$(AM_V_CXX) $(OBJCXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
+	  $(CPPFLAGS) $(AM_CXXFLAGS) $(QT_INCLUDES) $(AM_CXXFLAGS) $(PIE_FLAGS) $(CXXFLAGS) -c -o $@ $<
 
 check-symbols: $(bin_PROGRAMS)
 if GLIBC_BACK_COMPAT
