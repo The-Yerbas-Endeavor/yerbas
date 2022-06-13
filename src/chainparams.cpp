@@ -1037,14 +1037,14 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 			consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
 			consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
 		}
-         if(((height > 6759) && (height < 8320)) || ((height > 15908) && (height < 16401) || lowLLMQParams)){
+         if(((height > 6759) && (height < 8320)) || ((height > 15908) && (height < 16401) || (height > 22771 && lowLLMQParams))){
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
 		} 
 		
 	}else{
         if((lastCheckHeight < height)){
         lastCheckHeight = height;
-        if((height == 6759) || (height == 15908)){
+        if((height == 6759) || (height == 15908)|| (height == 22771)){
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
 		}  
          if(height == 8319 || height == 16401){
