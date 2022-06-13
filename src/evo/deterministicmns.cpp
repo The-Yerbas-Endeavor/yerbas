@@ -653,7 +653,7 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
     }*/
     //need to track SPORK_21_LOW_LLMQ_PARAMS activation
     bool isDecrease = false;
-    if ((nHeight > 15900) && (nHeight < 16401) || sporkManager.IsSporkActive(SPORK_21_LOW_LLMQ_PARAMS)){
+    if ((nHeight > 15900) && (nHeight < 16401) || (nHeight > 22770 && sporkManager.IsSporkActive(SPORK_21_LOW_LLMQ_PARAMS))){
     isDecrease = nHeight % 30 == 0; 
     }else{
     isDecrease = nHeight % 2 == 0;
