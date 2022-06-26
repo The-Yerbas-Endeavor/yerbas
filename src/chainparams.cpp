@@ -1008,9 +1008,11 @@ bool IsLLMQsMiningPhase(int nHeight) {
 
 void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLMQParams) {
 	bool isNotLLMQsMiningPhase;
+    //on startup if block height % dkgInterval fall between dkgMiningWindowStart and dkgMiningWindowEnd
+    //it will not switch to the correct llmq. if lastCheckHeight is 0 then force switch to the correct llmq
     if(lastCheckHeight < height &&
     		(lastCheckMnCount != totalMnCount || lastCheckedLowLLMQParams != lowLLMQParams) &&
-			(isNotLLMQsMiningPhase = !IsLLMQsMiningPhase(height))) {
+			((isNotLLMQsMiningPhase = !IsLLMQsMiningPhase(height)) || lastCheckHeight == 0)) {
 	    LogPrintf("---UpdateLLMQParams %d-%d-%ld-%ld-%d\n", lastCheckHeight, height, lastCheckMnCount, totalMnCount, isNotLLMQsMiningPhase);
 		lastCheckMnCount = totalMnCount;
 		lastCheckedLowLLMQParams = lowLLMQParams;
@@ -1037,19 +1039,22 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 			consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
 			consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
 		}
-         if(((height > 6759) && (height < 8320)) || ((height > 15908) && (height < 16401) || (height > 22771 && lowLLMQParams))){
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
-		} 
-		
+        if(((height > 6759) && (height < 8320)) || ((height > 15908) && (height < 16401)) || (height > 22771 && height < 37650) || (height > 37650 && lowLLMQParams)){
+            consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
+		} 		
 	}else{
         if((lastCheckHeight < height)){
-        lastCheckHeight = height;
-        if((height == 6759) || (height == 15908)|| (height == 22771)){
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
-		}  
-         if(height == 8319 || height == 16401){
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq10_60;
-		}
+            lastCheckHeight = height;
+            if((height == 6759) || (height == 15908)|| (height == 22771)){
+            consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
+		    }  
+            if(height == 8319 || height == 16401 || height == 37650){
+                if(totalMnCount < 100) {
+                    consensus.llmqs[Consensus::LLMQ_50_60] = llmq10_60;
+                } else if(totalMnCount < 600) {
+			        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+		        }
+            }    
         }
     }
 }
