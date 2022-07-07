@@ -14,7 +14,7 @@ Yerbas is a community driven, developmental, grassroots, digital currency that e
 
 A)	The deployment of a unique asset layer.  ---pushing you luck here, but maybe ;)
 
-B)	Colabration with realworld vendors offering rewards and incentives to utilize Yerbas for everyday goods and services. 
+B)	Collaboration with real world vendors offering rewards and incentives to utilize Yerbas for everyday goods and services. 
 
 
 License
