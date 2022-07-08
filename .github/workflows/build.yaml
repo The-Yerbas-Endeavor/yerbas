@@ -186,7 +186,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get upgrade -y
-          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
+          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake libboost-all-dev
           sudo apt-get install python3-setuptools libcap-dev zlib1g-dev libbz2-dev
           mkdir -p depends/sdk-sources
           mkdir -p depends/SDKs
@@ -231,14 +231,6 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-macos-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
-      - name: Generate Macos dmg files
-        run: |
-          make deploy
-      - name: Upload dmg file
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
-          path: Yerbas-Qt.dmg
   build-win:
     name: window build
     needs: checking-build-version
