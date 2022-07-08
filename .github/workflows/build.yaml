@@ -171,7 +171,7 @@ jobs:
   build-macos:
     name: macos build
     needs: checking-build-version
-    runs-on: ubuntu-18.04
+    runs-on: macos-10.15
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -184,18 +184,12 @@ jobs:
           cat version/version.txt >> $GITHUB_ENV
       - name: Install Required Packages
         run: |
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake libboost-all-dev
-          sudo apt-get install python3-setuptools libcap-dev zlib1g-dev libbz2-dev
-          mkdir -p depends/sdk-sources
-          mkdir -p depends/SDKs
-          curl https://bitcoincore.org/depends-sources/sdks/MacOSX10.11.sdk.tar.gz -o depends/sdk-sources/MacOSX10.11.sdk.tar.gz
-          tar -C depends/SDKs -xf depends/sdk-sources/MacOSX10.11.sdk.tar.gz
+          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
+          pip3 install ds_store mac_alias
       - name: build depends
         run: |
           echo "building with $(nproc) threads"
-          make -C depends -j$(nproc) HOST=x86_64-apple-darwin11
+          make -C depends -j8 HOST=x86_64-apple-darwin11
       - name: configure
         run: |
           ./autogen.sh
@@ -231,6 +225,14 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-macos-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
+      - name: Generate Macos dmg files
+        run: |
+          make deploy
+      - name: Upload dmg file
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
+          path: Yerbas-Qt.dmg
   build-win:
     name: window build
     needs: checking-build-version
