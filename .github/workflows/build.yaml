@@ -200,7 +200,7 @@ jobs:
       - name: configure
         run: |
           ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11 --with-boost-libdir=/usr/lib/x86_64-linux-gnu
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11 --with-boost-libdir=`pwd`/depends/x86_64-apple-darwin11
       - name: build binary
         run: |
           make -j8
