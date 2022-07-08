@@ -171,7 +171,7 @@ jobs:
   build-macos:
     name: macos build
     needs: checking-build-version
-    runs-on: macos-10.15
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -184,16 +184,22 @@ jobs:
           cat version/version.txt >> $GITHUB_ENV
       - name: Install Required Packages
         run: |
-          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
-          pip3 install ds_store mac_alias
+          sudo apt-get update -y
+          sudo apt-get upgrade -y
+          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
+          sudo apt-get install python3-setuptools libcap-dev zlib1g-dev libbz2-dev
+          mkdir -p depends/sdk-sources
+          mkdir -p depends/SDKs
+          curl https://bitcoincore.org/depends-sources/sdks/MacOSX10.11.sdk.tar.gz -o depends/sdk-sources/MacOSX10.11.sdk.tar.gz
+          tar -C depends/SDKs -xf depends/sdk-sources/MacOSX10.11.sdk.tar.gz
       - name: build depends
         run: |
           echo "building with $(nproc) threads"
-          make -C depends -j8
+          make -C depends -j$(nproc) HOST=x86_64-apple-darwin11 -j4
       - name: configure
         run: |
           ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin19.6.0
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11 -j4
       - name: build binary
         run: |
           make -j8
@@ -232,7 +238,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
-          path: yerbas-Qt.dmg
+          path: Yerbas-Qt.dmg
   build-win:
     name: window build
     needs: checking-build-version
