@@ -195,11 +195,11 @@ jobs:
       - name: build depends
         run: |
           echo "building with $(nproc) threads"
-          make -C depends -j$(nproc) HOST=x86_64-apple-darwin11 -j4
+          make -C depends -j$(nproc) HOST=x86_64-apple-darwin11
       - name: configure
         run: |
           ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11 -j4
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11
       - name: build binary
         run: |
           make -j8
