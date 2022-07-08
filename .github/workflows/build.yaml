@@ -69,6 +69,7 @@ jobs:
         run: |
           brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
           pip3 install ds_store mac_alias boost
+          clang++ --version
       - name: build depends
         run: |
           echo "building with $(nproc) threads"
