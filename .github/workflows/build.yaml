@@ -67,8 +67,8 @@ jobs:
           cat version/version.txt >> $GITHUB_ENV
       - name: Install Required Packages
         run: |
-          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
-          pip3 install ds_store mac_alias boost
+          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python boost
+          pip3 install ds_store mac_alias
           clang++ --version
       - name: build depends
         run: |
