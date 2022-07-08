@@ -8,7 +8,8 @@ $(package)_dependencies=openssl zlib
 $(package)_linux_dependencies=freetype fontconfig libxcb libX11 xproto libXext
 $(package)_build_subdir=qtbase
 $(package)_qt_libs=corelib network widgets gui plugins testlib
-$(package)_patches=mac-qmake.conf mingw-uuidof.patch pidlist_absolute.patch fix-xcb-include-order.patch
+#$(package)_patches=mac-qmake.conf mingw-uuidof.patch pidlist_absolute.patch fix-xcb-include-order.patch
+$(package)_patches=mac-qmake.conf aarch32-qmake.conf aarch64-qmake.conf mingw-uuidof.patch pidlist_absolute.patch fix-xcb-include-order.patch fix_qt_pkgconfig.patch
 $(package)_patches+=fix_qt_configure.patch fix_qt_pkgconfig.patch fix-cocoahelpers-macos.patch qfixed-coretext.patch
 # NOTE: fix_qt_configure.patch is only needed for Qt 5.7, newer versions don't have this issue.
 # Remove it after bumping $(package)_version to 5.8+.
@@ -101,8 +102,9 @@ $(package)_config_opts_linux += -system-freetype
 $(package)_config_opts_linux += -no-sm
 $(package)_config_opts_linux += -fontconfig
 $(package)_config_opts_linux += -no-opengl
-$(package)_config_opts_arm_linux  = -platform linux-g++ -xplatform $(host)
+$(package)_config_opts_arm_linux += -platform linux-g++ -xplatform bitcoin-linux-g++
 $(package)_config_opts_i686_linux  = -xplatform linux-g++-32
+$(package)_config_opts_aarch64_linux = -platform linux-g++ -xplatform aarch64-linux-gnu-g++
 $(package)_config_opts_mingw32  = -no-opengl -xplatform win32-g++ -device-option CROSS_COMPILE="$(host)-"
 $(package)_build_env  = QT_RCC_TEST=1
 endef
@@ -140,6 +142,11 @@ define $(package)_preprocess_cmds
   cp -f qtbase/mkspecs/macx-clang/Info.plist.app qtbase/mkspecs/macx-clang-linux/ &&\
   cp -f qtbase/mkspecs/macx-clang/qplatformdefs.h qtbase/mkspecs/macx-clang-linux/ &&\
   cp -f $($(package)_patch_dir)/mac-qmake.conf qtbase/mkspecs/macx-clang-linux/qmake.conf && \
+  cp -r qtbase/mkspecs/linux-arm-gnueabi-g++ qtbase/mkspecs/bitcoin-linux-g++ && \
+  sed -i.old "s/arm-linux-gnueabi-/$(host)-/g" qtbase/mkspecs/bitcoin-linux-g++/qmake.conf && \
+  mkdir -p qtbase/mkspecs/aarch64-linux-gnu-g++ &&\
+  cp -f qtbase/mkspecs/linux-arm-gnueabi-g++/qplatformdefs.h qtbase/mkspecs/aarch64-linux-gnu-g++/ &&\
+  cp -f $($(package)_patch_dir)/aarch64-qmake.conf qtbase/mkspecs/aarch64-linux-gnu-g++/qmake.conf &&\
   patch -p1 < $($(package)_patch_dir)/mingw-uuidof.patch && \
   patch -p1 < $($(package)_patch_dir)/pidlist_absolute.patch && \
   patch -p1 < $($(package)_patch_dir)/fix-xcb-include-order.patch && \

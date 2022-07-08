@@ -193,7 +193,7 @@ jobs:
       - name: configure
         run: |
           ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin19.6.0
       - name: build binary
         run: |
           make -j8
@@ -324,7 +324,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
       - name: generate checksum and compress binary
         run: |
           echo "buildng $BUILD_VERSION version"
@@ -354,7 +354,7 @@ jobs:
   build-arm-64:
     name: arm 64 bit build
     needs: checking-build-version
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -382,7 +382,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
       - name: generate checksum and compress binary
         run: |
           echo "buildng $BUILD_VERSION version"
