@@ -408,4 +408,68 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-arm64-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
-
+  build-macos:
+    name: macos build-2
+    needs: checking-build-version
+    runs-on: macos-10.7
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Getting Version
+        uses: actions/download-artifact@v1
+        with:
+          name: version
+      - name: Extract version
+        run: |
+          cat version/version.txt >> $GITHUB_ENV
+      - name: Install Required Packages
+        run: |
+          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
+          pip3 install ds_store mac_alias
+      - name: build depends
+        run: |
+          echo "building with $(nproc) threads"
+          make -C depends -j8 HOST=x86_64-apple-darwin11
+      - name: configure
+        run: |
+          ./autogen.sh
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11
+      - name: build binary
+        run: |
+          make -j8
+          mkdir -p $BUILD_DIR
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
+          strip $BUILD_DIR/*
+      - name: generate checksum and compress
+        run: |
+          echo "buildng $BUILD_VERSION version"
+          cd $BUILD_DIR
+          shasum yerbas-cli >> checksums.txt
+          openssl sha256 yerbas-cli >> checksums.txt
+          shasum yerbasd >> checksums.txt
+          openssl sha256 yerbasd >> checksums.txt
+          shasum yerbas-tx >> checksums.txt
+          openssl sha256 yerbas-tx >> checksums.txt
+          openssl sha256 yerbas-qt >> checksums.txt
+          openssl sha256 yerbas-qt >> checksums.txt
+          cat checksums.txt
+          cd ..
+          tar -cvzf ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          mkdir -p ${COMPRESS_DIR}
+          mv ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
+          shasum ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          openssl sha256 ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          cat ${COMPRESS_DIR}/checksums.txt
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-macos-${{ env.BUILD_VERSION }}
+          path: ${{ env.COMPRESS_DIR }}
+      - name: Generate Macos dmg files
+        run: |
+          make deploy
+      - name: Upload dmg file
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
+          path: Yerbas-Qt.dmg
