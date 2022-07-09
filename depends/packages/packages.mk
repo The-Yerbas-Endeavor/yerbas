@@ -8,7 +8,7 @@ qt_i686_linux_packages:=$(qt_x86_64_linux_packages)
 qt_arm_linux_packages:=$(qt_x86_64_linux_packages)
 qt_aarch64_linux_packages:=$(qt_x86_64_linux_packages)
 
-qt_darwin_packages=qt
+
 qt_mingw32_packages=qt
 
 wallet_packages=bdb
