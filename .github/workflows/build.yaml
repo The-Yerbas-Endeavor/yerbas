@@ -71,7 +71,7 @@ jobs:
       - name: build depends
         run: |
           echo "building with $(nproc) threads"
-          make -C depends -j8
+          make -C depends -j8 HOST=`pwd`/depends/x86_64-apple-darwin19.6.0
       - name: configure
         run: |
           ./autogen.sh
