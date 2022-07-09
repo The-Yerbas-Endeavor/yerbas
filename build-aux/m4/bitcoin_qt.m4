@@ -345,48 +345,25 @@ dnl Inputs: bitcoin_qt_got_major_vers. 4 or 5.
 dnl Inputs: qt_plugin_path. optional.
 dnl Outputs: QT_LIBS is appended
 AC_DEFUN([_BITCOIN_QT_FIND_STATIC_PLUGINS],[
-  if test x$bitcoin_qt_got_major_vers = x5; then
-      if test x$qt_plugin_path != x; then
-        QT_LIBS="$QT_LIBS -L$qt_plugin_path/platforms"
-        if test -d "$qt_plugin_path/accessible"; then
-          QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
-        fi
+    if test "x$qt_plugin_path" != x; then
+      QT_LIBS="$QT_LIBS -L$qt_plugin_path/platforms"
+      if test -d "$qt_plugin_path/accessible"; then
+        QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
       fi
-     if test x$use_pkgconfig = xyes; then
-     : dnl
-     m4_ifdef([PKG_CHECK_MODULES],[
-       PKG_CHECK_MODULES([QTPLATFORM], [Qt5PlatformSupport], [QT_LIBS="$QTPLATFORM_LIBS $QT_LIBS"])
-       if test x$TARGET_OS = xlinux; then
-         PKG_CHECK_MODULES([X11XCB], [x11-xcb], [QT_LIBS="$X11XCB_LIBS $QT_LIBS"])
-         if ${PKG_CONFIG} --exists "Qt5Core >= 5.5" 2>/dev/null; then
-           PKG_CHECK_MODULES([QTXCBQPA], [Qt5XcbQpa], [QT_LIBS="$QTXCBQPA_LIBS $QT_LIBS"])
-         fi
-       elif test x$TARGET_OS = xdarwin; then
-         PKG_CHECK_MODULES([QTPRINT], [Qt5PrintSupport], [QT_LIBS="$QTPRINT_LIBS $QT_LIBS"])
-       fi
-     ])
-     else
-       if test x$TARGET_OS = xwindows; then
-         AC_CACHE_CHECK(for Qt >= 5.6, bitcoin_cv_need_platformsupport,[AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
-             [[#include <QtCore>]],[[
-             #if QT_VERSION < 0x050600
-             choke;
-             #endif
-             ]])],
-           [bitcoin_cv_need_platformsupport=yes],
-           [bitcoin_cv_need_platformsupport=no])
-         ])
-         if test x$bitcoin_cv_need_platformsupport = xyes; then
-           BITCOIN_QT_CHECK(AC_CHECK_LIB([${QT_LIB_PREFIX}PlatformSupport],[main],,BITCOIN_QT_FAIL(lib$QT_LIB_PREFIXPlatformSupport not found)))
-         fi
-       fi
-     fi
-  else
-    if test x$qt_plugin_path != x; then
-      QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
-      QT_LIBS="$QT_LIBS -L$qt_plugin_path/codecs"
+      PKG_CHECK_MODULES([QTFONTDATABASE], [Qt5FontDatabaseSupport${qt_lib_suffix}], [QT_LIBS="-lQt5FontDatabaseSupport${qt_lib_suffix} $QT_LIBS"])
+      PKG_CHECK_MODULES([QTEVENTDISPATCHER], [Qt5EventDispatcherSupport${qt_lib_suffix}], [QT_LIBS="-lQt5EventDispatcherSupport${qt_lib_suffix} $QT_LIBS"])
+      PKG_CHECK_MODULES([QTTHEME], [Qt5ThemeSupport${qt_lib_suffix}], [QT_LIBS="-lQt5ThemeSupport${qt_lib_suffix} $QT_LIBS"])
+      PKG_CHECK_MODULES([QTDEVICEDISCOVERY], [Qt5DeviceDiscoverySupport${qt_lib_suffix}], [QT_LIBS="-lQt5DeviceDiscoverySupport${qt_lib_suffix} $QT_LIBS"])
+      PKG_CHECK_MODULES([QTACCESSIBILITY], [Qt5AccessibilitySupport${qt_lib_suffix}], [QT_LIBS="-lQt5AccessibilitySupport${qt_lib_suffix} $QT_LIBS"])
+      PKG_CHECK_MODULES([QTFB], [Qt5FbSupport${qt_lib_suffix}], [QT_LIBS="-lQt5FbSupport${qt_lib_suffix} $QT_LIBS"])
+      if test "x$TARGET_OS" = xlinux; then
+        PKG_CHECK_MODULES([QTXCBQPA], [Qt5XcbQpa], [QT_LIBS="$QTXCBQPA_LIBS $QT_LIBS"])
+      elif test "x$TARGET_OS" = xdarwin; then
+        PKG_CHECK_MODULES([QTCLIPBOARD], [Qt5ClipboardSupport${qt_lib_suffix}], [QT_LIBS="-lQt5ClipboardSupport${qt_lib_suffix} $QT_LIBS"])
+        PKG_CHECK_MODULES([QTGRAPHICS], [Qt5GraphicsSupport${qt_lib_suffix}], [QT_LIBS="-lQt5GraphicsSupport${qt_lib_suffix} $QT_LIBS"])
+        PKG_CHECK_MODULES([QTCGL], [Qt5CglSupport${qt_lib_suffix}], [QT_LIBS="-lQt5CglSupport${qt_lib_suffix} $QT_LIBS"])
+      fi
     fi
-  fi
 ])
 
 dnl Internal. Find Qt libraries using pkg-config.
