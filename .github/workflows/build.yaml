@@ -81,7 +81,7 @@ jobs:
         run: |
           make -j8
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
           strip $BUILD_DIR/*
       - name: generate checksum and compress
         run: |
@@ -108,4 +108,11 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-macos-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
-
+      - name: Generate Macos dmg files
+        run: |
+          make deploy
+      - name: Upload dmg file
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
+          path: Yerbas-Qt.dmg
