@@ -73,7 +73,7 @@
 #include "evo/deterministicmns.h"
 #include "llmq/quorums_init.h"
 
-#include "llmq/quorums_init.h"
+#include <primitives/powcache.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -263,6 +263,8 @@ void PrepareShutdown()
         flatdb4.Dump(netfulfilledman);
         CFlatDB<CSporkManager> flatdb6("sporks.dat", "magicSporkCache");
         flatdb6.Dump(sporkManager);
+        CFlatDB<CPowCache> flatdb7("powcache.dat", "powCache");
+        flatdb7.Dump(CPowCache::Instance());
     }
 
     if (fDumpMempoolLater && gArgs.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
@@ -1969,7 +1971,21 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         ::feeEstimator.Read(est_filein);
     fFeeEstimatesInitialized = true;
 
-    // ********************************************************* Step 8: load wallet
+        // ********************************************************* Step 8a: load powcache.dat
+
+    {
+        fs::path pathDB = GetDataDir();
+        std::string strDBName = "powcache.dat";
+
+        // Always load the powcache if available:
+        uiInterface.InitMessage(_("Loading POW cache..."));
+        CFlatDB<CPowCache> flatdb7(strDBName, "powCache");
+        if(!flatdb7.Load(CPowCache::Instance())) {
+            return InitError(_("Failed to load POW cache from") + "\n" + (pathDB / strDBName).string());
+        }
+    }
+
+    // ********************************************************* Step 8b: load wallet
 #ifdef ENABLE_WALLET
     if (!CWallet::InitLoadWallet())
         return false;
@@ -2131,6 +2147,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
     }
 
+
     // ********************************************************* Step 10c: schedule Yerbas-specific tasks
 
     if (!fLiteMode) {
@@ -2141,6 +2158,9 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 
     scheduler.scheduleEvery(boost::bind(&CSmartnodeUtils::DoMaintenance, boost::ref(*g_connman)), 1 * 1000);
+
+    // Periodic flush of POW Cache if cache has grown enough
+    scheduler.scheduleEvery(boost::bind(&CPowCache::DoMaintenance, &CPowCache::Instance()), 60 * 1000);
 
     if (fSmartnodeMode) {
         scheduler.scheduleEvery(boost::bind(&CPrivateSendServer::DoMaintenance, boost::ref(privateSendServer), boost::ref(*g_connman)), 1 * 1000);

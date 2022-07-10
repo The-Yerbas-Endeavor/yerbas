@@ -19,8 +19,9 @@
 
 #include <univalue.h>
 
-static const std::string DB_LIST_SNAPSHOT = "dmn_S";
-static const std::string DB_LIST_DIFF = "dmn_D";
+static const std::string DB_LIST_SNAPSHOT     = "dmn_S";
+static const std::string DB_LIST_DIFF         = "dmn_D";
+static const int         CACHE_CLEANUP_BLOCKS = 40;
 
 CDeterministicMNManager* deterministicMNManager;
 
@@ -547,7 +548,7 @@ bool CDeterministicMNManager::ProcessBlock(const CBlock& block, const CBlockInde
         diff = oldList.BuildDiff(newList);
 
         evoDb.Write(std::make_pair(DB_LIST_DIFF, newList.GetBlockHash()), diff);
-        if ((nHeight % SNAPSHOT_LIST_PERIOD) == 0 || oldList.GetHeight() == -1) {
+        if ((nHeight % DISK_SNAPSHOT_PERIOD) == 0 || oldList.GetHeight() == -1) {
             evoDb.Write(std::make_pair(DB_LIST_SNAPSHOT, newList.GetBlockHash()), newList);
             LogPrintf("CDeterministicMNManager::%s -- Wrote snapshot. nHeight=%d, mapCurMNs.allMNsCount=%d\n",
                 __func__, nHeight, newList.GetAllMNsCount());
@@ -999,14 +1000,52 @@ void CDeterministicMNManager::CleanupCache(int nHeight)
 {
     AssertLockHeld(cs);
 
-    std::vector<uint256> toDelete;
+    // Don't run this every block, unnecessary overhead.
+    static int lastCleanupHeight = 0;
+    if (nHeight - lastCleanupHeight < CACHE_CLEANUP_BLOCKS)
+        return;
+    lastCleanupHeight = nHeight;
+
+    std::vector<uint256> toDeleteLists;
+    std::vector<uint256> toDeleteDiffs;
     for (const auto& p : mnListsCache) {
-        if (p.second.GetHeight() + LISTS_CACHE_SIZE < nHeight) {
-            toDelete.emplace_back(p.first);
+        if (p.second.GetHeight() + LIST_DIFFS_CACHE_SIZE < nHeight) {
+            toDeleteLists.emplace_back(p.first);
+            continue;
+        }
+        bool fQuorumCache{false};
+        for (auto& p_llmq : Params().GetConsensus().llmqs) {
+            if ((p.second.GetHeight() % p_llmq.second.dkgInterval == 0) && (p.second.GetHeight() + p_llmq.second.dkgInterval * (p_llmq.second.keepOldConnections + 1) >= nHeight)) {
+                fQuorumCache = true;
+                break;
+            }
+        }
+        if (fQuorumCache) {
+            // at least one quorum could be using it, keep it
+            continue;
+        }
+        // no alive quorums using it, see if it was a cache for the tip or for a now outdated quorum
+        if (tipIndex && tipIndex->pprev && (p.first == tipIndex->pprev->GetBlockHash())) {
+            toDeleteLists.emplace_back(p.first);
+        } else {
+            for (auto& p_llmq : Params().GetConsensus().llmqs) {
+                if (p.second.GetHeight() % p_llmq.second.dkgInterval == 0) {
+                    toDeleteLists.emplace_back(p.first);
+                    break;
+                }
+            }
         }
     }
-    for (const auto& h : toDelete) {
+    for (const auto& h : toDeleteLists) {
         mnListsCache.erase(h);
+    }
+    for (const auto& p : mnListDiffsCache) {
+        if (p.second.nHeight + LIST_DIFFS_CACHE_SIZE < nHeight) {
+            toDeleteDiffs.emplace_back(p.first);
+        }
+    }
+    for (const auto& h : toDeleteDiffs) {
+        mnListDiffsCache.erase(h);
     }
 }
 
@@ -1101,7 +1140,7 @@ void CDeterministicMNManager::UpgradeDBIfNeeded()
         CDeterministicMNList newMNList;
         UpgradeDiff(batch, pindex, curMNList, newMNList);
 
-        if ((nHeight % SNAPSHOT_LIST_PERIOD) == 0) {
+        if ((nHeight % DISK_SNAPSHOT_PERIOD) == 0) {
             batch.Write(std::make_pair(DB_LIST_SNAPSHOT, pindex->GetBlockHash()), newMNList);
             evoDb.GetRawDB().WriteBatch(batch);
             batch.Clear();
