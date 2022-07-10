@@ -27,7 +27,7 @@ include_directories(
 if(UNIX AND NOT APPLE)
     set(DEPENDS_PREFIX depends/x86_64-pc-linux-gnu)
 elseif(APPLE)
-    set(DEPENDS_PREFIX depends/x86_64-apple-darwin14)
+    set(DEPENDS_PREFIX depends/x86_64-apple-darwin11)
 elseif(WIN32)
     set(DEPENDS_PREFIX depends/x86_64-w64-mingw32)
 endif()
@@ -75,8 +75,8 @@ file(GLOB SOURCE_FILES
         src/privatesend/*.h
         src/qt/*.cpp
         src/qt/*.h
-        #src/qt/test/*.cpp
-        #src/qt/test/*.h
+        src/qt/test/*.cpp
+        src/qt/test/*.h
         src/rpc/*.cpp
         src/rpc/*.h
         src/script/*.cpp
