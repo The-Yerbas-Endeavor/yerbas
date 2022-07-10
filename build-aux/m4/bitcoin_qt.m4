@@ -327,6 +327,41 @@ AC_DEFUN([_BITCOIN_QT_FIND_STATIC_PLUGINS],[
         PKG_CHECK_MODULES([QTGRAPHICS], [Qt5GraphicsSupport${qt_lib_suffix}], [QT_LIBS="-lQt5GraphicsSupport${qt_lib_suffix} $QT_LIBS"])
         PKG_CHECK_MODULES([QTCGL], [Qt5CglSupport${qt_lib_suffix}], [QT_LIBS="-lQt5CglSupport${qt_lib_suffix} $QT_LIBS"])
       fi
+<<<<<<< HEAD
+=======
+     if test x$use_pkgconfig = xyes; then
+     : dnl
+     m4_ifdef([PKG_CHECK_MODULES],[
+       PKG_CHECK_MODULES([QTPLATFORM], [Qt5FontDatabaseSupport], [QT_LIBS="$QTPLATFORM_LIBS $QT_LIBS"])
+       if test x$TARGET_OS = xlinux; then
+         if ${PKG_CONFIG} --exists "Qt5Core >= 5.5" 2>/dev/null; then
+           PKG_CHECK_MODULES([QTXCBQPA], [Qt5XcbQpa], [QT_LIBS="$QTXCBQPA_LIBS $QT_LIBS"])
+         fi
+       elif test x$TARGET_OS = xdarwin; then
+         PKG_CHECK_MODULES([QTPRINT], [Qt5PrintSupport], [QT_LIBS="$QTPRINT_LIBS $QT_LIBS"])
+       fi
+     ])
+     else
+       if test x$TARGET_OS = xwindows; then
+         AC_CACHE_CHECK(for Qt >= 5.6, bitcoin_cv_need_FontDatabaseSupport,[AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+             [[#include <QtCore>]],[[
+             #if QT_VERSION < 0x050600
+             choke;
+             #endif
+             ]])],
+           [bitcoin_cv_need_FontDatabaseSupport=yes],
+           [bitcoin_cv_need_FontDatabaseSupport=no])
+         ])
+         if test x$bitcoin_cv_need_FontDatabaseSupport = xyes; then
+           BITCOIN_QT_CHECK(AC_CHECK_LIB([${QT_LIB_PREFIX}FontDatabaseSupport],[main],,BITCOIN_QT_FAIL(lib$QT_LIB_PREFIXFontDatabaseSupport not found)))
+         fi
+       fi
+     fi
+  else
+    if test x$qt_plugin_path != x; then
+      QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
+      QT_LIBS="$QT_LIBS -L$qt_plugin_path/codecs"
+>>>>>>> test
     fi
 ])
 
