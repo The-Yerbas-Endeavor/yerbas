@@ -314,10 +314,9 @@ AC_DEFUN([_BITCOIN_QT_FIND_STATIC_PLUGINS],[
       if test -d "$qt_plugin_path/accessible"; then
         QT_LIBS="$QT_LIBS -L$qt_plugin_path/accessible"
       fi
-      PKG_CHECK_MODULES([QTFONTDATABASE], [Qt5FontDatabaseSupport${qt_lib_suffix}], [QT_LIBS="-lQt5FontDatabaseSupport${qt_lib_suffix} $QT_LIBS"])
+      PKG_CHECK_MODULES([QTPLATFORM], [Qt5FontDatabaseSupport], [QT_LIBS="$QTPLATFORM_LIBS $QT_LIBS"])
       PKG_CHECK_MODULES([QTEVENTDISPATCHER], [Qt5EventDispatcherSupport${qt_lib_suffix}], [QT_LIBS="-lQt5EventDispatcherSupport${qt_lib_suffix} $QT_LIBS"])
-      PKG_CHECK_MODULES([QTTHEME], [Qt5ThemeSupport${qt_lib_suffix}], [QT_LIBS="-lQt5ThemeSupport${qt_lib_suffix} $QT_LIBS"])
-      PKG_CHECK_MODULES([QTDEVICEDISCOVERY], [Qt5DeviceDiscoverySupport${qt_lib_suffix}], [QT_LIBS="-lQt5DeviceDiscoverySupport${qt_lib_suffix} $QT_LIBS"])
+     PKG_CHECK_MODULES([QTDEVICEDISCOVERY], [Qt5DeviceDiscoverySupport${qt_lib_suffix}], [QT_LIBS="-lQt5DeviceDiscoverySupport${qt_lib_suffix} $QT_LIBS"])
       PKG_CHECK_MODULES([QTACCESSIBILITY], [Qt5AccessibilitySupport${qt_lib_suffix}], [QT_LIBS="-lQt5AccessibilitySupport${qt_lib_suffix} $QT_LIBS"])
       PKG_CHECK_MODULES([QTFB], [Qt5FbSupport${qt_lib_suffix}], [QT_LIBS="-lQt5FbSupport${qt_lib_suffix} $QT_LIBS"])
       if test "x$TARGET_OS" = xlinux; then
