@@ -42,7 +42,7 @@ CPowCache::CPowCache(int maxSize, bool validate) : unordered_lru_cache<uint256, 
     nLoadedSize(0),
     bValidate(validate)
 {
-    if (bValidate) LogPrintf("PowCache: Validation and auto correction enabled\n");
+    //if (bValidate) LogPrintf("PowCache: Validation and auto correction enabled\n");
 }
 
 CPowCache::~CPowCache()
