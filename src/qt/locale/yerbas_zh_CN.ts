@@ -188,7 +188,7 @@
         <translation>确认加密钱包</translation>
     </message>
     <message>
-        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR YERB&lt;/b&gt;!</source>
+        <source>Warning: If you encrypt your wallet and lose your passphrase, you will &lt;b&gt;LOSE ALL OF YOUR RTM&lt;/b&gt;!</source>
         <translation>警告:如果把钱包加​​密后又忘记密码，您就会从此&lt;b&gt;失去所有的达世币了&lt;/b&gt;！</translation>
     </message>
     <message>
@@ -1648,7 +1648,7 @@ https://www.transifex.com/projects/p/yerbas/</translation>
         <translation>数量与循环次数：</translation>
     </message>
     <message>
-        <source>0 YERB / 0 Rounds</source>
+        <source>0 RTM / 0 Rounds</source>
         <translation>0 达世币 / 0 循环数</translation>
     </message>
     <message>
@@ -4099,7 +4099,7 @@ https://www.transifex.com/projects/p/yerbas/</translation>
         <translation>无效的最少数叉勺签名人以  -minsporkkeys 标识</translation>
     </message>
     <message>
-        <source>Keep N YERB mixed (%u-%u, default: %u)</source>
+        <source>Keep N RTM mixed (%u-%u, default: %u)</source>
         <translation>保持N个混币处理的达世币 (%u-%u, 默认: %u)</translation>
     </message>
     <message>
