@@ -87,13 +87,14 @@ jobs:
         run: |
           echo "buildng $BUILD_VERSION version"
           cd $BUILD_DIR
-          echo "sha256:" >> checksums.txt
-          echo "------------------------------------" >> checksums.txt
-          shasum * >> checksums.txt
-          echo "------------------------------------" >> checksums.txt
-          echo "openssl-sha256:" >> checksums.txt
-          echo "------------------------------------" >> checksums.txt
-          sha256sum * >> checksums.txt
+          shasum yerbas-cli >> checksums.txt
+          openssl sha256 yerbas-cli >> checksums.txt
+          shasum yerbasd >> checksums.txt
+          openssl sha256 yerbasd >> checksums.txt
+          shasum yerbas-tx >> checksums.txt
+          openssl sha256 yerbas-tx >> checksums.txt
+          shasum yerbas-qt >> checksums.txt
+          openssl sha256 yerbas-qt >> checksums.txt
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
