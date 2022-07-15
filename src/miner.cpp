@@ -635,7 +635,8 @@ void static YerbasMiner(const CChainParams& chainparams)
                 uint256 hash;
                 while (true)
                 {
-                    hash = pblock->GetPOWHash();
+                    //hash = pblock->GetPOWHash();
+                    hash = pblock->ComputeHash();
                     if (UintToArith256(hash) <= hashTarget)
                     {
                         // Found a solution
