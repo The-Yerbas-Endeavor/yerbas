@@ -76,7 +76,7 @@ jobs:
       - name: configure
         run: |
           ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin19.6.0
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin19.6.0 --enable_stacktraces=no
       - name: build binary
         run: |
           make -j8
