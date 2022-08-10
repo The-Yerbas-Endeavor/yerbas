@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-      - devmac
+      - v2.1.1.4
   pull_request:
     branches:
-      - devmac
+      - v2.1.1.4
 env:
   COIN_NAME: yerbas
   BUILD_DIR: yerbas-build
@@ -31,7 +31,7 @@ jobs:
           path: build.properties
           property: 'release-version'
       - name: Read build.properties key for develop
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/devmac'}}
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/v2.1.1.4'}}
         id: snapshot-version
         uses: christian-draeger/read-properties@1.0.1
         with:
@@ -42,7 +42,7 @@ jobs:
         run: |
           echo "BUILD_VERSION=${{ steps.release-version.outputs.value }}" > version.txt
       - name: create snapshot version
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/devmac'}}
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/v2.1.1.4'}}
         run: |
           echo "BUILD_VERSION=${{ steps.snapshot-version.outputs.value }}" > version.txt
       - name: Upload Artifact
