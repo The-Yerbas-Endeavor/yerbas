@@ -25,7 +25,7 @@ packages:
 - "rename"
 - "ccache"
 remotes:
-- "url": "https://github.com/yerbas/yerbas.git"
+- "url": "https://github.com/The-Yerbas-Endeavor/yerbas.git"
   "dir": "yerbas"
 files: []
 script: |

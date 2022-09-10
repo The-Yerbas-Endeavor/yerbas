@@ -8,7 +8,7 @@ Yerbas Core version 0.12.0 is now available from:
 
 Please report bugs using the issue tracker at github:
 
-  https://github.com/yerbas/yerbas/issues
+  https://github.com/The-Yerbas-Endeavor/yerbas/issues
 
 
 How to Upgrade

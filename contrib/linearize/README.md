@@ -4,7 +4,7 @@ run using Python 3 but are compatible with Python 2.
 
 ## Step 0: Install yerbas_hash
 
-https://github.com/yerbas/yerbas_hash
+https://github.com/The-Yerbas-Endeavor/yerbas_hash
 
 ## Step 1: Download hash list
 

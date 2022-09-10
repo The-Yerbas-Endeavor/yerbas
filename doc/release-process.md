@@ -1,9 +1,9 @@
 Release Process
 ====================
 
-* Update translations, see [translation_process.md](https://github.com/yerbas/yerbas/blob/master/doc/translation_process.md#synchronising-translations).
+* Update translations, see [translation_process.md](https://github.com/The-Yerbas-Endeavor/yerbas/blob/master/doc/translation_process.md#synchronising-translations).
 
-* Update manpages, see [gen-manpages.sh](https://github.com/yerbas/yerbas/blob/master/contrib/devtools/README.md#gen-manpagessh).
+* Update manpages, see [gen-manpages.sh](https://github.com/The-Yerbas-Endeavor/yerbas/blob/master/contrib/devtools/README.md#gen-manpagessh).
 
 Before every minor and major release:
 
@@ -33,9 +33,9 @@ Check out the source code in the following directory hierarchy.
 
 	cd /path/to/your/toplevel/build
 	git clone https://github.com/yerbas/gitian.sigs.git
-	git clone https://github.com/yerbas/yerbas-detached-sigs.git
+	git clone https://github.com/The-Yerbas-Endeavor/yerbas-detached-sigs.git
 	git clone https://github.com/devrandom/gitian-builder.git
-	git clone https://github.com/yerbas/yerbas.git
+	git clone https://github.com/The-Yerbas-Endeavor/yerbas.git
 
 ### Yerbas Core maintainers/release engineers, suggestion for writing release notes
 
@@ -194,7 +194,7 @@ Codesigner only: Commit the detached codesign payloads:
 Non-codesigners: wait for Windows/OS X detached signatures:
 
 - Once the Windows/OS X builds each have 3 matching signatures, they will be signed with their respective release keys.
-- Detached signatures will then be committed to the [yerbas-detached-sigs](https://github.com/yerbas/yerbas-detached-sigs) repository, which can be combined with the unsigned apps to create signed binaries.
+- Detached signatures will then be committed to the [yerbas-detached-sigs](https://github.com/The-Yerbas-Endeavor/yerbas-detached-sigs) repository, which can be combined with the unsigned apps to create signed binaries.
 
 Create (and optionally verify) the signed OS X binary:
 
@@ -274,6 +274,6 @@ Note: check that SHA256SUMS itself doesn't end up in SHA256SUMS, which is a spur
 
   - Archive release notes for the new version to `doc/release-notes/` (branch `master` and branch of the release)
 
-  - Create a [new GitHub release](https://github.com/yerbas/yerbas/releases/new) with a link to the archived release notes.
+  - Create a [new GitHub release](https://github.com/The-Yerbas-Endeavor/yerbas/releases/new) with a link to the archived release notes.
 
   - Celebrate

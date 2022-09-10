@@ -7,7 +7,7 @@ architectures:
 packages:
 - "faketime"
 remotes:
-- "url": "https://github.com/yerbas/yerbas-detached-sigs.git"
+- "url": "https://github.com/The-Yerbas-Endeavor/yerbas-detached-sigs.git"
   "dir": "signature"
 files:
 - "yerbascore-osx-unsigned.tar.gz"
