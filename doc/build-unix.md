@@ -12,7 +12,10 @@ Run the following commands to install required packages:
 
 ##### Debian/Ubuntu:
 ```bash
-$ sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
+$ sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake 
+$ sudo add-apt-repository ppa:bitcoin/bitcoin
+$ sudo apt-get update
+$ sudo apt-get install libdb4.8-dev libdb4.8++-dev
 ```
 
 ##### Fedora:
