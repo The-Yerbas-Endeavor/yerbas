@@ -26,7 +26,7 @@ WalletFrame {
     }
     
     QMenuBar::item:selected {
-    background-color: #42463d;
+    background-color: #0f130d;
     color: #4F7942; 
     }
     
@@ -39,7 +39,7 @@ WalletFrame {
     }
     
     QMenu::item:selected {
-    background-color: #42463d;
+    background-color: #666;
     color: #4F7942;
     }
     
@@ -341,7 +341,7 @@ WalletFrame {
     }
     
     QTableView::item:selected { /* Table Item Selected */
-    background-color: #42463d;
+    background-color: #0f130d;
     color: #ccc;
     }
     
@@ -385,7 +385,7 @@ WalletFrame {
     }
     
     .QTabWidget QTabBar::tab:selected{
-    background-color: #42463d;
+    background-color: #091306;
     color: #ccc;
     }
     
@@ -1391,7 +1391,7 @@ WalletFrame {
     }
     
     QDialog#CoinControlDialog .CoinControlTreeWidget#treeWidget::item:checked { /* Coin Control Item (checked) */
-    background-color: #0f130d;
+    background-color: #666;;
     color: #ccc;
     }
     
