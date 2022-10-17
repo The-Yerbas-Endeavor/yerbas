@@ -6,9 +6,11 @@
 #ifndef BITCOIN_PRIMITIVES_BLOCK_H
 #define BITCOIN_PRIMITIVES_BLOCK_H
 
-#include "primitives/transaction.h"
-#include "serialize.h"
-#include "uint256.h"
+#include <primitives/transaction.h>
+#include <serialize.h>
+#include <uint256.h>
+#include <unordered_lru_cache.h>
+#include <util.h>
 
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
@@ -38,7 +40,8 @@ public:
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
+    inline void SerializationOp(Stream& s, Operation ser_action) 
+    {
         READWRITE(this->nVersion);
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
@@ -62,8 +65,14 @@ public:
         return (nBits == 0);
     }
 
+    /// Compute the Header Hash from the block
     uint256 GetHash() const;
-    uint256 GetPOWHash() const;
+
+    /// Compute the POW hash using GhostRider algorithm
+    uint256 ComputeHash() const;
+
+    /// Caching lookup/computation of POW hash using GhostRider algorithm
+    uint256 GetPOWHash(bool readCache = true) const;
 
     int64_t GetBlockTime() const
     {
@@ -96,7 +105,8 @@ public:
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
+    inline void SerializationOp(Stream& s, Operation ser_action) 
+    {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
     }
@@ -140,7 +150,8 @@ struct CBlockLocator
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
+    inline void SerializationOp(Stream& s, Operation ser_action) 
+    {
         int nVersion = s.GetVersion();
         if (!(s.GetType() & SER_GETHASH))
             READWRITE(nVersion);

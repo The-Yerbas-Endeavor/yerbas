@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd $DIR/..
+export LC_ALL=C
 
-DOCKER_IMAGE=${DOCKER_IMAGE:-yerbas/yerbasd-develop}
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR/.. || exit
+
+DOCKER_IMAGE=${DOCKER_IMAGE:-The-Yerbas-Endeavor/yerbasd-develop}
 DOCKER_TAG=${DOCKER_TAG:-latest}
 
 if [ -n "$DOCKER_REPO" ]; then

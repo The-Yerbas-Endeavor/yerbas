@@ -23,7 +23,7 @@ def setup():
             exit(1)
     subprocess.check_call(['sudo', 'apt-get', 'install', '-qq'] + programs)
     if not os.path.isdir('gitian.sigs'):
-        subprocess.check_call(['git', 'clone', 'https://github.com/The-Yerbas-Endeavor/gitian.sigs.git'])
+        subprocess.check_call(['git', 'clone', 'https://github.com/yerbas/gitian.sigs.git'])
     if not os.path.isdir('yerbas-detached-sigs'):
         subprocess.check_call(['git', 'clone', 'https://github.com/The-Yerbas-Endeavor/yerbas-detached-sigs.git'])
     if not os.path.isdir('gitian-builder'):

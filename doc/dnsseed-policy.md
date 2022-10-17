@@ -50,4 +50,4 @@ situations but should be discussed in public in advance.
 
 See also
 ----------
-- [yerbas-seeder](https://github.com/nightlyyerbas/yerbas-seeder) is a reference implementation of a DNS seed.
+- [yerbas-seeder](https://github.com/nightlyThe-Yerbas-Endeavor/yerbas-seeder) is a reference implementation of a DNS seed.

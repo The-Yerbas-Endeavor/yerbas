@@ -1391,7 +1391,7 @@ WalletFrame {
     }
     
     QDialog#CoinControlDialog .CoinControlTreeWidget#treeWidget::item:checked { /* Coin Control Item (checked) */
-    background-color: #0f130d;
+    background-color: #666;;
     color: #ccc;
     }
     
