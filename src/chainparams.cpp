@@ -625,7 +625,7 @@ public:
         vSeeds.clear();
         // nodes with support for servicebits filtering should be at the top
        // vSeeds.emplace_back("weednode420.yerbas.org", true);
-
+        // vSeeds.emplace_back("weednode03.yerbas.org", true);
 
         // Testnet Yerbas addresses start with 'r'
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,123);

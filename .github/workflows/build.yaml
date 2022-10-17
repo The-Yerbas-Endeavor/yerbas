@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-      - develop
+      - v2.1.1.4
   pull_request:
     branches:
-      - develop
+      - v2.1.1.4
 env:
   COIN_NAME: yerbas
   BUILD_DIR: yerbas-build
@@ -31,7 +31,7 @@ jobs:
           path: build.properties
           property: 'release-version'
       - name: Read build.properties key for develop
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'}}
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/v2.1.1.4'}}
         id: snapshot-version
         uses: christian-draeger/read-properties@1.0.1
         with:
@@ -42,7 +42,7 @@ jobs:
         run: |
           echo "BUILD_VERSION=${{ steps.release-version.outputs.value }}" > version.txt
       - name: create snapshot version
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/develop'}}
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/v2.1.1.4'}}
         run: |
           echo "BUILD_VERSION=${{ steps.snapshot-version.outputs.value }}" > version.txt
       - name: Upload Artifact
@@ -51,6 +51,71 @@ jobs:
           name: version
           path: version.txt
 
+  build-macos:
+    name: macos build
+    needs: checking-build-version
+    runs-on: macos-11
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Getting Version
+        uses: actions/download-artifact@v1
+        with:
+          name: version
+      - name: Extract version
+        run: |
+          cat version/version.txt >> $GITHUB_ENV
+      - name: Install Required Packages
+        run: |
+          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
+          pip3 install ds_store mac_alias
+      - name: build depends
+        run: |
+          echo "building with $(nproc) threads"
+          make -C depends -j8
+      - name: configure
+        run: |
+          ./autogen.sh
+          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin20.6.0
+      - name: build binary
+        run: |
+          make -j8
+          mkdir -p $BUILD_DIR
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
+          strip $BUILD_DIR/*
+      - name: generate checksum and compress
+        run: |
+          echo "buildng $BUILD_VERSION version"
+          cd $BUILD_DIR
+          shasum yerbas-cli >> checksums.txt
+          openssl sha256 yerbas-cli >> checksums.txt
+          shasum yerbasd >> checksums.txt
+          openssl sha256 yerbasd >> checksums.txt
+          shasum yerbas-tx >> checksums.txt
+          openssl sha256 yerbas-tx >> checksums.txt
+          shasum yerbas-qt >> checksums.txt
+          openssl sha256 yerbas-qt >> checksums.txt
+          cat checksums.txt
+          cd ..
+          tar -cvzf ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          mkdir -p ${COMPRESS_DIR}
+          mv ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
+          shasum ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          openssl sha256 ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          cat ${COMPRESS_DIR}/checksums.txt
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-macos-${{ env.BUILD_VERSION }}
+          path: ${{ env.COMPRESS_DIR }}
+      - name: Generate Macos dmg files
+        run: |
+          make deploy
+      - name: Upload dmg file
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
+          path: Yerbas-Qt.dmg
   build-ubuntu18:
     name: Ubuntu18 build
     needs: checking-build-version
@@ -89,14 +154,13 @@ jobs:
         run: |
           echo "buildng $BUILD_VERSION version"
           cd $BUILD_DIR
-          shasum yerbas-cli >> checksums.txt
-          sha256sum yerbas-cli >> checksums.txt
-          shasum yerbasd >> checksums.txt
-          sha256sum yerbasd >> checksums.txt
-          shasum yerbas-tx >> checksums.txt
-          sha256sum yerbas-tx >> checksums.txt
-          shasum yerbas-qt >> checksums.txt
-          sha256sum yerbas-qt >> checksums.txt
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-ubuntu18-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
@@ -147,14 +211,13 @@ jobs:
         run: |
           echo "buildng $BUILD_VERSION version"
           cd $BUILD_DIR
-          shasum yerbas-cli >> checksums.txt
-          sha256sum yerbas-cli >> checksums.txt
-          shasum yerbasd >> checksums.txt
-          sha256sum yerbasd >> checksums.txt
-          shasum yerbas-tx >> checksums.txt
-          sha256sum yerbas-tx >> checksums.txt
-          shasum yerbas-qt >> checksums.txt
-          sha256sum yerbas-qt >> checksums.txt
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-ubuntu20-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
@@ -168,71 +231,6 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-ubuntu20-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
-  build-macos:
-    name: macos build
-    needs: checking-build-version
-    runs-on: macos-10.15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
-      - name: Install Required Packages
-        run: |
-          brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
-          pip3 install ds_store mac_alias
-      - name: build depends
-        run: |
-          echo "building with $(nproc) threads"
-          make -C depends -j8
-      - name: configure
-        run: |
-          ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-apple-darwin11
-      - name: build binary
-        run: |
-          make -j8
-          mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
-          strip $BUILD_DIR/*
-      - name: generate checksum and compress
-        run: |
-          echo "buildng $BUILD_VERSION version"
-          cd $BUILD_DIR
-          shasum yerbas-cli >> checksums.txt
-          openssl sha256 yerbas-cli >> checksums.txt
-          shasum yerbasd >> checksums.txt
-          openssl sha256 yerbasd >> checksums.txt
-          shasum yerbas-tx >> checksums.txt
-          openssl sha256 yerbas-tx >> checksums.txt
-          openssl sha256 yerbas-qt >> checksums.txt
-          openssl sha256 yerbas-qt >> checksums.txt
-          cat checksums.txt
-          cd ..
-          tar -cvzf ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
-          mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
-          shasum ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          openssl sha256 ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          cat ${COMPRESS_DIR}/checksums.txt
-      - name: Upload Binary Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.COIN_NAME }}-macos-${{ env.BUILD_VERSION }}
-          path: ${{ env.COMPRESS_DIR }}
-      - name: Generate Macos dmg files
-        run: |
-          make deploy
-      - name: Upload dmg file
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
-          path: yerbas-Qt.dmg
   build-win:
     name: window build
     needs: checking-build-version
@@ -273,14 +271,14 @@ jobs:
         run: |
           echo "buildng $BUILD_VERSION version"
           cd $BUILD_DIR
-          shasum yerbas-cli.exe >> checksums.txt
-          sha256sum yerbas-cli.exe >> checksums.txt
-          shasum yerbasd.exe >> checksums.txt
-          sha256sum yerbasd.exe >> checksums.txt
-          shasum yerbas-tx.exe >> checksums.txt
-          sha256sum yerbas-tx.exe >> checksums.txt
-          shasum yerbas-qt.exe >> checksums.txt
-          sha256sum yerbas-qt.exe >> checksums.txt
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
+          cat checksums.txt
           cd ..
           zip -r ${COIN_NAME}-win-${BUILD_VERSION}.zip $BUILD_DIR/
           mkdir -p ${COMPRESS_DIR}
@@ -324,7 +322,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
       - name: generate checksum and compress binary
         run: |
           echo "buildng $BUILD_VERSION version"
@@ -382,7 +380,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
       - name: generate checksum and compress binary
         run: |
           echo "buildng $BUILD_VERSION version"
@@ -409,4 +407,3 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-arm64-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
-
