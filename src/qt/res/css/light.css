@@ -24,7 +24,7 @@ background-color:#fff;
 }
 
 QMenuBar::item:selected {
-background-color: #ffffff;
+background-color: #8cdb79;
 color: #4F7942;
 }
 
@@ -37,7 +37,7 @@ color:#333;
 }
 
 QMenu::item:selected {
-background-color: #ffffff;
+background-color: #8cdb79;
 color: #4F7942;
 }
 
@@ -324,7 +324,7 @@ font-size:12px;
 }
 
 QTableView::item:selected { /* Table Item Selected */
-background-color:#f0f0f0;
+background-color:#8cdb79;
 color:#333;
 }
 
