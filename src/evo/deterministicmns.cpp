@@ -655,9 +655,14 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
     	DecreasePoSePenalties(newList);
     }*/
     //need to track SPORK_21_LOW_LLMQ_PARAMS activation
-    bool isDecrease = sporkManager.IsSporkActive(SPORK_21_LOW_LLMQ_PARAMS) ? nHeight % 30 == 0 : nHeight % 2 == 0;
+    bool isDecrease = false;
+    if ((nHeight > 15900) && (nHeight < 16401) || (nHeight > 22770 && nHeight < 37650) || (nHeight > 37650 && sporkManager.IsSporkActive(SPORK_21_LOW_LLMQ_PARAMS))){
+    isDecrease = nHeight % 30 == 0; 
+    }else{
+    isDecrease = nHeight % 2 == 0;
+    }
     if(isDecrease) {
-        DecreasePoSePenalties(newList);
+    	DecreasePoSePenalties(newList);
     }
 	
     // we skip the coinbase
