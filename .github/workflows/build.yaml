@@ -9,7 +9,6 @@ on:
   pull_request:
     branches:
       - dev
-      - v2.1.1.4
 env:
   COIN_NAME: yerbas
   BUILD_DIR: yerbas-build
