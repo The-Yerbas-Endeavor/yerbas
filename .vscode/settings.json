@@ -2,6 +2,8 @@
     "files.associations": {
         "*.tcc": "cpp",
         "*.ipp": "cpp",
-        "time.h": "c"
+        "time.h": "c",
+        "optional": "cpp",
+        "system_error": "cpp"
     }
 }

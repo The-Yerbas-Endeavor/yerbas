@@ -9,7 +9,6 @@
 #include "init.h"
 #include "messagesigner.h"
 #include "rpc/server.h"
-#include <txmempool.h>
 #include "utilmoneystr.h"
 #include "validation.h"
 
@@ -27,19 +26,15 @@
 #include "evo/simplifiedmns.h"
 
 #include "bls/bls.h"
-#include <limits.h>
 #include <iostream>
 #include <fstream>
+//#ifdef WINDOWS
+//#include <direct>
+//#define GetCurrentDir _getcwd
+//#else
 #include <unistd.h>
 #include <boost/random.hpp>
 #include <ctime>
-#include <stdio.h>
-#ifdef WIN32
-#include <direct.h>
-#define getcwd _getcwd
-#else
-#include <unistd.h>
-#endif
 
 #define GetCurrentDir getcwd
 //#endif
@@ -50,17 +45,11 @@ extern UniValue signrawtransaction(const JSONRPCRequest& request);
 extern UniValue sendrawtransaction(const JSONRPCRequest& request);
 #endif//ENABLE_WALLET
 
-std::string get_current_dir()
-{
-  char buff[FILENAME_MAX];
-  char* r = getcwd(buff, FILENAME_MAX);
-  (void*)r;
-  std::string current_dir(buff);
-//  current_dir += '/';
-#ifdef WIN32
-	std::replace(current_dir.begin(), current_dir.end(), '\\', '/');
-#endif
-	return current_dir;
+static std::string get_current_dir() {
+   char buff[FILENAME_MAX]; //create string buffer to hold path
+   GetCurrentDir( buff, FILENAME_MAX );
+   string current_working_dir(buff);
+   return current_working_dir;
 }
 
 static const std::string LOWER_CASE = "abcdefghijklmnopqrstuvwxyz";
