@@ -7,14 +7,15 @@
 #include "config/yerbas-config.h"
 #endif
 
-#include "netbase.h"
+#include <netbase.h>
 
-#include "hash.h"
-#include "sync.h"
-#include "uint256.h"
-#include "random.h"
-#include "util.h"
-#include "utilstrencodings.h"
+#include <hash.h>
+#include <sync.h>
+#include <uint256.h>
+#include <random.h>
+#include <tinyformat.h>
+#include <util.h>
+#include <utilstrencodings.h>
 
 #include <atomic>
 
@@ -23,11 +24,14 @@
 #endif
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
-#include <boost/algorithm/string/predicate.hpp> // for startswith() and endswith()
+#ifdef USE_POLL
+#include <poll.h>
+#endif
 
-#if !defined(HAVE_MSG_NOSIGNAL)
+#if !defined(MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
 #endif
+
 
 // Settings
 static proxyType proxyInfo[NET_MAX];
