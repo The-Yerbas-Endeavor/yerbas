@@ -71,7 +71,9 @@ bool IsStandard(const CScript& scriptPubKey, txnouttype& whichType)
             return false;
     } else if (whichType == TX_NULL_DATA &&
                (!fAcceptDatacarrier || scriptPubKey.size() > nMaxDatacarrierBytes))
-          return false;
+        return false;
+    else if (whichType == TX_RESTRICTED_ASSET_DATA && scriptPubKey.size() > MAX_OP_RETURN_RELAY)
+        return false;
 
     return whichType != TX_NONSTANDARD;
 }
@@ -113,6 +115,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
     }
 
     unsigned int nDataOut = 0;
+    unsigned int nAssetDataOut = 0;
     txnouttype whichType;
     for (const CTxOut& txout : tx.vout) {
         if (!::IsStandard(txout.scriptPubKey, whichType)) {
@@ -122,6 +125,8 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
 
         if (whichType == TX_NULL_DATA)
             nDataOut++;
+        else if (whichType == TX_RESTRICTED_ASSET_DATA)
+            nAssetDataOut++;
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
@@ -134,6 +139,12 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
     // only one OP_RETURN txout is permitted
     if (nDataOut > 1) {
         reason = "multi-op-return";
+        return false;
+    }
+    
+    // only one hundred OP_RAVEN_ASSET txout is permitted
+    if (nAssetDataOut > 100) {
+        reason = "tomany-op-rvn-asset";
         return false;
     }
 

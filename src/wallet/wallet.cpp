@@ -47,6 +47,8 @@
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
 
+#include "assets/assets.h"
+
 std::vector<CWalletRef> vpwallets;
 /** Transaction fee set by the user */
 CFeeRate payTxFee(DEFAULT_TRANSACTION_FEE);
@@ -82,6 +84,15 @@ struct CompareValueOnly
                     const CInputCoin& t2) const
     {
         return t1.txout.nValue < t2.txout.nValue;
+    }
+};
+
+struct CompareAssetValueOnly
+{
+    bool operator()(const std::pair<CInputCoin, CAmount>& t1,
+                    const std::pair<CInputCoin, CAmount>& t2) const
+    {
+        return t1.second < t2.second;
     }
 };
 
@@ -1512,7 +1523,12 @@ isminetype CWallet::IsMine(const CTxIn &txin) const
 
 // Note that this function doesn't distinguish between a 0-valued input,
 // and a not-"is mine" (according to the filter) input.
-CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
+CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const {
+    CAssetOutputEntry assetData;
+    return GetDebit(txin, filter, assetData);
+}
+
+CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter, CAssetOutputEntry& assetData) const
 {
     {
         LOCK(cs_wallet);
@@ -1521,8 +1537,13 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter) const
         {
             const CWalletTx& prev = (*mi).second;
             if (txin.prevout.n < prev.tx->vout.size())
-                if (IsMine(prev.tx->vout[txin.prevout.n]) & filter)
+                if (IsMine(prev.tx->vout[txin.prevout.n]) & filter) {
+                    // if asset get that assets data from the scriptPubKey
+                    if (prev.tx->vout[txin.prevout.n].scriptPubKey.IsAssetScript())
+                        GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData);
+
                     return prev.tx->vout[txin.prevout.n].nValue;
+                }
         }
     }
     return 0;
@@ -1898,9 +1919,16 @@ int CWalletTx::GetRequestCount() const
     }
     return nRequests;
 }
+void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
+                           std::list<COutputEntry>& listSent, CAmount& nFee, std::string& strSentAccount, const isminefilter& filter) const {
+
+    std::list<CAssetOutputEntry> assetsReceived;
+    std::list<CAssetOutputEntry> assetsSent;
+    GetAmounts(listReceived, listSent, nFee, strSentAccount, filter, assetsReceived, assetsSent);
+}
 
 void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
-                           std::list<COutputEntry>& listSent, CAmount& nFee, std::string& strSentAccount, const isminefilter& filter) const
+                           std::list<COutputEntry>& listSent, CAmount& nFee, std::string& strSentAccount, const isminefilter& filter, std::list<CAssetOutputEntry>& assetsReceived, std::list<CAssetOutputEntry>& assetsSent) const
 {
     nFee = 0;
     listReceived.clear();
@@ -1937,20 +1965,40 @@ void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
 
         if (!ExtractDestination(txout.scriptPubKey, address) && !txout.scriptPubKey.IsUnspendable())
         {
+            LogPrintf("%s: Failing on the %d tx\n", __func__, i);
             LogPrintf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
                      this->GetHash().ToString());
             address = CNoDestination();
         }
 
-        COutputEntry output = {address, txout.nValue, (int)i};
+        if (!txout.scriptPubKey.IsAssetScript()) {
+            COutputEntry output = {address, txout.nValue, (int) i};
 
-        // If we are debited by the transaction, add the output as a "sent" entry
-        if (nDebit > 0)
-            listSent.push_back(output);
+            // If we are debited by the transaction, add the output as a "sent" entry
+            if (nDebit > 0)
+                listSent.push_back(output);
 
-        // If we are receiving the output, add it as a "received" entry
-        if (fIsMine & filter)
-            listReceived.push_back(output);
+            // If we are receiving the output, add it as a "received" entry
+            if (fIsMine & filter)
+                listReceived.push_back(output);
+        }
+
+        /** RVN START */
+        if (AreAssetsDeployed()) {
+            if (txout.scriptPubKey.IsAssetScript()) {
+                CAssetOutputEntry assetoutput;
+                assetoutput.vout = i;
+                GetAssetData(txout.scriptPubKey, assetoutput);
+
+                // The only asset type we send is transfer_asset. We need to skip all other types for the sent category
+                if (nDebit > 0 && assetoutput.type == TX_TRANSFER_ASSET)
+                    assetsSent.emplace_back(assetoutput);
+
+                if (fIsMine & filter)
+                    assetsReceived.emplace_back(assetoutput);
+            }
+        }
+        /** RVN END */
     }
 
 }
@@ -2704,6 +2752,33 @@ CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl) const
 
 void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const CCoinControl *coinControl, const CAmount &nMinimumAmount, const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount, const uint64_t &nMaximumCount, const int &nMinDepth, const int &nMaxDepth) const
 {
+    std::map<std::string, std::vector<COutput> > mapAssetCoins;
+    AvailableCoinsAll(vCoins, mapAssetCoins, true, false, fOnlySafe, coinControl, nMinimumAmount, nMaximumAmount, nMinimumSumAmount, nMaximumCount, nMinDepth, nMaxDepth);
+}
+
+void CWallet::AvailableAssets(std::map<std::string, std::vector<COutput> > &mapAssetCoins, bool fOnlySafe,
+                              const CCoinControl *coinControl, const CAmount &nMinimumAmount,
+                              const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount,
+                              const uint64_t &nMaximumCount, const int &nMinDepth, const int &nMaxDepth) const
+{
+    if (!AreAssetsDeployed())
+        return;
+
+    std::vector<COutput> vCoins;
+
+    AvailableCoinsAll(vCoins, mapAssetCoins, false, true, fOnlySafe, coinControl, nMinimumAmount, nMaximumAmount, nMinimumSumAmount, nMaximumCount, nMinDepth, nMaxDepth);
+}
+
+void CWallet::AvailableCoinsWithAssets(std::vector<COutput> &vCoins, std::map<std::string, std::vector<COutput> > &mapAssetCoins,
+                              bool fOnlySafe, const CCoinControl *coinControl, const CAmount &nMinimumAmount,
+                              const CAmount &nMaximumAmount, const CAmount &nMinimumSumAmount,
+                              const uint64_t &nMaximumCount, const int &nMinDepth, const int &nMaxDepth) const
+{
+    AvailableCoinsAll(vCoins, mapAssetCoins, true, AreAssetsDeployed(), fOnlySafe, coinControl, nMinimumAmount, nMaximumAmount, nMinimumSumAmount, nMaximumCount, nMinDepth, nMaxDepth);
+}
+
+void CWallet::AvailableCoinsAll(std::vector<COutput>& vCoins, std::map<std::string, std::vector<COutput> >& mapAssetCoins, bool fGetRVN, bool fGetAssets, bool fOnlySafe, const CCoinControl *coinControl, const CAmount& nMinimumAmount, const CAmount& nMaximumAmount, const CAmount& nMinimumSumAmount, const uint64_t& nMaximumCount, const int& nMinDepth, const int& nMaxDepth) const 
+{
     vCoins.clear();
     CoinType nCoinType = coinControl ? coinControl->nCoinType : CoinType::ALL_COINS;
     SmartnodeCollaterals collaterals = Params().GetConsensus().nCollaterals;
@@ -2711,6 +2786,14 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
         LOCK2(cs_main, cs_wallet);
 
         CAmount nTotal = 0;
+        
+        bool fRVNLimitHit = false;
+        // A set of the hashes that have already been used
+        std::set<uint256> usedMempoolHashes;
+
+        std::map<std::string, CAmount> mapAssetTotals;
+        std::map<uint256, COutPoint> mapOutPoints;
+        std::set<std::string> setAssetMaxFound;
 
         for (auto pcoin : GetSpendableTXs()) {
             const uint256& wtxid = pcoin->GetHash();
@@ -2752,7 +2835,11 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
                 }
                 if(!found) continue;
 
-                if (pcoin->tx->vout[i].nValue < nMinimumAmount || pcoin->tx->vout[i].nValue > nMaximumAmount)
+                int nType;
+                bool fIsOwner;
+                bool isAssetScript = pcoin->tx->vout[i].scriptPubKey.IsAssetScript(nType, fIsOwner);
+                
+                if (!isAssetScript && (pcoin->tx->vout[i].nValue < nMinimumAmount || pcoin->tx->vout[i].nValue > nMaximumAmount))
                     continue;
 
                 if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(COutPoint(wtxid, i)))
@@ -2772,26 +2859,136 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
 
                 bool fSpendableIn = ((mine & ISMINE_SPENDABLE) != ISMINE_NO) || (coinControl && coinControl->fAllowWatchOnly && (mine & ISMINE_WATCH_SOLVABLE) != ISMINE_NO);
                 bool fSolvableIn = (mine & (ISMINE_SPENDABLE | ISMINE_WATCH_SOLVABLE)) != ISMINE_NO;
+                
+                std::string address;
+ 
+                // Looking for Asset Tx OutPoints Only
+                if (fGetAssets && AreAssetsDeployed() && isAssetScript) {
+                    
+                    CAssetOutputEntry output_data;
+                    if (!GetAssetData(pcoin->tx->vout[i].scriptPubKey, output_data))
+                        continue;
 
-                vCoins.push_back(COutput(pcoin, i, nDepth, fSpendableIn, fSolvableIn, safeTx));
+                    address = EncodeDestination(output_data.destination);
 
-                // Checks the sum amount of all UTXO's.
-                if (nMinimumSumAmount != MAX_MONEY) {
-                    nTotal += pcoin->tx->vout[i].nValue;
+                    // If we already have the maximum amount or size for this asset, skip it
+                    if (setAssetMaxFound.count(output_data.assetName))
+                        continue;
 
-                    if (nTotal >= nMinimumSumAmount) {
-                        return;
+                    if (IsAssetNameAnRestricted(output_data.assetName)) {
+                        if (passets->CheckForAddressRestriction(output_data.assetName, address, true)) {
+                            continue;
+                        }
+                    }
+
+                    // Initialize the map vector is it doesn't exist yet
+                    if (!mapAssetCoins.count(output_data.assetName)) {
+                        std::vector<COutput> vOutput;
+                        mapAssetCoins.insert(std::make_pair(output_data.assetName, vOutput));
+                    }
+
+                    // Add the COutput to the map of available Asset Coins
+                    mapAssetCoins.at(output_data.assetName).push_back(
+                            COutput(pcoin, i, nDepth, fSpendableIn, fSolvableIn, safeTx));
+
+                    // Initialize the map of current asset totals
+                    if (!mapAssetTotals.count(output_data.assetName))
+                        mapAssetTotals[output_data.assetName] = 0;
+
+                    // Update the map of totals depending the which type of asset tx we are looking at
+                    mapAssetTotals[output_data.assetName] += output_data.nAmount;
+
+                    // Checks the sum amount of all UTXO's, and adds to the set of assets that we found the max for
+                    if (nMinimumSumAmount != MAX_MONEY) {
+                        if (mapAssetTotals[output_data.assetName] >= nMinimumSumAmount)
+                            setAssetMaxFound.insert(output_data.assetName);
+                    }
+
+                    // Checks the maximum number of UTXO's, and addes to set of of asset that we found the max for
+                    if (nMaximumCount > 0 && mapAssetCoins[output_data.assetName].size() >= nMaximumCount) {
+                        setAssetMaxFound.insert(output_data.assetName);
                     }
                 }
 
-                // Checks the maximum number of UTXO's.
-                if (nMaximumCount > 0 && vCoins.size() >= nMaximumCount) {
-                    return;
+                if (fGetRVN) {
+                    if (fRVNLimitHit) // We hit our limit
+                        continue;
+                    // We only want YERB OutPoints. Don't include Asset OutPoints
+                    if (isAssetScript)
+                        continue;
+
+                    vCoins.push_back(COutput(pcoin, i, nDepth, fSpendableIn, fSolvableIn, safeTx));
+
+                    // Checks the sum amount of all UTXO's.
+                    if (nMinimumSumAmount != MAX_MONEY) {
+                        nTotal += pcoin->tx->vout[i].nValue;
+
+                        if (nTotal >= nMinimumSumAmount) {
+                            return;
+                        }
+                    }
+
+                    // Checks the maximum number of UTXO's.
+                    if (nMaximumCount > 0 && vCoins.size() >= nMaximumCount) {
+                        fRVNLimitHit = true;
+                    }
+                    continue;
                 }
             }
         }
     }
 }
+
+std::map<CTxDestination, std::vector<COutput>> CWallet::ListAssets() const
+{
+    // TODO: Add AssertLockHeld(cs_wallet) here.
+    //
+    // Because the return value from this function contains pointers to
+    // CWalletTx objects, callers to this function really should acquire the
+    // cs_wallet lock before calling it. However, the current caller doesn't
+    // acquire this lock yet. There was an attempt to add the missing lock in
+    // https://github.com/bitcoin/bitcoin/pull/10340, but that change has been
+    // postponed until after https://github.com/bitcoin/bitcoin/pull/10244 to
+    // avoid adding some extra complexity to the Qt code.
+
+    std::map<CTxDestination, std::vector<COutput>> result;
+
+    std::map<std::string, std::vector<COutput> > mapAssets;
+    AvailableAssets(mapAssets);
+
+    LOCK2(cs_main, cs_wallet);
+    for (auto asset : mapAssets) {
+        for (auto &coin : asset.second) {
+            CTxDestination address;
+            if (coin.fSpendable &&
+                ExtractDestination(FindNonChangeParentOutput(*coin.tx->tx, coin.i).scriptPubKey, address)) {
+                result[address].emplace_back(std::move(coin));
+            }
+        }
+    }
+
+    std::vector<COutPoint> lockedCoins;
+    ListLockedCoins(lockedCoins);
+    for (const auto& output : lockedCoins) {
+        auto it = mapWallet.find(output.hash);
+        if (it != mapWallet.end()) {
+            if (!it->second.tx->vout[output.n].scriptPubKey.IsAssetScript()) // If not an asset script skip it
+                continue;
+            int depth = it->second.GetDepthInMainChain();
+            if (depth >= 0 && output.n < it->second.tx->vout.size() &&
+                IsMine(it->second.tx->vout[output.n]) == ISMINE_SPENDABLE) {
+                CTxDestination address;
+                if (ExtractDestination(FindNonChangeParentOutput(*it->second.tx, output.n).scriptPubKey, address)) {
+                    result[address].emplace_back(
+                        &it->second, output.n, depth, true /* spendable */, true /* solvable */, false /* safe */);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
 
 std::map<CTxDestination, std::vector<COutput>> CWallet::ListCoins() const
 {
@@ -3171,6 +3368,255 @@ bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAm
     nValueRet += nValueFromPresetInputs;
 
     return res;
+}
+
+static void ApproximateBestAssetSubset(const std::vector<std::pair<CInputCoin, CAmount> >& vValue, const CAmount& nTotalLower, const CAmount& nTargetValue,
+                                  std::vector<char>& vfBest, CAmount& nBest, int iterations = 1000)
+{
+    std::vector<char> vfIncluded;
+
+    vfBest.assign(vValue.size(), true);
+    nBest = nTotalLower;
+
+    FastRandomContext insecure_rand;
+
+    for (int nRep = 0; nRep < iterations && nBest != nTargetValue; nRep++)
+    {
+        vfIncluded.assign(vValue.size(), false);
+        CAmount nTotal = 0;
+        bool fReachedTarget = false;
+        for (int nPass = 0; nPass < 2 && !fReachedTarget; nPass++)
+        {
+            for (unsigned int i = 0; i < vValue.size(); i++)
+            {
+                //The solver here uses a randomized algorithm,
+                //the randomness serves no real security purpose but is just
+                //needed to prevent degenerate behavior and it is important
+                //that the rng is fast. We do not use a constant random sequence,
+                //because there may be some privacy improvement by making
+                //the selection random.
+                if (nPass == 0 ? insecure_rand.randbool() : !vfIncluded[i])
+                {
+                    nTotal += vValue[i].second;
+                    vfIncluded[i] = true;
+                    if (nTotal >= nTargetValue)
+                    {
+                        fReachedTarget = true;
+                        if (nTotal < nBest)
+                        {
+                            nBest = nTotal;
+                            vfBest = vfIncluded;
+                        }
+                        nTotal -= vValue[i].second;
+                        vfIncluded[i] = false;
+                    }
+                }
+            }
+        }
+    }
+}
+
+bool CWallet::SelectAssetsMinConf(const CAmount& nTargetValue, const int nConfMine, const int nConfTheirs, const uint64_t nMaxAncestors, const std::string& strAssetName, std::vector<COutput> vCoins,
+                                 std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet) const
+{
+    setCoinsRet.clear();
+    nValueRet = 0;
+
+    // List of values less than target
+    boost::optional<CInputCoin> coinLowestLarger;
+    boost::optional<CAmount> coinLowestLargerAmount;
+    std::vector<std::pair<CInputCoin, CAmount> > vValue;
+    std::map<COutPoint, CAmount> mapValueAmount;
+    CAmount nTotalLower = 0;
+
+    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+    for (const COutput &output : vCoins)
+    {
+        if (!output.fSpendable)
+            continue;
+
+        const CWalletTx *pcoin = output.tx;
+
+        if (output.nDepth < (pcoin->IsFromMe(ISMINE_ALL) ? nConfMine : nConfTheirs))
+            continue;
+
+        if (!mempool.TransactionWithinChainLimit(pcoin->GetHash(), nMaxAncestors))
+            continue;
+
+        int i = output.i;
+
+        CInputCoin coin = CInputCoin(pcoin, i);
+
+        //-------------------------------
+
+        int nType = -1;
+        bool fIsOwner = false;
+        if (!coin.txout.scriptPubKey.IsAssetScript(nType, fIsOwner)) {
+            continue;
+        }
+
+        CAmount nTempAmount = 0;
+        if (nType == TX_NEW_ASSET && !fIsOwner) { // Root/Sub Asset
+            CNewAsset assetTemp;
+            std::string address;
+            if (!AssetFromScript(coin.txout.scriptPubKey, assetTemp, address))
+                continue;
+            nTempAmount = assetTemp.nAmount;
+        } else if (nType == TX_TRANSFER_ASSET) { // Transfer Asset
+            CAssetTransfer transferTemp;
+            std::string address;
+            if (!TransferAssetFromScript(coin.txout.scriptPubKey, transferTemp, address))
+                continue;
+            nTempAmount = transferTemp.nAmount;
+        } else if (nType == TX_NEW_ASSET && fIsOwner) { // Owner Asset
+            std::string ownerName;
+            std::string address;
+            if (!OwnerAssetFromScript(coin.txout.scriptPubKey, ownerName, address))
+                continue;
+            nTempAmount = OWNER_ASSET_AMOUNT;
+        } else if (nType == TX_REISSUE_ASSET) { // Reissue Asset
+            CReissueAsset reissueTemp;
+            std::string address;
+            if (!ReissueAssetFromScript(coin.txout.scriptPubKey, reissueTemp, address))
+                continue;
+            nTempAmount = reissueTemp.nAmount;
+        } else {
+            continue;
+        }
+
+        if (nTempAmount == nTargetValue)
+        {
+            setCoinsRet.insert(coin);
+            nValueRet += nTempAmount;
+            return true;
+        }
+        else if (nTempAmount < nTargetValue + MIN_CHANGE)
+        {
+            vValue.push_back(std::make_pair(coin, nTempAmount));
+            nTotalLower += nTempAmount;
+        }
+        else if (!coinLowestLarger || !coinLowestLargerAmount || nTempAmount < coinLowestLargerAmount)
+        {
+            coinLowestLarger = coin;
+            coinLowestLargerAmount = nTempAmount;
+        }
+    }
+
+    if (nTotalLower == nTargetValue)
+    {
+        for (const auto& pair : vValue)
+        {
+            setCoinsRet.insert(pair.first);
+            nValueRet += pair.second;
+        }
+        return true;
+    }
+
+    if (nTotalLower < nTargetValue)
+    {
+        if (!coinLowestLarger || !coinLowestLargerAmount)
+            return false;
+        setCoinsRet.insert(coinLowestLarger.get());
+
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+        nValueRet += coinLowestLargerAmount.get();
+        return true;
+    }
+
+    // Solve subset sum by stochastic approximation
+    std::sort(vValue.begin(), vValue.end(), CompareAssetValueOnly());
+    std::reverse(vValue.begin(), vValue.end());
+    std::vector<char> vfBest;
+    CAmount nBest;
+
+    ApproximateBestAssetSubset(vValue, nTotalLower, nTargetValue, vfBest, nBest);
+    if (nBest != nTargetValue && nTotalLower >= nTargetValue + MIN_CHANGE)
+        ApproximateBestAssetSubset(vValue, nTotalLower, nTargetValue + MIN_CHANGE, vfBest, nBest);
+
+    // If we have a bigger coin and (either the stochastic approximation didn't find a good solution,
+    //                                   or the next bigger coin is closer), return the bigger coin
+    if (coinLowestLarger && coinLowestLargerAmount &&
+        ((nBest != nTargetValue && nBest < nTargetValue + MIN_CHANGE) || coinLowestLargerAmount <= nBest))
+    {
+        setCoinsRet.insert(coinLowestLarger.get());
+        nValueRet += coinLowestLargerAmount.get();
+    }
+    else {
+        for (unsigned int i = 0; i < vValue.size(); i++)
+            if (vfBest[i])
+            {
+                setCoinsRet.insert(vValue[i].first);
+                nValueRet += vValue[i].second;
+            }
+
+        if (LogAcceptCategory(BCLog::SELECTCOINS)) {
+            LogPrint(BCLog::SELECTCOINS, "SelectAssets() best subset: ");
+            for (unsigned int i = 0; i < vValue.size(); i++) {
+                if (vfBest[i]) {
+                    LogPrint(BCLog::SELECTCOINS, "%s : %s", strAssetName, FormatMoney(vValue[i].second));
+                }
+            }
+            LogPrint(BCLog::SELECTCOINS, "total %s : %s\n", strAssetName, FormatMoney(nBest));
+        }
+    }
+
+    return true;
+}
+
+bool CWallet::SelectAssets(const std::map<std::string, std::vector<COutput> >& mapAvailableAssets, const std::map<std::string, CAmount>& mapAssetTargetValue, std::set<CInputCoin>& setCoinsRet, std::map<std::string, CAmount>& mapValueRet) const
+{
+    if (!AreAssetsDeployed())
+        return false;
+
+    size_t nMaxChainLength = std::min(gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT), gArgs.GetArg("-limitdescendantcount", DEFAULT_DESCENDANT_LIMIT));
+    bool fRejectLongChains = gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS);
+
+    for (auto assetVector : mapAvailableAssets) {
+        // Setup temporay variables
+        std::vector<COutput> vAssets(assetVector.second);
+
+        std::set<CInputCoin> tempCoinsRet;
+        CAmount nTempAmountRet;
+        CAmount nTempTargetValue;
+        std::string strAssetName = assetVector.first;
+
+        CAmount nValueFromPresetInputs = 0; // This is used with coincontrol, which assets doesn't support yet
+
+        // If we dont have a target value for this asset, don't select coins for it
+        if (!mapAssetTargetValue.count(strAssetName))
+            continue;
+
+        // If we dont have a target value greater than zero, don't select coins for it
+        if (mapAssetTargetValue.at(strAssetName) <= 0)
+            continue;
+
+        // Add the starting value into the mapValueRet
+        if (!mapValueRet.count(strAssetName))
+            mapValueRet.insert(std::make_pair(strAssetName, 0));
+
+        // assign our temporary variable
+        nTempAmountRet = mapValueRet.at(strAssetName);
+        nTempTargetValue = mapAssetTargetValue.at(strAssetName);
+
+        bool res = nTempTargetValue <= nValueFromPresetInputs ||
+                   SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 1, 6, 0, strAssetName, vAssets, tempCoinsRet, nTempAmountRet) ||
+                   SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 1, 1, 0, strAssetName, vAssets, tempCoinsRet, nTempAmountRet) ||
+                   (bSpendZeroConfChange && SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 0, 1, 2, strAssetName, vAssets, tempCoinsRet, nTempAmountRet)) ||
+                   (bSpendZeroConfChange && SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 0, 1, std::min((size_t)4, nMaxChainLength/3), strAssetName, vAssets, tempCoinsRet, nTempAmountRet)) ||
+                   (bSpendZeroConfChange && SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 0, 1, nMaxChainLength/2, strAssetName, vAssets, tempCoinsRet, nTempAmountRet)) ||
+                   (bSpendZeroConfChange && SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 0, 1, nMaxChainLength, strAssetName, vAssets, tempCoinsRet, nTempAmountRet)) ||
+                   (bSpendZeroConfChange && !fRejectLongChains && SelectAssetsMinConf(nTempTargetValue - nValueFromPresetInputs, 0, 1, std::numeric_limits<uint64_t>::max(), strAssetName, vAssets, tempCoinsRet, nTempAmountRet));
+
+        if (res) {
+            setCoinsRet.insert(tempCoinsRet.begin(), tempCoinsRet.end());
+            mapValueRet.at(strAssetName) = nTempAmountRet + nValueFromPresetInputs;
+        } else {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nChangePosInOut, std::string& strFailReason, bool lockUnspents, const std::set<int>& setSubtractFeeFromOutputs, CCoinControl coinControl)
@@ -3625,6 +4071,674 @@ static CFeeRate GetDiscardRate(const CBlockPolicyEstimator& estimator)
     discard_rate = std::max(discard_rate, ::dustRelayFee);
     return discard_rate;
 }
+
+bool CWallet::CreateNewChangeAddress(CReserveKey& reservekey, CKeyID& keyID, std::string& strFailReason)
+{
+    // Called with coin control doesn't have a change_address
+    // no coin control: send change to newly generated address
+    // Note: We use a new key here to keep it from being obvious which side is the change.
+    //  The drawback is that by not reusing a previous key, the change may be lost if a
+    //  backup is restored, if the backup doesn't have the new private key for the change.
+    //  If we reused the old key, it would be possible to add code to look for and
+    //  rediscover unknown transactions that were written with keys of ours to recover
+    //  post-backup change.
+
+    // Reserve a new key pair from key pool
+    CPubKey vchPubKey;
+    bool ret;
+    ret = reservekey.GetReservedKey(vchPubKey, true);
+    if (!ret)
+    {
+        strFailReason = _("Keypool ran out, please call keypoolrefill first");
+        return false;
+    }
+
+    keyID = vchPubKey.GetID();
+    return true;
+}
+
+/** YERBAS assets*/
+bool CWallet::CreateTransactionWithAssets(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
+                               std::string& strFailReason, const CCoinControl& coin_control, const std::vector<CNewAsset> assets, const CTxDestination destination, const AssetType& type, bool sign)
+{
+    CReissueAsset reissueAsset;
+    return CreateTransactionAll(vecSend, wtxNew, reservekey, nFeeRet, nChangePosInOut, strFailReason, coin_control, true, assets, destination, false, false, reissueAsset, type, sign);
+}
+bool CWallet::CreateTransactionWithTransferAsset(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
+                                         std::string& strFailReason, const CCoinControl& coin_control, bool sign)
+{
+    std::vector<CNewAsset> asset;
+    CReissueAsset reissueAsset;
+    CTxDestination destination;
+    AssetType assetType = AssetType::INVALID;
+    return CreateTransactionAll(vecSend, wtxNew, reservekey, nFeeRet, nChangePosInOut, strFailReason, coin_control, false, asset, destination, true, false, reissueAsset, assetType, sign);
+}
+
+bool CWallet::CreateTransactionWithReissueAsset(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, int& nChangePosInOut,
+                                         std::string& strFailReason, const CCoinControl& coin_control, const CReissueAsset& reissueAsset, const CTxDestination destination, bool sign)
+{
+    std::vector<CNewAsset> asset;
+    AssetType assetType = AssetType::REISSUE;
+    return CreateTransactionAll(vecSend, wtxNew, reservekey, nFeeRet, nChangePosInOut, strFailReason, coin_control, false, asset, destination, false, true, reissueAsset, assetType, sign);
+}
+
+bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey,
+                                   CAmount& nFeeRet, int& nChangePosInOut, std::string& strFailReason,
+                                   const CCoinControl& coin_control, bool fNewAsset,
+                                   const std::vector<CNewAsset> assets, const CTxDestination destination,
+                                   bool fTransferAsset, bool fReissueAsset, const CReissueAsset& reissueAsset,
+                                   const AssetType& assetType, bool sign, int nExtraPayloadSize)
+{
+    /** RVN START */
+    if (!AreAssetsDeployed() && (fTransferAsset || fNewAsset || fReissueAsset))
+        return false;
+
+    if (fNewAsset && (assets.size() < 1 || !IsValidDestination(destination)))
+        return error("%s : Tried creating a new asset transaction and the asset was null or the destination was invalid", __func__);
+
+    if ((fNewAsset && fTransferAsset) || (fReissueAsset && fTransferAsset) || (fReissueAsset && fNewAsset))
+        return error("%s : Only one type of asset transaction allowed per transaction");
+
+    if (fReissueAsset && (reissueAsset.IsNull() || !IsValidDestination(destination)))
+        return error("%s : Tried reissuing an asset and the reissue data was null or the destination was invalid", __func__);
+    /** RVN END */
+
+    CAmount nValue = 0;
+    std::map<std::string, CAmount> mapAssetValue;
+    int nChangePosRequest = nChangePosInOut;
+    unsigned int nSubtractFeeFromAmount = 0;
+    for (const auto& recipient : vecSend)
+    {
+        /** RVN START */
+        if (fTransferAsset || fReissueAsset || assetType == AssetType::SUB || assetType == AssetType::UNIQUE || assetType == AssetType::MSGCHANNEL || assetType == AssetType::SUB_QUALIFIER || assetType == AssetType::RESTRICTED) {
+            CAssetTransfer assetTransfer;
+            std::string address;
+            if (TransferAssetFromScript(recipient.scriptPubKey, assetTransfer, address)) {
+                if (!mapAssetValue.count(assetTransfer.strName))
+                    mapAssetValue[assetTransfer.strName] = 0;
+
+                if (assetTransfer.nAmount <= 0) {
+                    strFailReason = _("Asset Transfer amounts must be greater than 0");
+                    return false;
+                }
+
+                mapAssetValue[assetTransfer.strName] += assetTransfer.nAmount;
+            }
+        }
+        /** RVN END */
+
+        if (nValue < 0 || recipient.nAmount < 0)
+        {
+            strFailReason = _("Transaction amounts must not be negative");
+            return false;
+        }
+        nValue += recipient.nAmount;
+
+        if (recipient.fSubtractFeeFromAmount)
+            nSubtractFeeFromAmount++;
+    }
+    if (vecSend.empty())
+    {
+        strFailReason = _("Transaction must have at least one recipient");
+        return false;
+    }
+
+    wtxNew.fTimeReceivedIsTxTime = true;
+    wtxNew.BindWallet(this);
+    if (coin_control.nCoinType == CoinType::ONLY_DENOMINATED) {
+        wtxNew.mapValue["DS"] = "1";
+    }
+
+    CMutableTransaction txNew;
+
+    // Discourage fee sniping.
+    //
+    // For a large miner the value of the transactions in the best block and
+    // the mempool can exceed the cost of deliberately attempting to mine two
+    // blocks to orphan the current best block. By setting nLockTime such that
+    // only the next block can include the transaction, we discourage this
+    // practice as the height restricted and limited blocksize gives miners
+    // considering fee sniping fewer options for pulling off this attack.
+    //
+    // A simple way to think about this is from the wallet's point of view we
+    // always want the blockchain to move forward. By setting nLockTime this
+    // way we're basically making the statement that we only want this
+    // transaction to appear in the next block; we don't want to potentially
+    // encourage reorgs by allowing transactions to appear at lower heights
+    // than the next block in forks of the best chain.
+    //
+    // Of course, the subsidy is high enough, and transaction volume low
+    // enough, that fee sniping isn't a problem yet, but by implementing a fix
+    // now we ensure code won't be written that makes assumptions about
+    // nLockTime that preclude a fix later.
+
+    txNew.nLockTime = chainActive.Height();
+
+    // Secondly occasionally randomly pick a nLockTime even further back, so
+    // that transactions that are delayed after signing for whatever reason,
+    // e.g. high-latency mix networks and some CoinJoin implementations, have
+    // better privacy.
+    if (GetRandInt(10) == 0)
+        txNew.nLockTime = std::max(0, (int)txNew.nLockTime - GetRandInt(100));
+
+    assert(txNew.nLockTime <= (unsigned int)chainActive.Height());
+    assert(txNew.nLockTime < LOCKTIME_THRESHOLD);
+    FeeCalculation feeCalc;
+    CAmount nFeeNeeded;
+    unsigned int nBytes;
+    {
+        std::set<CInputCoin> setCoins;
+        std::set<CInputCoin> setAssets;
+        std::vector<CTxDSIn> vecTxDSInTmp;
+        LOCK2(cs_main, cs_wallet);
+        {
+            std::vector<COutput> vAvailableCoins;
+            /** RVN START */
+            std::map<std::string, std::vector<COutput> > mapAssetCoins;
+            if (fTransferAsset || fReissueAsset || assetType == AssetType::SUB || assetType == AssetType::UNIQUE || assetType == AssetType::MSGCHANNEL || assetType == AssetType::SUB_QUALIFIER || assetType == AssetType::RESTRICTED)
+                AvailableCoinsWithAssets(vAvailableCoins, mapAssetCoins, true, &coin_control);
+            else
+                AvailableCoins(vAvailableCoins, true, &coin_control);
+            /** RVN END */
+
+            // Create change script that will be used if we need change
+            // TODO: pass in scriptChange instead of reservekey so
+            // change transaction isn't always pay-to-bitcoin-address
+            CScript scriptChange;
+            CScript assetScriptChange;
+
+            // coin control: send change to custom address
+            if (!boost::get<CNoDestination>(&coin_control.destChange)) {
+                scriptChange = GetScriptForDestination(coin_control.destChange);
+            } else { // no coin control: send change to newly generated address
+                // Note: We use a new key here to keep it from being obvious which side is the change.
+                //  The drawback is that by not reusing a previous key, the change may be lost if a
+                //  backup is restored, if the backup doesn't have the new private key for the change.
+                //  If we reused the old key, it would be possible to add code to look for and
+                //  rediscover unknown transactions that were written with keys of ours to recover
+                //  post-backup change.
+
+                // Reserve a new key pair from key pool
+                CPubKey vchPubKey;
+                bool ret;
+                ret = reservekey.GetReservedKey(vchPubKey, true);
+                if (!ret)
+                {
+                    strFailReason = _("Keypool ran out, please call keypoolrefill first");
+                    return false;
+                }
+
+                scriptChange = GetScriptForDestination(vchPubKey.GetID());
+            }
+
+            /** RVN START */
+            if (!boost::get<CNoDestination>(&coin_control.assetDestChange)) {
+                assetScriptChange = GetScriptForDestination(coin_control.assetDestChange);
+            } else {
+                assetScriptChange = scriptChange;
+            }
+            /** RVN END */
+
+            CTxOut change_prototype_txout(0, scriptChange);
+            size_t change_prototype_size = GetSerializeSize(change_prototype_txout, SER_DISK, 0);
+
+            CFeeRate discard_rate = GetDiscardRate(::feeEstimator);
+            nFeeRet = 0;
+            bool pick_new_inputs = true;
+            CAmount nValueIn = 0;
+            // Start with no fee and loop until there is enough fee
+            while (true)
+            {
+                std::map<std::string, CAmount> mapAssetsIn;
+                nChangePosInOut = nChangePosRequest;
+                txNew.vin.clear();
+                txNew.vout.clear();
+                wtxNew.fFromMe = true;
+                bool fFirst = true;
+
+                CAmount nValueToSelect = nValue;
+                if (nSubtractFeeFromAmount == 0)
+                    nValueToSelect += nFeeRet;
+                // vouts to the payees
+                for (const auto& recipient : vecSend)
+                {
+                    CTxOut txout(recipient.nAmount, recipient.scriptPubKey);
+
+                    /** RVN START */
+                    // Check to see if you need to make an asset data outpoint OP_YERB_ASSET data
+                    if (recipient.scriptPubKey.IsNullAssetTxDataScript()) {
+                        assert(txout.nValue == 0);
+                        txNew.vout.push_back(txout);
+                        continue;
+                    }
+                    /** RVN END */
+
+                    if (recipient.fSubtractFeeFromAmount)
+                    {
+                        txout.nValue -= nFeeRet / nSubtractFeeFromAmount; // Subtract fee equally from each selected recipient
+
+                        if (fFirst) // first receiver pays the remainder not divisible by output count
+                        {
+                            fFirst = false;
+                            txout.nValue -= nFeeRet % nSubtractFeeFromAmount;
+                        }
+                    }
+
+                    if (IsDust(txout, ::dustRelayFee) && !IsScriptTransferAsset(recipient.scriptPubKey))
+                    {
+                        if (recipient.fSubtractFeeFromAmount && nFeeRet > 0 )
+                        {
+                            if (txout.nValue < 0)
+                                strFailReason = _("The transaction amount is too small to pay the fee");
+                            else
+                                strFailReason = _("The transaction amount is too small to send after the fee has been deducted");
+                        }
+                        else
+                            strFailReason = _("Transaction amount too small");
+                        return false;
+                    }
+                    txNew.vout.push_back(txout);
+                }
+
+                // Choose coins to use
+                if (pick_new_inputs) {
+                    nValueIn = 0;
+                    setCoins.clear();
+                    if (!SelectCoins(vAvailableCoins, nValueToSelect, setCoins, nValueIn, &coin_control)) {
+                        if (coin_control.nCoinType == CoinType::ONLY_NONDENOMINATED) {
+                            strFailReason = _("Unable to locate enough PrivateSend non-denominated funds for this transaction.");
+                        } else if (coin_control.nCoinType == CoinType::ONLY_DENOMINATED) {
+                            strFailReason = _("Unable to locate enough PrivateSend denominated funds for this transaction.");
+                            strFailReason += " " + _("PrivateSend uses exact denominated amounts to send funds, you might simply need to mix some more coins.");
+                        } else if (nValueIn < nValueToSelect) {
+                        	//std::string errMsg = "Insufficient funds." + nValueIn + "-" + nValueToSelect;
+                            strFailReason = _("Insufficient funds.");
+                        }
+                        return false;
+                    }
+                    /** RVN START */
+                    if (AreAssetsDeployed()) {
+                        setAssets.clear();
+                        mapAssetsIn.clear();
+                        if (!SelectAssets(mapAssetCoins, mapAssetValue, setAssets, mapAssetsIn)) {
+                            strFailReason = _("Insufficient asset funds");
+                            return false;
+                        }
+                    }
+                    /** RVN END */
+                }
+
+                const CAmount nChange = nValueIn - nValueToSelect;
+                CTxOut newTxOut;
+
+                /** RVN START */
+                if (AreAssetsDeployed()) {
+                    // Add the change for the assets
+                    std::map<std::string, CAmount> mapAssetChange;
+                    for (auto asset : mapAssetValue) {
+                        if (mapAssetsIn.count(asset.first))
+                            mapAssetChange.insert(
+                                    std::make_pair(asset.first, (mapAssetsIn.at(asset.first) - asset.second)));
+                    }
+
+                    for (auto assetChange : mapAssetChange) {
+                        if (assetChange.second > 0) {
+                            if (IsAssetNameAnRestricted(assetChange.first))
+                            {
+                                // Get the verifier string for the restricted asset
+                                CNullAssetTxVerifierString verifier;
+                                if (!passets->GetAssetVerifierStringIfExists(assetChange.first, verifier)) {
+                                    strFailReason = _("Verifier String for asset trasnfer, not found");
+                                    return false;
+                                }
+
+                                // Get the change address
+                                CTxDestination dest;
+                                if (!ExtractDestination(assetScriptChange, dest)) {
+                                    strFailReason = _("Failed to extract destination from change script");
+                                    return false;
+                                }
+
+                                std::string change_address = EncodeDestination(dest);
+                                bool fFoundValueChangeAddress = false;
+                                // Check the verifier string against the change address, if it fails, we will try to send the change back to the same input that created this transaction
+                                if (!ContextualCheckVerifierString(passets, verifier.verifier_string, change_address, strFailReason)) {
+                                    // Loop through all assets that are inputs into the transaction
+                                    for (auto asset: setAssets) {
+                                        if (asset.txout.scriptPubKey.IsAssetScript()) {
+                                            CAssetOutputEntry outputData;
+                                            if (!GetAssetData(asset.txout.scriptPubKey, outputData)) {
+                                                strFailReason = _("Failed to get asset data from script");
+                                                return false;
+                                            }
+
+                                            // If the asset names don't match, continue through the set of assets
+                                            if (outputData.assetName != assetChange.first)
+                                                continue;
+
+                                            std::string check_address = EncodeDestination(outputData.destination);
+
+                                            if (ContextualCheckVerifierString(passets, verifier.verifier_string, check_address, strFailReason)) {
+                                                fFoundValueChangeAddress = true;
+
+                                                CScript scriptAssetChange = GetScriptForDestination(outputData.destination);
+                                                CAssetTransfer assetTransfer(assetChange.first, assetChange.second);
+
+                                                assetTransfer.ConstructTransaction(scriptAssetChange);
+                                                CTxOut newAssetTxOut(0, scriptAssetChange);
+
+                                                txNew.vout.emplace_back(newAssetTxOut);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                } else  {
+                                    fFoundValueChangeAddress = true;
+                                    CScript scriptAssetChange = assetScriptChange;
+                                    CAssetTransfer assetTransfer(assetChange.first, assetChange.second);
+
+                                    assetTransfer.ConstructTransaction(scriptAssetChange);
+                                    CTxOut newAssetTxOut(0, scriptAssetChange);
+
+                                    txNew.vout.emplace_back(newAssetTxOut);
+                                }
+                                if (!fFoundValueChangeAddress) {
+                                    strFailReason = _("Failed to find restricted asset change address from inputs");
+                                    return false;
+                                }
+                            } else {
+                                CScript scriptAssetChange = assetScriptChange;
+                                CAssetTransfer assetTransfer(assetChange.first, assetChange.second);
+
+                                assetTransfer.ConstructTransaction(scriptAssetChange);
+                                CTxOut newAssetTxOut(0, scriptAssetChange);
+
+                                txNew.vout.emplace_back(newAssetTxOut);
+                            }
+                        }
+                    }
+                }
+                /** RVN END */
+
+                if (nChange > 0)
+                {
+                    //over pay for denominated transactions
+                    if (coin_control.nCoinType == CoinType::ONLY_DENOMINATED) {
+                        nChangePosInOut = -1;
+                        nFeeRet += nChange;
+                    } else {
+                        // Fill a vout to ourself
+                        newTxOut = CTxOut(nChange, scriptChange);
+
+                        // Never create dust outputs; if we would, just
+                        // add the dust to the fee.
+                        if (IsDust(newTxOut, discard_rate))
+                        {
+                            nChangePosInOut = -1;
+                            nFeeRet += nChange;
+
+                        }
+                        else
+                        {
+                            if (nChangePosInOut == -1)
+                            {
+                                // Insert change txn at random position:
+                                nChangePosInOut = GetRandInt(txNew.vout.size()+1);
+                            }
+                            else if ((unsigned int)nChangePosInOut > txNew.vout.size())
+                            {
+                                strFailReason = _("Change index out of range");
+                                return false;
+                            }
+
+                            std::vector<CTxOut>::iterator position = txNew.vout.begin()+nChangePosInOut;
+                            txNew.vout.insert(position, newTxOut);
+                        }
+                    }
+                } else {
+                    nChangePosInOut = -1;
+                }
+
+                 /** RVN START */
+                if (AreAssetsDeployed()) {
+                    if (fNewAsset) {
+                        for (auto asset : assets) {
+                            // Create the owner token output for non-unique assets
+                            if (assetType != AssetType::UNIQUE && assetType != AssetType::MSGCHANNEL && assetType != AssetType::QUALIFIER && assetType != AssetType::SUB_QUALIFIER && assetType != AssetType::RESTRICTED) {
+                                CScript ownerScript = GetScriptForDestination(destination);
+                                asset.ConstructOwnerTransaction(ownerScript);
+                                CTxOut ownerTxOut(0, ownerScript);
+                                txNew.vout.push_back(ownerTxOut);
+                            }
+
+                            // Create the asset transaction and push it back so it is the last CTxOut in the transaction
+                            CScript scriptPubKey = GetScriptForDestination(destination);
+                            asset.ConstructTransaction(scriptPubKey);
+                            CTxOut newTxOut(0, scriptPubKey);
+                            txNew.vout.push_back(newTxOut);
+                        }
+                    } else if (fReissueAsset) {
+                        // Create the asset transaction and push it back so it is the last CTxOut in the transaction
+                        CScript reissueScript = GetScriptForDestination(destination);
+
+                        // Create the scriptPubKeys for the reissue data, and that owner asset
+                        reissueAsset.ConstructTransaction(reissueScript);
+
+                        CTxOut reissueTxOut(0, reissueScript);
+                        txNew.vout.push_back(reissueTxOut);
+                    }
+                }
+                /** RVN END */
+
+                // Fill vin
+                //
+                // Note how the sequence number is set to max()-1 so that the
+                // nLockTime set above actually works.
+                vecTxDSInTmp.clear();
+                for (const auto& coin : setCoins) {
+                    CTxIn txin = CTxIn(coin.outpoint,CScript(),
+                                              CTxIn::SEQUENCE_FINAL - 1);
+                    vecTxDSInTmp.push_back(CTxDSIn(txin, coin.txout.scriptPubKey));
+                    txNew.vin.push_back(txin);
+                }
+
+                /** RVN START */
+                if (AreAssetsDeployed()) {
+                    for (const auto &asset : setAssets){
+                        CTxIn txin = CTxIn(asset.outpoint,CScript(),
+                                              CTxIn::SEQUENCE_FINAL - 1);
+                        vecTxDSInTmp.push_back(CTxDSIn(txin, asset.txout.scriptPubKey));
+                        txNew.vin.push_back(txin);
+                        }
+                }
+                /** RVN END */
+
+                // If no specific change position was requested, apply BIP69
+                if (nChangePosRequest == -1 && !(fTransferAsset || fNewAsset || fReissueAsset)) {
+                    std::sort(txNew.vin.begin(), txNew.vin.end(), CompareInputBIP69());
+                    std::sort(vecTxDSInTmp.begin(), vecTxDSInTmp.end(), CompareInputBIP69());
+                    std::sort(txNew.vout.begin(), txNew.vout.end(), CompareOutputBIP69());
+                }
+
+                // If there was change output added before, we must update its position now
+                if (nChangePosInOut != -1) {
+                    int i = 0;
+                    for (const CTxOut& txOut : txNew.vout)
+                    {
+                        if (txOut == newTxOut)
+                        {
+                            nChangePosInOut = i;
+                            break;
+                        }
+                        i++;
+                    }
+                }
+
+                // Fill in dummy signatures for fee calculation.
+                int nIn = 0;
+                for (const auto& txdsin : vecTxDSInTmp)
+                {
+                    const CScript& scriptPubKey = txdsin.prevPubKey;
+                    SignatureData sigdata;
+                    if (!ProduceSignature(DummySignatureCreator(this), scriptPubKey, sigdata))
+                    {
+                        strFailReason = _("Signing transaction failed");
+                        return false;
+                    } else {
+                        UpdateTransaction(txNew, nIn, sigdata);
+                    }
+
+                    nIn++;
+                }
+
+                nBytes = ::GetSerializeSize(txNew, SER_NETWORK, PROTOCOL_VERSION);
+
+                if (nExtraPayloadSize != 0) {
+                    // account for extra payload in fee calculation
+                    nBytes += GetSizeOfCompactSize(nExtraPayloadSize) + nExtraPayloadSize;
+                }
+
+                if (nBytes > MAX_STANDARD_TX_SIZE) {
+                    // Do not create oversized transactions (bad-txns-oversize).
+                    strFailReason = _("Transaction too large");
+                    return false;
+                }
+
+                // Remove scriptSigs to eliminate the fee calculation dummy signatures
+                for (auto& txin : txNew.vin) {
+                    txin.scriptSig = CScript();
+                }
+
+                nFeeNeeded = GetMinimumFee(nBytes, coin_control, ::mempool, ::feeEstimator, &feeCalc);
+
+                // If we made it here and we aren't even able to meet the relay fee on the next pass, give up
+                // because we must be at the maximum allowed fee.
+                if (nFeeNeeded < ::minRelayTxFee.GetFee(nBytes))
+                {
+                    strFailReason = _("Transaction too large for fee policy");
+                    return false;
+                }
+
+                if (nFeeRet >= nFeeNeeded) {
+                    // Reduce fee to only the needed amount if possible. This
+                    // prevents potential overpayment in fees if the coins
+                    // selected to meet nFeeNeeded result in a transaction that
+                    // requires less fee than the prior iteration.
+
+                    // If we have no change and a big enough excess fee, then
+                    // try to construct transaction again only without picking
+                    // new inputs. We now know we only need the smaller fee
+                    // (because of reduced tx size) and so we should add a
+                    // change output. Only try this once.
+                    if (nChangePosInOut == -1 && nSubtractFeeFromAmount == 0 && pick_new_inputs) {
+                        unsigned int tx_size_with_change = nBytes + change_prototype_size + 2; // Add 2 as a buffer in case increasing # of outputs changes compact size
+                        CAmount fee_needed_with_change = GetMinimumFee(tx_size_with_change, coin_control, ::mempool, ::feeEstimator, nullptr);
+                        CAmount minimum_value_for_change = GetDustThreshold(change_prototype_txout, discard_rate);
+                        if (nFeeRet >= fee_needed_with_change + minimum_value_for_change) {
+                            pick_new_inputs = false;
+                            nFeeRet = fee_needed_with_change;
+                            continue;
+                        }
+                    }
+
+                    // If we have change output already, just increase it
+                    if (nFeeRet > nFeeNeeded && nChangePosInOut != -1 && nSubtractFeeFromAmount == 0) {
+                        CAmount extraFeePaid = nFeeRet - nFeeNeeded;
+                        std::vector<CTxOut>::iterator change_position = txNew.vout.begin()+nChangePosInOut;
+                        change_position->nValue += extraFeePaid;
+                        nFeeRet -= extraFeePaid;
+                    }
+                    break; // Done, enough fee included.
+                }
+                else if (!pick_new_inputs) {
+                    // This shouldn't happen, we should have had enough excess
+                    // fee to pay for the new output and still meet nFeeNeeded
+                    // Or we should have just subtracted fee from recipients and
+                    // nFeeNeeded should not have changed
+                    strFailReason = _("Transaction fee and change calculation failed");
+                    return false;
+                }
+
+                // Try to reduce change to include necessary fee
+                if (nChangePosInOut != -1 && nSubtractFeeFromAmount == 0) {
+                    CAmount additionalFeeNeeded = nFeeNeeded - nFeeRet;
+                    std::vector<CTxOut>::iterator change_position = txNew.vout.begin()+nChangePosInOut;
+                    // Only reduce change if remaining amount is still a large enough output.
+                    if (change_position->nValue >= MIN_FINAL_CHANGE + additionalFeeNeeded) {
+                        change_position->nValue -= additionalFeeNeeded;
+                        nFeeRet += additionalFeeNeeded;
+                        break; // Done, able to increase fee from change
+                    }
+                }
+
+                // If subtracting fee from recipients, we now know what fee we
+                // need to subtract, we have no reason to reselect inputs
+                if (nSubtractFeeFromAmount > 0) {
+                    pick_new_inputs = false;
+                }
+
+                // Include more fee and try again.
+                nFeeRet = nFeeNeeded;
+                continue;
+            }
+        }
+
+        if (nChangePosInOut == -1) reservekey.ReturnKey(); // Return any reserved key if we don't have change
+
+        if (sign)
+        {
+            CTransaction txNewConst(txNew);
+            int nIn = 0;
+            for(const auto& txdsin : vecTxDSInTmp)
+            {
+                const CScript& scriptPubKey = txdsin.prevPubKey;
+                SignatureData sigdata;
+
+                if (!ProduceSignature(TransactionSignatureCreator(this, &txNewConst, nIn, SIGHASH_ALL), scriptPubKey, sigdata))
+                {
+                    strFailReason = _("Signing transaction failed");
+                    return false;
+                } else {
+                    UpdateTransaction(txNew, nIn, sigdata);
+                }
+
+                nIn++;
+            }
+        }
+
+        // Embed the constructed transaction data in wtxNew.
+        wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
+    }
+
+    if (gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS)) {
+        // Lastly, ensure this tx will pass the mempool's chain limits
+        LockPoints lp;
+        CTxMemPoolEntry entry(wtxNew.tx, 0, 0, 0, false, 0, lp);
+        CTxMemPool::setEntries setAncestors;
+        size_t nLimitAncestors = gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
+        size_t nLimitAncestorSize = gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;
+        size_t nLimitDescendants = gArgs.GetArg("-limitdescendantcount", DEFAULT_DESCENDANT_LIMIT);
+        size_t nLimitDescendantSize = gArgs.GetArg("-limitdescendantsize", DEFAULT_DESCENDANT_SIZE_LIMIT)*1000;
+        std::string errString;
+        if (!mempool.CalculateMemPoolAncestors(entry, setAncestors, nLimitAncestors, nLimitAncestorSize, nLimitDescendants, nLimitDescendantSize, errString)) {
+            strFailReason = _("Transaction has too long of a mempool chain");
+            return false;
+        }
+    }
+
+    LogPrintf("Fee Calculation: Fee:%d Bytes:%u Needed:%d Tgt:%d (requested %d) Reason:\"%s\" Decay %.5f: Estimation: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out) Fail: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out)\n",
+              nFeeRet, nBytes, nFeeNeeded, feeCalc.returnedTarget, feeCalc.desiredTarget, StringForFeeReason(feeCalc.reason), feeCalc.est.decay,
+              feeCalc.est.pass.start, feeCalc.est.pass.end,
+              100 * feeCalc.est.pass.withinTarget / (feeCalc.est.pass.totalConfirmed + feeCalc.est.pass.inMempool + feeCalc.est.pass.leftMempool),
+              feeCalc.est.pass.withinTarget, feeCalc.est.pass.totalConfirmed, feeCalc.est.pass.inMempool, feeCalc.est.pass.leftMempool,
+              feeCalc.est.fail.start, feeCalc.est.fail.end,
+              100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool),
+              feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
+    return true;
+}
+
+/** YERBAS assets end*/
+
 
 bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet,
                                 int& nChangePosInOut, std::string& strFailReason, const CCoinControl& coin_control, bool sign, int nExtraPayloadSize)

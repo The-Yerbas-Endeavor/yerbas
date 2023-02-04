@@ -11,6 +11,9 @@
 #include "serialize.h"
 #include "uint256.h"
 
+class CCoinsViewCache;
+class CNullAssetTxVerifierString;
+
 /** Transaction types */
 enum {
     TRANSACTION_NORMAL = 0,
@@ -20,7 +23,8 @@ enum {
     TRANSACTION_PROVIDER_UPDATE_REVOKE = 4,
     TRANSACTION_COINBASE = 5,
     TRANSACTION_QUORUM_COMMITMENT = 6,
-	TRANSACTION_FUTURE = 7
+	TRANSACTION_FUTURE = 7,
+    TRANSACTION_NEW_ASSET = 8,
 };
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
@@ -62,6 +66,7 @@ public:
 
     std::string ToString() const;
     std::string ToStringShort() const;
+    std::string ToSerializedString() const;
 };
 
 /** An input of a transaction.  It contains the location of the previous
@@ -262,6 +267,27 @@ public:
     CAmount GetValueOut() const;
     // GetValueIn() is a method on CCoinsViewCache, because
     // inputs must be known to compute value in.
+
+    /** RVN START */
+    bool IsNewAsset() const;
+    bool VerifyNewAsset(std::string& strError) const;
+    bool IsNewUniqueAsset() const;
+    bool VerifyNewUniqueAsset(std::string& strError) const;
+    bool IsReissueAsset() const;
+    bool VerifyReissueAsset(std::string& strError) const;
+    bool IsNewMsgChannelAsset() const;
+    bool VerifyNewMsgChannelAsset(std::string& strError) const;
+    bool IsNewQualifierAsset() const;
+    bool VerifyNewQualfierAsset(std::string &strError) const;
+    bool IsNewRestrictedAsset() const;
+    bool VerifyNewRestrictedAsset(std::string& strError) const;
+
+    bool CheckAddingTagBurnFee(const int& count) const;
+
+    bool GetVerifierStringFromTx(CNullAssetTxVerifierString& verifier, std::string& strError) const;
+    bool GetVerifierStringFromTx(CNullAssetTxVerifierString& verifier, std::string& strError, bool& fNotFound) const;
+
+    /** RVN END */
 
     /**
      * Get the total transaction size in bytes, including witness data.

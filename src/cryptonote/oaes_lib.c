@@ -481,6 +481,7 @@ static void oaes_get_seed( char buf[RANDSIZ + 1] )
   if( _test )
     free( _test );
 }
+
 #else
 static uint32_t oaes_get_seed(void)
 {
@@ -499,7 +500,6 @@ static uint32_t oaes_get_seed(void)
 
   return _ret;
 }
-
 #endif // OAES_HAVE_ISAAC
 
 static OAES_RET oaes_key_destroy( oaes_key ** key )

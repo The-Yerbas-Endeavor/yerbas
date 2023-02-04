@@ -21,6 +21,11 @@ class TransactionView;
 class WalletModel;
 class AddressBookPage;
 
+class AssetsDialog;
+class CreateAssetDialog;
+//class ReissueAssetDialog;
+//class RestrictedAssetsDialog;
+
 QT_BEGIN_NAMESPACE
 class QLabel;
 class QModelIndex;
@@ -74,6 +79,11 @@ private:
     QLabel *transactionSum;
     const PlatformStyle *platformStyle;
 
+    AssetsDialog *assetsPage;
+    CreateAssetDialog *createAssetsPage;
+    //ReissueAssetDialog *manageAssetsPage;
+   // RestrictedAssetsDialog *restrictedAssetsPage;
+
 public Q_SLOTS:
     /** Switch to overview (home) page */
     void gotoOverviewPage();
@@ -85,6 +95,11 @@ public Q_SLOTS:
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
+    /** Switch to Transfer Assets page */
+    void gotoAssetsPage();
+    void gotoCreateAssetsPage();
+    void gotoManageAssetsPage();
+    void gotoRestrictedAssetsPage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

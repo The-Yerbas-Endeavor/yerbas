@@ -34,6 +34,7 @@
 #include <boost/signals2/signal.hpp>
 
 class CBlockIndex;
+struct ConnectedBlockAssetData;
 
 /** Fake height value used in Coin to signify they are only in the memory pool (since 0.8) */
 static const uint32_t MEMPOOL_HEIGHT = 0x7FFFFFFF;
@@ -473,6 +474,11 @@ public:
     mutable CCriticalSection cs;
     indexed_transaction_set mapTx;
 
+    /* RTM ASSETS START */
+    std::map<std::string, uint256> mapAssetToHash;
+    std::map<uint256, std::string> mapHashToAsset;
+    /* RTM ASSETS END */
+
     typedef indexed_transaction_set::nth_index<0>::type::iterator txiter;
     std::vector<std::pair<uint256, txiter> > vTxHashes; //!< All tx hashes/entries in mapTx, in random order
 
@@ -561,6 +567,7 @@ public:
     void removeProTxSpentCollateralConflicts(const CTransaction &tx);
     void removeProTxKeyChangedConflicts(const CTransaction &tx, const uint256& proTxHash, const uint256& newKeyHash);
     void removeProTxConflicts(const CTransaction &tx);
+    void removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight, ConnectedBlockAssetData& connectedBlockData );  
     void removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight);
 
     void clear();
@@ -817,6 +824,11 @@ struct DisconnectedBlockTransactions {
         cachedInnerUsage = 0;
         queuedTx.clear();
     }
+};
+
+struct ConnectedBlockAssetData
+{
+    std::set<CAssetCacheNewAsset> newAssetsToAdd;
 };
 
 #endif // BITCOIN_TXMEMPOOL_H
