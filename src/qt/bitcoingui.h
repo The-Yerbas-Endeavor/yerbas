@@ -249,6 +249,8 @@ private Q_SLOTS:
     void gotoAssetsPage();
     /** Switch to Create Assets page */
     void gotoCreateAssetsPage();
+    void gotoManageAssetsPage();
+    //void gotoRestrictedAssetsPage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");

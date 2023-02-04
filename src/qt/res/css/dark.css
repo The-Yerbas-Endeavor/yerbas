@@ -1158,7 +1158,7 @@ WalletFrame {
     QDialog#SendCoinsDialog .QScrollArea#scrollArea .QWidget#scrollAreaWidgetContents { /* Send To Widget */
     background:transparent;
     }
-    
+
     QDialog#SendCoinsDialog .QPushButton#sendButton { /* Send Button */
     padding-left:10px;
     padding-right:10px;
@@ -1206,7 +1206,7 @@ WalletFrame {
     padding-bottom:18px;
     margin-right:20px;
     }
-    
+   
     /* This QLabel uses name = "label" which conflicts with Address Book -> New Address */
     /* To maximize backwards compatibility this formatting has been removed */
     
@@ -1460,7 +1460,16 @@ WalletFrame {
        QStackedWidget#SendAssetsEntry .QLineEdit#addAsLabel { /* Pay To Input Field */
        }
 
-    
+   /* ReissueAssetDialog */
+      QDialog#ReissueAssetDialog .QScrollArea#scrollArea .QWidget#scrollAreaWidgetContents { /* Send To Widget */
+      background-color: #0f130d;
+      }
+
+      QDialog#ReissueAssetDialog .QTextBrowser{ /* Send To Widget */
+         color: #ccc;
+      }
+     
+
     /* COIN CONTROL POPUP */
     
     QDialog#CoinControlDialog { /* Coin Control Dialog Window */

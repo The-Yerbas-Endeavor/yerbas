@@ -29,6 +29,7 @@
 #include "coins.h"
 #include "wallet/wallet.h"
 #include "LibBoolEE.h"
+#include <spork.h>
 
 #define SIX_MONTHS 15780000 // Six months worth of seconds
 
@@ -3123,7 +3124,7 @@ bool CheckReissueBurnTx(const CTxOut& txOut)
         return false;
 
     // Check destination address is the correct burn address
-    if (EncodeDestination(destination) != "")
+    if (EncodeDestination(destination) != "rYEPqoJ64bTGndjGwtYxmEvHqiL7mbyNAE")
         return false;
 
     return true;
@@ -3616,7 +3617,12 @@ CAmount GetBurnAmount(const int nType)
 CAmount GetBurnAmount(const AssetType type)
 {
     return 1000000000;
-}
+    /*if(!sporkManager.IsSporkActive(SPORK_22_SPECIAL_TX_FEE)) {
+        return 0;
+    }
+    int64_t specialTxValue = sporkManager.GetSporkValue(SPORK_22_SPECIAL_TX_FEE);
+    return (specialTxValue & 0xffff) * COIN;
+*/}
 
 std::string GetBurnAddress(const int nType)
 {
@@ -4095,7 +4101,7 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
     }
 
     // Get the script for the burn address
-    CScript scriptPubKeyBurn = GetScriptForDestination(DecodeDestination(""));
+    CScript scriptPubKeyBurn = GetScriptForDestination(DecodeDestination(GetBurnAddress(0)));
 
     // Create and send the transaction
     CRecipient recipient = {scriptPubKeyBurn, burnAmount, fSubtractFeeFromAmount};

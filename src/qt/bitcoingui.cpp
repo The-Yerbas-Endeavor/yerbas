@@ -424,7 +424,9 @@ void BitcoinGUI::createActions()
     //assets
     connect(TransferAssetsAction, SIGNAL(triggered()), this, SLOT(gotoAssetsPage()));
     connect(CreateAssetsAction, SIGNAL(triggered()), this, SLOT(gotoCreateAssetsPage()));
-
+    connect(ManageAssetsAction, SIGNAL(triggered()), this, SLOT(gotoManageAssetsPage()));
+    //connect(RestrictedAssetsAction, SIGNAL(triggered()), this, SLOT(gotoRestrictedAssetsPage()));
+    
 #endif // ENABLE_WALLET
 
     quitAction = new QAction(QIcon(":/icons/quit"), tr("E&xit"), this);
@@ -984,6 +986,18 @@ void BitcoinGUI::gotoCreateAssetsPage()
     CreateAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoCreateAssetsPage();
 }
+
+void BitcoinGUI::gotoManageAssetsPage()
+{
+    ManageAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoManageAssetsPage();
+};
+
+/*void BitcoinGUI::gotoRestrictedAssetsPage()
+{
+    restrictedAssetAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoRestrictedAssetsPage();
+};*/
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)
 {

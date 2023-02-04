@@ -23,7 +23,7 @@ class AddressBookPage;
 
 class AssetsDialog;
 class CreateAssetDialog;
-//class ReissueAssetDialog;
+class ReissueAssetDialog;
 //class RestrictedAssetsDialog;
 
 QT_BEGIN_NAMESPACE
@@ -81,7 +81,7 @@ private:
 
     AssetsDialog *assetsPage;
     CreateAssetDialog *createAssetsPage;
-    //ReissueAssetDialog *manageAssetsPage;
+    ReissueAssetDialog *manageAssetsPage;
    // RestrictedAssetsDialog *restrictedAssetsPage;
 
 public Q_SLOTS:

@@ -20,7 +20,7 @@
 #include "transactionview.h"
 #include "assetsdialog.h"
 #include "createassetdialog.h"
-//#include "reissueassetdialog.h"
+#include "reissueassetdialog.h"
 //#include "restrictedassetsdialog.h"
 #include "walletmodel.h"
 
@@ -92,12 +92,12 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
 
     assetsPage = new AssetsDialog(platformStyle);
     createAssetsPage = new CreateAssetDialog(platformStyle);
-    //manageAssetsPage = new ReissueAssetDialog(platformStyle);
+    manageAssetsPage = new ReissueAssetDialog(platformStyle);
     //restrictedAssetsPage = new RestrictedAssetsDialog(platformStyle);
 
     addWidget(assetsPage);
     addWidget(createAssetsPage);
-    //addWidget(manageAssetsPage);
+    addWidget(manageAssetsPage);
     //addWidget(restrictedAssetsPage);
 
     // Clicking on a transaction on the overview pre-selects the transaction on the transaction history page
@@ -121,7 +121,7 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
 
     connect(assetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
     connect(createAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
-    //connect(manageAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
+    connect(manageAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
     //connect(restrictedAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
     //connect(overviewPage, SIGNAL(assetSendClicked(QModelIndex)), assetsPage, SLOT(focusAsset(QModelIndex)));
     //connect(overviewPage, SIGNAL(assetIssueSubClicked(QModelIndex)), createAssetsPage, SLOT(focusSubAsset(QModelIndex)));
@@ -185,7 +185,7 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
 
     assetsPage->setModel(_walletModel);
     createAssetsPage->setModel(_walletModel);
-    //manageAssetsPage->setModel(_walletModel);
+    manageAssetsPage->setModel(_walletModel);
     //restrictedAssetsPage->setModel(_walletModel);
 
     if (_walletModel)
@@ -242,7 +242,7 @@ void WalletView::processNewTransaction(const QModelIndex& parent, int start, int
 
     assetsPage->processNewTransaction();
     createAssetsPage->updateAssetList();
-    //manageAssetsPage->updateAssetsList();
+    manageAssetsPage->updateAssetsList();
 }
 
 void WalletView::gotoOverviewPage()
@@ -446,7 +446,7 @@ void WalletView::gotoAssetsPage()
 
 void WalletView::gotoManageAssetsPage()
 {
-    //setCurrentWidget(manageAssetsPage);
+    setCurrentWidget(manageAssetsPage);
 }
 
 void WalletView::gotoRestrictedAssetsPage()

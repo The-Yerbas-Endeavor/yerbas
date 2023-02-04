@@ -332,8 +332,8 @@ void SendAssetsEntry::onAssetSelected(int index)
     // If the name
     if (index == 0) {
         ui->assetAmountLabel->clear();
-//        if(!ui->administratorCheckbox->isChecked())
-//            ui->payAssetAmount->setDisabled(false);
+        if(!ui->administratorCheckbox->isChecked())
+            ui->payAssetAmount->setDisabled(false);
         ui->payAssetAmount->clear();
         ui->payAssetAmount->setDisabled(true);
         return;
@@ -507,8 +507,8 @@ void SendAssetsEntry::switchAdministratorList(bool fSwitchStatus)
 
             stringModel->setStringList(list);
             ui->assetSelectionBox->lineEdit()->setPlaceholderText(tr("Select an asset to transfer"));
-//            ui->payAssetAmount->clear();
-//            ui->payAssetAmount->setUnit(MAX_UNIT);
+            //ui->payAssetAmount->clear();
+            //ui->payAssetAmount->setUnit(MAX_UNIT);
             ui->assetAmountLabel->clear();
             ui->assetSelectionBox->setFocus();
         } else {
