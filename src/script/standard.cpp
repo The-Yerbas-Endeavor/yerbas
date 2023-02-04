@@ -30,11 +30,11 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_MULTISIG: return "multisig";
     case TX_NULL_DATA: return "nulldata";
 
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     case TX_NEW_ASSET: return ASSET_NEW_STRING;
     case TX_TRANSFER_ASSET: return ASSET_TRANSFER_STRING;
     case TX_REISSUE_ASSET: return ASSET_REISSUE_STRING;
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
     }
     return nullptr;
 }
@@ -201,7 +201,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
         return true;
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     } else if (whichType == TX_NEW_ASSET || whichType == TX_REISSUE_ASSET || whichType == TX_TRANSFER_ASSET) {
         addressRet = CKeyID(uint160(vSolutions[0]));
         return true;
@@ -211,7 +211,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
             return true;
         }
     } 
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
     // Multisig txns have more than one address...
     return false;
 }

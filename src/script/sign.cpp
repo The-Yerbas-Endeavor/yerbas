@@ -75,7 +75,7 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
     case TX_NONSTANDARD:
     case TX_NULL_DATA:
         return false;
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     case TX_NEW_ASSET:
         keyID = CKeyID(uint160(vSolutions[0]));
         if (!Sign1(keyID, creator, scriptPubKey, ret, sigversion))
@@ -110,7 +110,7 @@ static bool SignStep(const BaseSignatureCreator& creator, const CScript& scriptP
             ret.push_back(ToByteVector(vch));
         }
         return true;
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
     case TX_PUBKEY:
         keyID = CPubKey(vSolutions[0]).GetID();
         return Sign1(keyID, creator, scriptPubKey, ret, sigversion);

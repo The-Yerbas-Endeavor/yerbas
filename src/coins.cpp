@@ -95,7 +95,7 @@ void CCoinsViewCache::AddCoin(const COutPoint &outpoint, Coin&& coin, bool possi
 void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint256 blockHash, bool check, CAssetsCache* assetsCache, std::pair<std::string, CBlockAssetUndo>* undoAssetData) {
     bool fCoinbase = tx.IsCoinBase();
     const uint256& txid = tx.GetHash();
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     if (Params().IsAssetsActive(chainActive.Tip())) {
         if (assetsCache) {  
             if (tx.IsNewAsset()) { // This works are all new root assets, sub asset, and restricted assets
@@ -213,7 +213,7 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint2
              std::cout << "no asset cache" << std::endl;
         }
     }
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
 
     for (size_t i = 0; i < tx.vout.size(); ++i) {
         bool overwrite = check ? cache.HaveCoin(COutPoint(txid, i)) : fCoinbase;
@@ -221,7 +221,7 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint2
         // deal with the pre-BIP30 occurrences of duplicate coinbase transactions.
         cache.AddCoin(COutPoint(txid, i), Coin(tx.vout[i], nHeight, fCoinbase), overwrite);
     
-        /** RTM ASSETS START */
+        /** YERB ASSETS START */
         if (Params().IsAssetsActive(chainActive.Tip())) {
             if (assetsCache) {
                 CAssetOutputEntry assetData;
@@ -314,7 +314,7 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint2
                 }
             }
         }
-        /** RTM ASSETS END */
+        /** YERB ASSETS END */
     }
 }
 

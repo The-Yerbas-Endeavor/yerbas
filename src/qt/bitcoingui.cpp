@@ -391,7 +391,7 @@ void BitcoinGUI::createActions()
     tabGroup->addAction(AssetsAction);
 
     TransferAssetsAction = new QAction(tr("&Transfer Assets"), this);
-    TransferAssetsAction->setStatusTip(tr("Transfer assets to RTM addresses"));
+    TransferAssetsAction->setStatusTip(tr("Transfer assets to YERB addresses"));
     tabGroup->addAction(TransferAssetsAction);
 
     CreateAssetsAction = new QAction(tr("&Create assets"), this);
