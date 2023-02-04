@@ -18,6 +18,10 @@
 #include "transactionrecord.h"
 #include "transactiontablemodel.h"
 #include "transactionview.h"
+#include "assetsdialog.h"
+#include "createassetdialog.h"
+//#include "reissueassetdialog.h"
+//#include "restrictedassetsdialog.h"
 #include "walletmodel.h"
 
 #include "ui_interface.h"
@@ -86,6 +90,16 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
         addWidget(smartnodeListPage);
     }
 
+    assetsPage = new AssetsDialog(platformStyle);
+    createAssetsPage = new CreateAssetDialog(platformStyle);
+    //manageAssetsPage = new ReissueAssetDialog(platformStyle);
+    //restrictedAssetsPage = new RestrictedAssetsDialog(platformStyle);
+
+    addWidget(assetsPage);
+    addWidget(createAssetsPage);
+    //addWidget(manageAssetsPage);
+    //addWidget(restrictedAssetsPage);
+
     // Clicking on a transaction on the overview pre-selects the transaction on the transaction history page
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), transactionView, SLOT(focusTransaction(QModelIndex)));
     connect(overviewPage, SIGNAL(outOfSyncWarningClicked()), this, SLOT(requestedSyncWarningInfo()));
@@ -104,6 +118,16 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
 
     // Pass through messages from transactionView
     connect(transactionView, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
+
+    connect(assetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
+    connect(createAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
+    //connect(manageAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
+    //connect(restrictedAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
+    //connect(overviewPage, SIGNAL(assetSendClicked(QModelIndex)), assetsPage, SLOT(focusAsset(QModelIndex)));
+    //connect(overviewPage, SIGNAL(assetIssueSubClicked(QModelIndex)), createAssetsPage, SLOT(focusSubAsset(QModelIndex)));
+    //connect(overviewPage, SIGNAL(assetIssueUniqueClicked(QModelIndex)), createAssetsPage, SLOT(focusUniqueAsset(QModelIndex)));
+    //connect(overviewPage, SIGNAL(assetReissueClicked(QModelIndex)), manageAssetsPage, SLOT(focusReissueAsset(QModelIndex)));
+    
 }
 
 WalletView::~WalletView()
@@ -159,6 +183,11 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
     usedReceivingAddressesPage->setModel(_walletModel->getAddressTableModel());
     usedSendingAddressesPage->setModel(_walletModel->getAddressTableModel());
 
+    assetsPage->setModel(_walletModel);
+    createAssetsPage->setModel(_walletModel);
+    //manageAssetsPage->setModel(_walletModel);
+    //restrictedAssetsPage->setModel(_walletModel);
+
     if (_walletModel)
     {
         // Receive and pass through messages from wallet model
@@ -210,6 +239,10 @@ void WalletView::processNewTransaction(const QModelIndex& parent, int start, int
     QString label = ttm->data(index, TransactionTableModel::LabelRole).toString();
 
     Q_EMIT incomingTransaction(date, walletModel->getOptionsModel()->getDisplayUnit(), amount, type, address, label);
+
+    assetsPage->processNewTransaction();
+    createAssetsPage->updateAssetList();
+    //manageAssetsPage->updateAssetsList();
 }
 
 void WalletView::gotoOverviewPage()
@@ -241,6 +274,11 @@ void WalletView::gotoSendCoinsPage(QString addr)
 
     if (!addr.isEmpty())
         sendCoinsPage->setAddress(addr);
+}
+
+void WalletView::gotoCreateAssetsPage()
+{
+    setCurrentWidget(createAssetsPage);
 }
 
 void WalletView::gotoSignMessageTab(QString addr)
@@ -394,4 +432,24 @@ void WalletView::requestedSyncWarningInfo()
 void WalletView::trxAmount(QString amount)
 {
     transactionSum->setText(amount);
+}
+
+void WalletView::gotoAssetsPage()
+{
+    /*if (fFirstVisit){
+        fFirstVisit = false;
+        assetsPage->handleFirstSelection();
+    }*/
+    setCurrentWidget(assetsPage);
+    assetsPage->focusAssetListBox();
+}
+
+void WalletView::gotoManageAssetsPage()
+{
+    //setCurrentWidget(manageAssetsPage);
+}
+
+void WalletView::gotoRestrictedAssetsPage()
+{
+    //setCurrentWidget(restrictedAssetsPage);
 }

@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <vector>
+#include <chain.h>
 
 struct CDNSSeedData {
     std::string host;
@@ -94,6 +95,23 @@ public:
     int PoolMinParticipants() const { return nPoolMinParticipants; }
     int PoolMaxParticipants() const { return nPoolMaxParticipants; }
     int FulfilledRequestExpireTime() const { return nFulfilledRequestExpireTime; }
+    bool IsAssetsActive(CBlockIndex *index) const {
+        int height = index == nullptr ? 0 : index->nHeight;
+        return height >= GetConsensus().nAssetsForkBlock;
+    };
+    const std::string& GlobalBurnAddress() const { return strGlobalBurnAddress; }
+    //  Indicates whether or not the provided address is a burn address
+    bool IsBurnAddress(const std::string & p_address) const
+    {
+        if (
+            p_address == strGlobalBurnAddress
+        ) {
+            return true;
+        }
+
+        return false;
+    }
+    int GetAssetActivationHeight() const { return GetConsensus().nAssetsForkBlock; }
     const std::vector<std::string>& SporkAddresses() const { return vSporkAddresses; }
     int MinSporkKeys() const { return nMinSporkKeys; }
     bool BIP9CheckSmartnodesUpgraded() const { return fBIP9CheckSmartnodesUpgraded; }
@@ -126,7 +144,8 @@ protected:
     std::vector<std::string> vSporkAddresses;
     int nMinSporkKeys;
     bool fBIP9CheckSmartnodesUpgraded;
-
+    // Global Burn Address
+    std::string strGlobalBurnAddress;
 };
 
 /**

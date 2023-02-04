@@ -300,3 +300,95 @@ void BitcoinAmountField::setSingleStep(const CAmount& step)
 {
     amount->setSingleStep(step);
 }
+
+
+AssetAmountField::AssetAmountField(QWidget *parent) :
+        QWidget(parent),
+        amount(0)
+{
+    amount = new AmountSpinBox(this);
+    amount->setLocale(QLocale::c());
+    amount->installEventFilter(this);
+    amount->setMaximumWidth(170);
+
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->addWidget(amount);
+    layout->addStretch(1);
+    layout->setContentsMargins(0,0,0,0);
+
+    setLayout(layout);
+
+    setFocusPolicy(Qt::TabFocus);
+    setFocusProxy(amount);
+
+    // If one if the widgets changes, the combined content changes as well
+    connect(amount, SIGNAL(valueChanged()), this, SIGNAL(valueChanged()));
+
+    // Set default based on configuration
+    setUnit(MAX_ASSET_UNITS);
+}
+
+void AssetAmountField::clear()
+{
+    amount->clear();
+    setUnit(MAX_ASSET_UNITS);
+}
+
+void AssetAmountField::setEnabled(bool fEnabled)
+{
+    amount->setEnabled(fEnabled);
+}
+
+bool AssetAmountField::validate()
+{
+    bool valid = false;
+    value(&valid);
+    setValid(valid);
+    return valid;
+}
+
+void AssetAmountField::setValid(bool valid)
+{
+    if (valid) {
+        amount->setStyleSheet("");
+    } else {
+        //amount->setStyleSheet(STYLE_INVALID);
+    }
+}
+
+bool AssetAmountField::eventFilter(QObject *object, QEvent *event)
+{
+    if (event->type() == QEvent::FocusIn)
+    {
+        // Clear invalid flag on focus
+        setValid(true);
+    }
+    return QWidget::eventFilter(object, event);
+}
+
+CAmount AssetAmountField::value(bool *valid_out) const
+{
+    return amount->value(valid_out) * BitcoinUnits::factorAsset(8 - assetUnit);
+}
+
+void AssetAmountField::setValue(const CAmount& value)
+{
+    amount->setValue(value);
+}
+
+void AssetAmountField::setReadOnly(bool fReadOnly)
+{
+    amount->setReadOnly(fReadOnly);
+}
+
+void AssetAmountField::setSingleStep(const CAmount& step)
+{
+    amount->setSingleStep(step);
+}
+
+void AssetAmountField::setUnit(int unit)
+{
+    assetUnit = unit;
+    //amount->setAssetUnit(assetUnit);
+}
+

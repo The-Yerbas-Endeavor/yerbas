@@ -21,6 +21,13 @@
 #include "sync.h"
 #include "versionbits.h"
 #include "spentindex.h"
+#include <assets/assets.h>
+#include <assets/assetdb.h>
+#include <assets/messages.h>
+#include <assets/myassetsdb.h>
+#include <assets/restricteddb.h>
+#include <assets/assetsnapshotdb.h>
+#include <assets/snapshotrequestdb.h>
 
 #include <algorithm>
 #include <exception>
@@ -45,6 +52,7 @@ class CTxMemPool;
 class CValidationState;
 class PrecomputedTransactionData;
 struct ChainTxData;
+class CTxUndo;
 
 struct LockPoints;
 
@@ -132,6 +140,7 @@ static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
 static const unsigned int DEFAULT_BYTES_PER_SIGOP = 20;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
 static const bool DEFAULT_TXINDEX = true;
+static const bool DEFAULT_ASSETINDEX = false;
 static const bool DEFAULT_ADDRESSINDEX = false;
 static const bool DEFAULT_TIMESTAMPINDEX = false;
 static const bool DEFAULT_SPENTINDEX = false;
@@ -173,7 +182,9 @@ extern CConditionVariable cvBlockChange;
 extern std::atomic_bool fImporting;
 extern bool fReindex;
 extern int nScriptCheckThreads;
+extern bool fMessaging;
 extern bool fTxIndex;
+extern bool fAssetIndex;
 extern bool fAddressIndex;
 extern bool fTimestampIndex;
 extern bool fSpentIndex;
@@ -188,6 +199,8 @@ extern CFeeRate minRelayTxFee;
 /** Absolute maximum transaction fee (in duffs) used by wallet and mempool (rejects high fee in sendrawtransaction) */
 extern CAmount maxTxFee;
 /** If the tip is older than this (in seconds), the node is considered to be in initial block download. */
+extern bool fAssetUnitTest;
+
 extern int64_t nMaxTipAge;
 
 extern bool fLargeWorkForkFound;
@@ -338,7 +351,8 @@ BIP9Stats VersionBitsTipStatistics(const Consensus::Params& params, Consensus::D
 int VersionBitsTipStateSinceHeight(const Consensus::Params& params, Consensus::DeploymentPos pos);
 
 /** Apply the effects of this transaction on the UTXO set represented by view */
-void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight);
+void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo& txundo, int nHeight, uint256 blockHash, CAssetsCache* assetCache = nullptr, std::pair<std::string, CBlockAssetUndo>* undoAssetData = nullptr);
+void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo& txundo, int nHeight);
 
 /** Transaction validation functions */
 
@@ -425,7 +439,7 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
 /** Functions for validating blocks and updating the block tree */
 
 /** Context-independent validity checks */
-bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, int nHeight, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, int nHeight, bool fCheckPOW = true, bool fCheckMerkleRoot = true, bool fDBCheck = false);
 
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
 bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
@@ -465,6 +479,60 @@ extern CCoinsViewCache *pcoinsTip;
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
 
+/** RVN START */
+
+/** Global variable that point to the active assets database (protected by cs_main) */
+extern CAssetsDB *passetsdb;
+
+/** Global variable that point to the active assets (protected by cs_main) */
+extern CAssetsCache *passets;
+
+/** Global variable that point to the assets metadata LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, CDatabasedAssetData> *passetsCache;
+
+/** Global variable that points to the subscribed channel LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, CMessage> *pMessagesCache;
+
+/** Global variable that points to the subscribed channel LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, int> *pMessageSubscribedChannelsCache;
+
+/** Global variable that points to the address seen LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, int> *pMessagesSeenAddressCache;
+
+/** Global variable that points to the messages database (protected by cs_main) */
+extern CMessageDB *pmessagedb;
+
+/** Global variable that points to the message channel database (protected by cs_main) */
+extern CMessageChannelDB *pmessagechanneldb;
+
+/** Global variable that points to my wallets restricted database (protected by cs_main) */
+extern CMyRestrictedDB *pmyrestricteddb;
+
+/** Global variable that points to the active restricted asset database (protected by cs_main) */
+extern CRestrictedDB *prestricteddb;
+
+/** Global variable that points to the asset verifier LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, CNullAssetTxVerifierString> *passetsVerifierCache;
+
+/** Global variable that points to the asset address qualifier LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, int8_t> *passetsQualifierCache; // hash(address,qualifier_name) ->int8_t
+
+/** Global variable that points to the asset address restriction LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, int8_t> *passetsRestrictionCache; // hash(address,qualifier_name) ->int8_t
+
+/** Global variable that points to the global asset restriction LRU Cache (protected by cs_main) */
+extern CLRUCache<std::string, int8_t> *passetsGlobalRestrictionCache;
+
+/** Global variable that point to the active Snapshot Request database (protected by cs_main) */
+extern CSnapshotRequestDB *pSnapshotRequestDb;
+
+/** Global variable that point to the active asset snapshot database (protected by cs_main) */
+extern CAssetSnapshotDB *pAssetSnapshotDb;
+
+extern CDistributeSnapshotRequestDB *pDistributeSnapshotDb;
+
+/** RVN END */
+
 /**
  * Return the spend height, which is one more than the inputs.GetBestBlock().
  * While checking, GetBestBlock() refers to the parent block. (protected by cs_main)
@@ -501,5 +569,9 @@ void DumpMempool();
 
 /** Load the mempool from disk. */
 bool LoadMempool();
+
+bool AreAssetsDeployed();
+
+CAssetsCache* GetCurrentAssetCache();
 
 #endif // BITCOIN_VALIDATION_H

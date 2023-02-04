@@ -16,6 +16,7 @@
 #include "streams.h"
 #include "timedata.h"
 #include "util.h"
+#include <undo.h>
 #include "utilmoneystr.h"
 #include "utiltime.h"
 #include "hash.h"
@@ -696,6 +697,20 @@ void CTxMemPool::removeUnchecked(txiter it, MemPoolRemovalReason reason)
     if (minerPolicyEstimator) {minerPolicyEstimator->removeTx(hash, false);}
     removeAddressIndex(hash);
     removeSpentIndex(hash);
+
+    // If the transaction being removed from the mempool is locking other reissues. Free them
+    if (mapReissuedTx.count(hash)) {
+        if (mapReissuedAssets.count(mapReissuedTx.at(hash))) {
+            mapReissuedAssets.erase(mapReissuedTx.at((hash)));
+            mapReissuedTx.erase(hash);
+        }
+    }
+
+    // Erase from the asset mempool maps if they match txid
+    if (mapHashToAsset.count(hash)) {
+        mapAssetToHash.erase(mapHashToAsset.at(hash));
+        mapHashToAsset.erase(hash);
+    }
 }
 
 // Calculates descendants of entry that are not already in setDescendants, and adds to
@@ -957,7 +972,17 @@ void CTxMemPool::removeProTxConflicts(const CTransaction &tx)
  */
 void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight)
 {
+    ConnectedBlockAssetData connectedBlockAssetData;
+    removeForBlock(vtx, nBlockHeight, connectedBlockAssetData);
+}
+
+/**
+ * Called when a block is connected. Removes from mempool and updates the miner fee estimator.
+ */
+void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight, ConnectedBlockAssetData& connectedBlockData)
+{
     LOCK(cs);
+    std::set<uint256> setAlreadyRemoving;
     std::vector<const CTxMemPoolEntry*> entries;
     for (const auto& tx : vtx)
     {
@@ -967,6 +992,22 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
         if (i != mapTx.end())
             entries.push_back(&*i);
     }
+
+    /** RVN START */
+    // Get the newly added assets, and make sure they are in the entries
+    std::vector<CTransaction> trans;
+    for (auto it : connectedBlockData.newAssetsToAdd) {
+        if (mapAssetToHash.count(it.asset.strName)) {
+            indexed_transaction_set::iterator i = mapTx.find(mapAssetToHash.at(it.asset.strName));
+            if (i != mapTx.end()) {
+                entries.push_back(&*i);
+                trans.emplace_back(i->GetTx());
+                setAlreadyRemoving.insert(mapAssetToHash.at(it.asset.strName));
+            }
+        }
+    }
+    /** RVN END */
+
     // Before the txs in the new block have been removed from the mempool, update policy estimates
     if (minerPolicyEstimator) {minerPolicyEstimator->processBlock(nBlockHeight, entries);}
     for (const auto& tx : vtx)
@@ -1011,8 +1052,16 @@ static void CheckInputsAndUpdateCoins(const CTransaction& tx, CCoinsViewCache& m
     CValidationState state;
     CAmount txfee = 0;
     bool fCheckResult = tx.IsCoinBase() || Consensus::CheckTxInputs(tx, state, mempoolDuplicate, spendheight, txfee);
-    assert(fCheckResult);
-    UpdateCoins(tx, mempoolDuplicate, 1000000);
+   /** RVN START */
+    if (AreAssetsDeployed()) {
+        std::vector<std::pair<std::string, uint256>> vReissueAssets;
+        bool fCheckAssets = Consensus::CheckTxAssets(tx, state, mempoolDuplicate, passets, false, vReissueAssets, true);
+        assert(fCheckResult && fCheckAssets);
+    } else
+        assert(fCheckResult);
+    /** RVN END */
+    CTxUndo txundo;
+    UpdateCoins(tx, mempoolDuplicate, txundo, 1000000);
 }
 
 void CTxMemPool::check(const CCoinsViewCache *pcoins) const

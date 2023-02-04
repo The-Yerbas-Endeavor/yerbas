@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "primitives/transaction.h"
+#include <streams.h>
 
 #include "hash.h"
 #include "tinyformat.h"
@@ -17,6 +18,13 @@ std::string COutPoint::ToString() const
 std::string COutPoint::ToStringShort() const
 {
     return strprintf("%s-%u", hash.ToString().substr(0,64), n);
+}
+
+std::string COutPoint::ToSerializedString() const
+{
+    CDataStream stream(PROTOCOL_VERSION, SER_DISK);
+    stream << *this;
+    return stream.str();
 }
 
 CTxIn::CTxIn(COutPoint prevoutIn, CScript scriptSigIn, uint32_t nSequenceIn)

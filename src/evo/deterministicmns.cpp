@@ -119,15 +119,16 @@ bool CDeterministicMNList::IsMNPoSeBanned(const uint256& proTxHash) const
     return IsMNPoSeBanned(*p);
 }
 
+bool CDeterministicMNList::IsMNValid(const CDeterministicMNCPtr& dmn, int height) const
+{
+	SmartnodeCollaterals collaterals = Params().GetConsensus().nCollaterals;
+    return !IsMNPoSeBanned(dmn) && collaterals.isPayableCollateral(nHeight, dmn->pdmnState->nCollateralAmount);
+}
+
 bool CDeterministicMNList::IsMNValid(const CDeterministicMNCPtr& dmn) const
 {
-	uint256 mnHash = dmn.get()->collateralOutpoint.hash;
-	Coin coin;
-	//should this be call directly or use pcoinsTip->GetCoin(outpoint, coin) without locking cs_main
-	bool isValidUtxo = GetUTXOCoin(dmn->collateralOutpoint, coin);
-	SmartnodeCollaterals collaterals = Params().GetConsensus().nCollaterals;
-	int nHeight = chainActive.Tip() == nullptr ? 0 : chainActive.Tip()->nHeight;
-    return !IsMNPoSeBanned(dmn) && (isValidUtxo && collaterals.isPayableCollateral(nHeight, coin.out.nValue));
+    int nHeight = chainActive.Tip() == nullptr ? 0 : chainActive.Tip()->nHeight;
+    return IsMNValid(dmn,nHeight);
 }
 
 bool CDeterministicMNList::IsMNPoSeBanned(const CDeterministicMNCPtr& dmn) const
@@ -294,7 +295,7 @@ std::vector<std::pair<arith_uint256, CDeterministicMNCPtr>> CDeterministicMNList
 {
     std::vector<std::pair<arith_uint256, CDeterministicMNCPtr>> scores;
     scores.reserve(GetAllMNsCount());
-    ForEachMN(true, [&](const CDeterministicMNCPtr& dmn) {
+    ForEachMN(true, nHeight, [&](const CDeterministicMNCPtr& dmn) {
         if (dmn->pdmnState->confirmedHash.IsNull()) {
             // we only take confirmed MNs into account to avoid hash grinding on the ProRegTxHash to sneak MNs into a
             // future quorums
@@ -722,6 +723,13 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
 
             CDeterministicMNState dmnState = *dmn->pdmnState;
             dmnState.nRegisteredHeight = nHeight;
+
+             //set the collateral amount
+            if (proTx.collateralOutpoint.hash.IsNull()) {
+               dmnState.nCollateralAmount = tx.vout[proTx.collateralOutpoint.n].nValue;
+            } else{
+                dmnState.nCollateralAmount = coin.out.nValue;   
+            }
 
             if (proTx.addr == CService()) {
                 // start in banned pdmnState as we need to wait for a ProUpServTx

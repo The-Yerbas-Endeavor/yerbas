@@ -1345,7 +1345,7 @@ UniValue protx_list(const JSONRPCRequest& request)
 
         CDeterministicMNList mnList = deterministicMNManager->GetListForBlock(chainActive[height]);
         bool onlyValid = type == "valid";
-        mnList.ForEachMN(onlyValid, [&](const CDeterministicMNCPtr& dmn) {
+        mnList.ForEachMN(onlyValid, height, [&](const CDeterministicMNCPtr& dmn) {
             ret.push_back(BuildDMNListEntry(pwallet, dmn, detailed));
         });
     } else {

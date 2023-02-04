@@ -6,6 +6,8 @@
 #include "script.h"
 #include "tinyformat.h"
 #include "utilstrencodings.h"
+#include <script/standard.h>
+#include <assets/assets.h>
 
 const char* GetOpName(opcodetype opcode)
 {
@@ -138,6 +140,8 @@ const char* GetOpName(opcodetype opcode)
     case OP_NOP9                   : return "OP_NOP9";
     case OP_NOP10                  : return "OP_NOP10";
 
+    case OP_YERB_ASSET              : return "OP_YERB_ASSET";
+
     case OP_INVALIDOPCODE          : return "OP_INVALIDOPCODE";
 
     // Note:
@@ -148,6 +152,133 @@ const char* GetOpName(opcodetype opcode)
     default:
         return "OP_UNKNOWN";
     }
+}
+
+/** RVN START */
+bool CScript::IsAssetScript() const
+{
+    int nType = 0;
+    bool isOwner = false;
+    int start = 0;
+    return IsAssetScript(nType, isOwner, start);
+}
+
+bool CScript::IsAssetScript(int& nType, bool& isOwner) const
+{
+    int start = 0;
+    return IsAssetScript(nType, isOwner, start);
+}
+
+bool CScript::IsAssetScript(int& nType, bool& fIsOwner, int& nStartingIndex) const
+{
+    if (this->size() > 31) {
+        if ((*this)[25] == OP_YERB_ASSET) { // OP_YERB_ASSET is always in the 25 index of the script if it exists
+            int index = -1;
+            if ((*this)[27] == YERB_R) { // Check to see if RVN starts at 27 ( this->size() < 105)
+                if ((*this)[28] == YERB_V)
+                    if ((*this)[29] == YERB_N)
+                        index = 30;
+            } else {
+                if ((*this)[28] == YERB_R) // Check to see if RVN starts at 28 ( this->size() >= 105)
+                    if ((*this)[29] == YERB_V)
+                        if ((*this)[30] == YERB_N)
+                            index = 31;
+            }
+
+            if (index > 0) {
+                nStartingIndex = index + 1; // Set the index where the asset data begins. Use to serialize the asset data into asset objects
+                if ((*this)[index] == YERB_T) { // Transfer first anticipating more transfers than other assets operations
+                    nType = TX_TRANSFER_ASSET;
+                    return true;
+                } else if ((*this)[index] == YERB_Q && this->size() > 39) {
+                    nType = TX_NEW_ASSET;
+                    fIsOwner = false;
+                    return true;
+                } else if ((*this)[index] == YERB_O) {
+                    nType = TX_NEW_ASSET;
+                    fIsOwner = true;
+                    return true;
+                } else if ((*this)[index] == YERB_R) {
+                    nType = TX_REISSUE_ASSET;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+
+bool CScript::IsNewAsset() const
+{
+
+    int nType = 0;
+    bool fIsOwner = false;
+    if (IsAssetScript(nType, fIsOwner))
+        return !fIsOwner && nType == TX_NEW_ASSET;
+
+    return false;
+}
+
+bool CScript::IsOwnerAsset() const
+{
+    int nType = 0;
+    bool fIsOwner = false;
+    if (IsAssetScript(nType, fIsOwner))
+        return fIsOwner && nType == TX_NEW_ASSET;
+
+    return false;
+}
+
+bool CScript::IsReissueAsset() const
+{
+    int nType = 0;
+    bool fIsOwner = false;
+    if (IsAssetScript(nType, fIsOwner))
+        return nType == TX_REISSUE_ASSET;
+
+    return false;
+}
+
+bool CScript::IsTransferAsset() const
+{
+    int nType = 0;
+    bool fIsOwner = false;
+    if (IsAssetScript(nType, fIsOwner))
+        return nType == TX_TRANSFER_ASSET;
+
+    return false;
+}
+
+bool CScript::IsNullAsset() const
+{
+    return IsNullAssetTxDataScript() || IsNullGlobalRestrictionAssetTxDataScript() || IsNullAssetVerifierTxDataScript();
+}
+
+bool CScript::IsNullAssetTxDataScript() const
+{
+    return (this->size() > 23 &&
+            (*this)[0] == OP_YERB_ASSET &&
+            (*this)[1] == 0x14);
+}
+
+bool CScript::IsNullGlobalRestrictionAssetTxDataScript() const
+{
+    // 1 OP_YERB_ASSET followed by two OP_RESERVED + atleast 4 characters for the restricted name $ABC
+    return (this->size() > 6 &&
+            (*this)[0] == OP_YERB_ASSET &&
+            (*this)[1] == OP_RESERVED &&
+            (*this)[2] == OP_RESERVED);
+}
+
+
+bool CScript::IsNullAssetVerifierTxDataScript() const
+{
+    // 1 OP_YERB_ASSET followed by one OP_RESERVED
+    return (this->size() > 3 &&
+            (*this)[0] == OP_YERB_ASSET &&
+            (*this)[1] == OP_RESERVED &&
+            (*this)[2] != OP_RESERVED);
 }
 
 unsigned int CScript::GetSigOpCount(bool fAccurate) const

@@ -126,6 +126,7 @@ namespace BCLog {
         COINDB      = (1 << 18),
         QT          = (1 << 19),
         LEVELDB     = (1 << 20),
+        REWARDS     = (1 << 21),
 
         //Start Yerbas
         CHAINLOCKS  = ((uint64_t)1 << 32),

@@ -103,6 +103,14 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
     quitAction(0),
     sendCoinsAction(0),
     sendCoinsMenuAction(0),
+    
+    //assets
+    AssetsAction(0),
+    TransferAssetsAction(0),
+    CreateAssetsAction(0),
+    ManageAssetsAction(0),
+    RestrictedAssetsAction(0),
+
     usedSendingAddressesAction(0),
     usedReceivingAddressesAction(0),
     signMessageAction(0),
@@ -377,6 +385,28 @@ void BitcoinGUI::createActions()
         connect(smartnodeAction, SIGNAL(triggered()), this, SLOT(gotoSmartnodePage()));
     }
 
+    //assets
+    AssetsAction = new QAction(tr("&assets"),this);
+    AssetsAction->setStatusTip(tr("Assets"));
+    tabGroup->addAction(AssetsAction);
+
+    TransferAssetsAction = new QAction(tr("&Transfer Assets"), this);
+    TransferAssetsAction->setStatusTip(tr("Transfer assets to RTM addresses"));
+    tabGroup->addAction(TransferAssetsAction);
+
+    CreateAssetsAction = new QAction(tr("&Create assets"), this);
+    CreateAssetsAction->setStatusTip(tr("Create new main/sub/unique assets"));
+    tabGroup->addAction(CreateAssetsAction);
+
+    ManageAssetsAction = new QAction(tr("&Manage Assets"),this);
+    ManageAssetsAction->setStatusTip(tr("Manage assets you are the administrator of"));
+    tabGroup->addAction(ManageAssetsAction);
+
+    RestrictedAssetsAction = new QAction(tr("&Restricted Assets"),this);
+    RestrictedAssetsAction->setStatusTip(tr("Manage restricted assets"));
+    tabGroup->addAction(RestrictedAssetsAction);
+
+
     // These showNormalIfMinimized are needed because Send Coins and Receive Coins
     // can be triggered from the tray menu, and need to show the GUI to be useful.
     connect(overviewAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
@@ -391,6 +421,10 @@ void BitcoinGUI::createActions()
     connect(receiveCoinsMenuAction, SIGNAL(triggered()), this, SLOT(gotoReceiveCoinsPage()));
     connect(historyAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
     connect(historyAction, SIGNAL(triggered()), this, SLOT(gotoHistoryPage()));
+    //assets
+    connect(TransferAssetsAction, SIGNAL(triggered()), this, SLOT(gotoAssetsPage()));
+    connect(CreateAssetsAction, SIGNAL(triggered()), this, SLOT(gotoCreateAssetsPage()));
+
 #endif // ENABLE_WALLET
 
     quitAction = new QAction(QIcon(":/icons/quit"), tr("E&xit"), this);
@@ -586,6 +620,11 @@ void BitcoinGUI::createToolBars()
         }
         toolbar->setMovable(false); // remove unused icon in upper left corner
         overviewAction->setChecked(true);
+        toolbar->addAction(AssetsAction);
+        toolbar->addAction(TransferAssetsAction);
+        toolbar->addAction(CreateAssetsAction);
+        toolbar->addAction(ManageAssetsAction);
+        toolbar->addAction(RestrictedAssetsAction);
 
         // Add Yerbas logo on the right side
         QWidget* spacer = new QWidget();
@@ -600,7 +639,10 @@ void BitcoinGUI::createToolBars()
         /** Create additional container for toolbar and walletFrame and make it the central widget.
             This is a workaround mostly for toolbar styling on Mac OS but should work fine for every other OSes too.
         */
-        QVBoxLayout *layout = new QVBoxLayout;
+        toolbar->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
+        toolbar->setOrientation(Qt::Vertical);
+
+        QHBoxLayout *layout = new QHBoxLayout;
         layout->addWidget(toolbar);
         layout->addWidget(walletFrame);
         layout->setSpacing(0);
@@ -929,6 +971,18 @@ void BitcoinGUI::gotoSendCoinsPage(QString addr)
 {
     sendCoinsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+}
+
+void BitcoinGUI::gotoAssetsPage()
+{
+    TransferAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoAssetsPage();
+}
+
+void BitcoinGUI::gotoCreateAssetsPage()
+{
+    CreateAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoCreateAssetsPage();
 }
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)
