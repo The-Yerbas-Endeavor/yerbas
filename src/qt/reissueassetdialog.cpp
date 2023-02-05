@@ -8,7 +8,7 @@
 #include "ui_reissueassetdialog.h"
 #include "platformstyle.h"
 #include "walletmodel.h"
-//#include "assettablemodel.h"
+#include "assettablemodel.h"
 #include "addresstablemodel.h"
 #include "core_io.h"
 #include "univalue.h"
@@ -167,9 +167,9 @@ void ReissueAssetDialog::setModel(WalletModel *_model)
 
     if(_model && _model->getOptionsModel())
     {
-        setBalance(_model->getBalance(), _model->getUnconfirmedBalance(), _model->getImmatureBalance(),
+        setBalance(_model->getBalance(), _model->getUnconfirmedBalance(), _model->getImmatureBalance(), _model->getAnonymizedBalance(),
                    _model->getWatchBalance(), _model->getWatchUnconfirmedBalance(), _model->getWatchImmatureBalance());
-        connect(_model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
+        connect(_model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
         connect(_model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
         updateDisplayUnit();
 
@@ -315,8 +315,8 @@ void ReissueAssetDialog::setupFeeControl(const PlatformStyle *platformStyle)
 
 }
 
-void ReissueAssetDialog::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
-                                   const CAmount& watchBalance, const CAmount& watchUnconfirmedBalance, const CAmount& watchImmatureBalance)
+void ReissueAssetDialog::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
+                                 const CAmount& watchBalance, const CAmount& watchUnconfirmedBalance, const CAmount& watchImmatureBalance)
 {
     Q_UNUSED(unconfirmedBalance);
     Q_UNUSED(immatureBalance);
@@ -332,7 +332,7 @@ void ReissueAssetDialog::setBalance(const CAmount& balance, const CAmount& uncon
 
 void ReissueAssetDialog::updateDisplayUnit()
 {
-    setBalance(model->getBalance(), 0, 0, 0, 0, 0);
+    setBalance(model->getBalance(), 0, 0, 0, 0, 0, 0);
     ui->customFee->setDisplayUnit(model->getOptionsModel()->getDisplayUnit());
     updateMinFeeLabel();
     updateSmartFeeLabel();
@@ -587,7 +587,7 @@ void ReissueAssetDialog::setDisplayedDataToNone()
 void ReissueAssetDialog::onAssetSelected(int index)
 {
     // Only display asset information when as asset is clicked. The first index is a PlaceHolder
-    std::cout << index << std::endl;
+   
     if (index > 0) {
         enableDataEntry();
         ui->currentAssetData->show();
@@ -697,14 +697,7 @@ void ReissueAssetDialog::onVerifierStringChanged(QString verifier)
 
 bool ReissueAssetDialog::checkIPFSHash(QString hash)
 {
-    if (!hash.isEmpty()) {
-        
-        if (hash.length() > 46) {
-            showMessage(tr("Only IPFS Hashes allowed until RIP5 is activated"));
-            disableReissueButton();
-            return false;
-        }
-        
+    if (!hash.isEmpty()) {        
         std::string error;
         if (!CheckEncoded(DecodeAssetData(hash.toStdString()), error)) {
             //ui->ipfsText->setStyleSheet(STYLE_INVALID);
@@ -996,11 +989,11 @@ void ReissueAssetDialog::updateSmartFeeLabel()
         int lightness = ui->fallbackFeeWarningLabel->palette().color(QPalette::WindowText).lightness();
         QColor warning_colour(255 - (lightness / 5), 176 - (lightness / 3), 48 - (lightness / 14));
         ui->fallbackFeeWarningLabel->setStyleSheet("QLabel { color: " + warning_colour.name() + "; }");
-        #ifndef QTversionPreFiveEleven
-    		ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
-    	#else
+        //#ifndef QTversionPreFiveEleven
+    	//	ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
+    	//#else
     		ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).width("x"));
-    	#endif
+    	//#endif
         
     }
     else
@@ -1320,14 +1313,14 @@ void ReissueAssetDialog::focusReissueAsset(const QModelIndex &index)
 {
     clear();
 
-    /*QString name = index.data(AssetTableModel::AssetNameRole).toString();
+    QString name = index.data(AssetTableModel::AssetNameRole).toString();
     if (IsAssetNameAnOwner(name.toStdString()))
         name = name.left(name.size() - 1);
 
     ui->comboBox->setCurrentIndex(ui->comboBox->findText(name));
+    
     onAssetSelected(ui->comboBox->currentIndex());
-
-    ui->quantitySpinBox->setFocus();*/
+    ui->quantitySpinBox->setFocus();
 }
 
 void ReissueAssetDialog::restrictedAssetSelected()

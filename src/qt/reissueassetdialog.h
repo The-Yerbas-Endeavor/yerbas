@@ -130,7 +130,7 @@ private Q_SLOTS:
     void updateSmartFeeLabel();
     void feeControlFeatureChanged(bool);
 
-    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
+    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
                     const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
     void updateDisplayUnit();
 

@@ -63,7 +63,9 @@ QT_MOC_CPP = \
   qt/moc_askpassphrasedialog.cpp \
   qt/moc_assetcontroldialog.cpp \
   qt/moc_assetcontroltreewidget.cpp \
+  qt/moc_assetfilterproxy.cpp \
   qt/moc_assetsdialog.cpp \
+  qt/moc_assettablemodel.cpp \
   qt/moc_createassetdialog.cpp \
   qt/moc_reissueassetdialog.cpp \
   qt/moc_bantablemodel.cpp \
@@ -141,7 +143,10 @@ BITCOIN_QT_H = \
   qt/askpassphrasedialog.h \
   qt/assetcontroldialog.h\
   qt/assetcontroltreewidget.h \
+  qt/assetfilterproxy.h \
+  qt/assetrecord.h \
   qt/assetsdialog.h \
+  qt/assettablemodel.h \
   qt/createassetdialog.h \
   qt/reissueassetdialog.h \
   qt/bantablemodel.h \
@@ -248,6 +253,8 @@ RES_ICONS = \
   qt/res/icons/tx_input.png \
   qt/res/icons/tx_output.png \
   qt/res/icons/tx_mined.png \
+  qt/res/icons/asset_administrator.png \
+  qt/res/icons/external_link.png \
   qt/res/icons/about.png \
   qt/res/icons/about_qt.png \
   qt/res/icons/verify.png \
@@ -257,6 +264,7 @@ RES_ICONS = \
   qt/res/icons/network_disabled.png
 
 BITCOIN_QT_BASE_CPP = \
+  qt/assettablemodel.cpp \
   qt/bantablemodel.cpp \
   qt/bitcoinaddressvalidator.cpp \
   qt/bitcoinamountfield.cpp \
@@ -292,6 +300,7 @@ BITCOIN_QT_WALLET_CPP = \
   qt/assetsdialog.cpp \
   qt/createassetdialog.cpp \
   qt/assetcontroltreewidget.cpp \
+  qt/assetfilterproxy.cpp \
   qt/coincontroldialog.cpp \
   qt/coincontroltreewidget.cpp \
   qt/editaddressdialog.cpp \

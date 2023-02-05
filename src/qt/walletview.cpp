@@ -123,10 +123,10 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     connect(createAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
     connect(manageAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
     //connect(restrictedAssetsPage, SIGNAL(message(QString,QString,unsigned int)), this, SIGNAL(message(QString,QString,unsigned int)));
-    //connect(overviewPage, SIGNAL(assetSendClicked(QModelIndex)), assetsPage, SLOT(focusAsset(QModelIndex)));
-    //connect(overviewPage, SIGNAL(assetIssueSubClicked(QModelIndex)), createAssetsPage, SLOT(focusSubAsset(QModelIndex)));
-    //connect(overviewPage, SIGNAL(assetIssueUniqueClicked(QModelIndex)), createAssetsPage, SLOT(focusUniqueAsset(QModelIndex)));
-    //connect(overviewPage, SIGNAL(assetReissueClicked(QModelIndex)), manageAssetsPage, SLOT(focusReissueAsset(QModelIndex)));
+    connect(overviewPage, SIGNAL(assetSendClicked(QModelIndex)), assetsPage, SLOT(focusAsset(QModelIndex)));
+    connect(overviewPage, SIGNAL(assetIssueSubClicked(QModelIndex)), createAssetsPage, SLOT(focusSubAsset(QModelIndex)));
+    connect(overviewPage, SIGNAL(assetIssueUniqueClicked(QModelIndex)), createAssetsPage, SLOT(focusUniqueAsset(QModelIndex)));
+    connect(overviewPage, SIGNAL(assetReissueClicked(QModelIndex)), manageAssetsPage, SLOT(focusReissueAsset(QModelIndex)));
     
 }
 
@@ -140,6 +140,18 @@ void WalletView::setBitcoinGUI(BitcoinGUI *gui)
     {
         // Clicking on a transaction on the overview page simply sends you to transaction history page
         connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), gui, SLOT(gotoHistoryPage()));
+
+        // Clicking on a asset menu item Send
+        connect(overviewPage, SIGNAL(assetSendClicked(QModelIndex)), gui, SLOT(gotoAssetsPage()));
+
+        // Clicking on a asset menu item Issue Sub
+        connect(overviewPage, SIGNAL(assetIssueSubClicked(QModelIndex)), gui, SLOT(gotoCreateAssetsPage()));
+
+        // Clicking on a asset menu item Issue Unique
+        connect(overviewPage, SIGNAL(assetIssueUniqueClicked(QModelIndex)), gui, SLOT(gotoCreateAssetsPage()));
+
+        // Clicking on a asset menu item Reissue
+        connect(overviewPage, SIGNAL(assetReissueClicked(QModelIndex)), gui, SLOT(gotoManageAssetsPage()));
 
         // Receive and report messages
         connect(this, SIGNAL(message(QString,QString,unsigned int)), gui, SLOT(message(QString,QString,unsigned int)));

@@ -2617,8 +2617,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             message.nBlockHeight = nHeight;
             
             //reenable later
-            //if (message.nExpiredTime == 0 || GetTime() < message.nExpiredTime)
-              //  GetMainSignals().NewAssetMessage(message);
+            if (message.nExpiredTime == 0 || GetTime() < message.nExpiredTime)
+                GetMainSignals().NewAssetMessage(message);
 
             if (IsChannelSubscribed(message.strName)) {
                 AddMessage(message);

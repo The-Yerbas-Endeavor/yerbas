@@ -25,6 +25,8 @@ class RecentRequestsTableModel;
 class TransactionTableModel;
 class WalletModelTransaction;
 
+class AssetTableModel;
+
 class CCoinControl;
 class CKeyID;
 class COutPoint;
@@ -196,6 +198,8 @@ public:
     TransactionTableModel *getTransactionTableModel();
     RecentRequestsTableModel *getRecentRequestsTableModel();
 
+    AssetTableModel *getAssetTableModel();
+
     CAmount getBalance(const CCoinControl *coinControl = nullptr) const;
     CAmount getUnconfirmedBalance() const;
     CAmount getImmatureBalance() const;
@@ -306,6 +310,8 @@ private:
     AddressTableModel *addressTableModel;
     TransactionTableModel *transactionTableModel;
     RecentRequestsTableModel *recentRequestsTableModel;
+
+    AssetTableModel *assetTableModel;
 
     // Cache some values to be able to detect changes
     CAmount cachedBalance;

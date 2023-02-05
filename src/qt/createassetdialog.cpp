@@ -26,7 +26,7 @@
 #include <core_io.h>
 #include <policy/policy.h>
 #include "assets/assettypes.h"
-//#include "assettablemodel.h"
+#include "assettablemodel.h"
 
 #include <QGraphicsDropShadowEffect>
 #include <QModelIndex>
@@ -158,9 +158,9 @@ void CreateAssetDialog::setModel(WalletModel *_model)
 
     if(_model && _model->getOptionsModel())
     {
-        setBalance(_model->getBalance(), _model->getUnconfirmedBalance(), _model->getImmatureBalance(),
+        setBalance(_model->getBalance(), _model->getUnconfirmedBalance(), _model->getImmatureBalance(), _model->getAnonymizedBalance(),
                    _model->getWatchBalance(), _model->getWatchUnconfirmedBalance(), _model->getWatchImmatureBalance());
-        connect(_model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
+        connect(_model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
         connect(_model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
         updateDisplayUnit();
 
@@ -305,7 +305,7 @@ void CreateAssetDialog::setupFeeControl(const PlatformStyle *platformStyle)
     
 }
 
-void CreateAssetDialog::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
+void CreateAssetDialog::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
                                  const CAmount& watchBalance, const CAmount& watchUnconfirmedBalance, const CAmount& watchImmatureBalance)
 {
     Q_UNUSED(unconfirmedBalance);
@@ -322,7 +322,7 @@ void CreateAssetDialog::setBalance(const CAmount& balance, const CAmount& unconf
 
 void CreateAssetDialog::updateDisplayUnit()
 {
-    setBalance(model->getBalance(), 0, 0, 0, 0, 0);
+    setBalance(model->getBalance(), 0, 0, 0, 0, 0, 0);
     ui->customFee->setDisplayUnit(model->getOptionsModel()->getDisplayUnit());
     updateMinFeeLabel();
     updateSmartFeeLabel();
@@ -548,7 +548,7 @@ void CreateAssetDialog::checkAvailabilityClicked()
 void CreateAssetDialog::openIpfsBrowser()
 {
     QString ipfshash = ui->ipfsText->text();
-    QString ipfsbrowser = "";//model->getOptionsModel()->getIpfsUrl();
+    QString ipfsbrowser = model->getOptionsModel()->getIpfsUrl();
 
     // If the ipfs hash isn't there or doesn't start with Qm, disable the action item
     if (ipfshash.count() > 0 && ipfshash.indexOf("Qm") == 0 && ipfsbrowser.indexOf("http") == 0)
@@ -1021,11 +1021,11 @@ void CreateAssetDialog::updateSmartFeeLabel()
         int lightness = ui->fallbackFeeWarningLabel->palette().color(QPalette::WindowText).lightness();
         QColor warning_colour(255 - (lightness / 5), 176 - (lightness / 3), 48 - (lightness / 14));
         ui->fallbackFeeWarningLabel->setStyleSheet("QLabel { color: " + warning_colour.name() + "; }");
-        #ifndef QTversionPreFiveEleven
-    		ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
-    	#else
+        //#ifndef QTversionPreFiveEleven
+    	//	ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
+    	//#else
     		ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).width("x"));
-    	#endif
+    	//#endif
     }
     else
     {
@@ -1379,12 +1379,12 @@ void CreateAssetDialog::onClearButtonClicked()
 
 void CreateAssetDialog::focusSubAsset(const QModelIndex &index)
 {
-    //selectTypeName(1,index.data(AssetTableModel::AssetNameRole).toString());
+    selectTypeName(1,index.data(AssetTableModel::AssetNameRole).toString());
 }
 
 void CreateAssetDialog::focusUniqueAsset(const QModelIndex &index)
 {
-   // selectTypeName(2,index.data(AssetTableModel::AssetNameRole).toString());
+    selectTypeName(2,index.data(AssetTableModel::AssetNameRole).toString());
 }
 
 void CreateAssetDialog::selectTypeName(int type, QString name)

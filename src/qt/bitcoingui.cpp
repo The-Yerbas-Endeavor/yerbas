@@ -105,7 +105,6 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
     sendCoinsMenuAction(0),
     
     //assets
-    AssetsAction(0),
     TransferAssetsAction(0),
     CreateAssetsAction(0),
     ManageAssetsAction(0),
@@ -385,25 +384,24 @@ void BitcoinGUI::createActions()
         connect(smartnodeAction, SIGNAL(triggered()), this, SLOT(gotoSmartnodePage()));
     }
 
-    //assets
-    AssetsAction = new QAction(tr("&assets"),this);
-    AssetsAction->setStatusTip(tr("Assets"));
-    tabGroup->addAction(AssetsAction);
-
     TransferAssetsAction = new QAction(tr("&Transfer Assets"), this);
     TransferAssetsAction->setStatusTip(tr("Transfer assets to RTM addresses"));
+    TransferAssetsAction->setCheckable(true);
     tabGroup->addAction(TransferAssetsAction);
 
     CreateAssetsAction = new QAction(tr("&Create assets"), this);
     CreateAssetsAction->setStatusTip(tr("Create new main/sub/unique assets"));
+    CreateAssetsAction->setCheckable(true);
     tabGroup->addAction(CreateAssetsAction);
 
     ManageAssetsAction = new QAction(tr("&Manage Assets"),this);
     ManageAssetsAction->setStatusTip(tr("Manage assets you are the administrator of"));
+    ManageAssetsAction->setCheckable(true);
     tabGroup->addAction(ManageAssetsAction);
 
     RestrictedAssetsAction = new QAction(tr("&Restricted Assets"),this);
     RestrictedAssetsAction->setStatusTip(tr("Manage restricted assets"));
+    RestrictedAssetsAction->setCheckable(true);
     tabGroup->addAction(RestrictedAssetsAction);
 
 
@@ -622,7 +620,6 @@ void BitcoinGUI::createToolBars()
         }
         toolbar->setMovable(false); // remove unused icon in upper left corner
         overviewAction->setChecked(true);
-        toolbar->addAction(AssetsAction);
         toolbar->addAction(TransferAssetsAction);
         toolbar->addAction(CreateAssetsAction);
         toolbar->addAction(ManageAssetsAction);
@@ -643,6 +640,7 @@ void BitcoinGUI::createToolBars()
         */
         toolbar->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
         toolbar->setOrientation(Qt::Vertical);
+        toolbar->setMinimumSize(180, 0);
 
         QHBoxLayout *layout = new QHBoxLayout;
         layout->addWidget(toolbar);

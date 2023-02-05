@@ -35,6 +35,8 @@
         <file alias="synced">res/icons/synced.png</file>
         <file alias="remove">res/icons/remove.png</file>
         <file alias="tx_mined">res/icons/tx_mined.png</file>
+        <file alias="asset_administrator">res/icons/asset_administrator.png</file>
+        <file alias="external_link">res/icons/external_link.png</file>
         <file alias="tx_input">res/icons/tx_input.png</file>
         <file alias="tx_output">res/icons/tx_output.png</file>
         <file alias="tx_inout">res/icons/tx_inout.png</file>

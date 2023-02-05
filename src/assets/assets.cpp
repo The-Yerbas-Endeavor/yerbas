@@ -30,6 +30,7 @@
 #include "wallet/wallet.h"
 #include "LibBoolEE.h"
 #include <spork.h>
+#include "core_io.h"
 
 #define SIX_MONTHS 15780000 // Six months worth of seconds
 
@@ -3728,7 +3729,7 @@ std::string DecodeAssetData(std::string encoded)
         return std::string(vec.begin(), vec.end());
     }
 
-    return "";
+    return encoded;
 
 };
 
@@ -3741,7 +3742,7 @@ std::string EncodeAssetData(std::string decoded)
         return HexStr(decoded);
     }
 
-    return "";
+    return decoded;
 }
 
 // 46 char base58 --> 34 char KAW compatible
@@ -4206,8 +4207,11 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
         CScript scriptPubKey = GetScriptForDestination(DecodeDestination(address));
 
         // Update the scriptPubKey with the transfer asset information
+        
         CAssetTransfer assetTransfer(asset_name, nAmount, message, expireTime);
         assetTransfer.ConstructTransaction(scriptPubKey);
+        std::cout << "message: " << assetTransfer.message << std::endl;
+        std::cout << "scriptPubKey: " << HexStr(scriptPubKey.begin(), scriptPubKey.end()) << std::endl;
 
         CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
         vecSend.push_back(recipient);

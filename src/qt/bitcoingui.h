@@ -127,7 +127,6 @@ private:
     QAction *showHelpMessageAction;
     QAction *showPrivateSendHelpAction;
     //assets
-    QAction *AssetsAction;
     QAction *TransferAssetsAction;
     QAction *CreateAssetsAction;
     QAction *ManageAssetsAction;
