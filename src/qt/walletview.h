@@ -24,7 +24,7 @@ class AddressBookPage;
 class AssetsDialog;
 class CreateAssetDialog;
 class ReissueAssetDialog;
-//class RestrictedAssetsDialog;
+class RestrictedAssetsDialog;
 
 QT_BEGIN_NAMESPACE
 class QLabel;
@@ -82,7 +82,7 @@ private:
     AssetsDialog *assetsPage;
     CreateAssetDialog *createAssetsPage;
     ReissueAssetDialog *manageAssetsPage;
-   // RestrictedAssetsDialog *restrictedAssetsPage;
+    RestrictedAssetsDialog *restrictedAssetsPage;
 
 public Q_SLOTS:
     /** Switch to overview (home) page */

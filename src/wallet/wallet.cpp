@@ -674,6 +674,12 @@ void CWallet::Flush(bool shutdown)
     dbw->Flush(shutdown);
 }
 
+void CWallet::UpdateMyRestrictedAssets(std::string& address, std::string& asset_name, int type, uint32_t date)
+{
+    LOCK(cs_wallet);
+    NotifyMyRestrictedAssetsChanged(this, address, asset_name, type, date);
+}
+
 bool CWallet::Verify()
 {
     if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET))

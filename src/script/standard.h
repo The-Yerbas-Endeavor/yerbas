@@ -55,7 +55,7 @@ enum txnouttype
     TX_NEW_ASSET,
     TX_REISSUE_ASSET,
     TX_TRANSFER_ASSET,
-    TX_RESTRICTED_ASSET_DATA, //!< unspendable OP_RAVEN_ASSET script that carries data
+    TX_RESTRICTED_ASSET_DATA, //!< unspendable OP_YERB_ASSET script that carries data
     /** RTM ASSETS END */
 };
 

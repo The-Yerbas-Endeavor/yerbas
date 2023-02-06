@@ -38,6 +38,9 @@ QT_FORMS_UI = \
   qt/forms/assetsdialog.ui \
   qt/forms/createassetdialog.ui \
   qt/forms/reissueassetdialog.ui \
+  qt/forms/restrictedassetsdialog.ui \
+  qt/forms/restrictedassignqualifier.ui \
+  qt/forms/restrictedfreezeaddress.ui \
   qt/forms/coincontroldialog.ui \
   qt/forms/editaddressdialog.ui \
   qt/forms/helpmessagedialog.ui \
@@ -68,6 +71,10 @@ QT_MOC_CPP = \
   qt/moc_assettablemodel.cpp \
   qt/moc_createassetdialog.cpp \
   qt/moc_reissueassetdialog.cpp \
+  qt/moc_restrictedassetsdialog.cpp \
+  qt/moc_myrestrictedassettablemodel.cpp \
+  qt/moc_restrictedassignqualifier.cpp \
+  qt/moc_restrictedfreezeaddress.cpp \
   qt/moc_bantablemodel.cpp \
   qt/moc_bitcoinaddressvalidator.cpp \
   qt/moc_bitcoinamountfield.cpp \
@@ -149,6 +156,11 @@ BITCOIN_QT_H = \
   qt/assettablemodel.h \
   qt/createassetdialog.h \
   qt/reissueassetdialog.h \
+  qt/restrictedassetsdialog.h \
+  qt/restrictedassignqualifier.h \
+  qt/restrictedfreezeaddress.h \
+  qt/myrestrictedassettablemodel.h \
+  qt/myrestrictedassetrecord.h \
   qt/bantablemodel.h \
   qt/bitcoinaddressvalidator.h \
   qt/bitcoinamountfield.h \
@@ -297,6 +309,11 @@ BITCOIN_QT_WALLET_CPP = \
   qt/askpassphrasedialog.cpp \
   qt/assetcontroldialog.cpp \
   qt/reissueassetdialog.cpp \
+  qt/restrictedassetsdialog.cpp \
+  qt/restrictedassignqualifier.cpp \
+  qt/restrictedfreezeaddress.cpp \
+  qt/myrestrictedassettablemodel.cpp \
+  qt/myrestrictedassetrecord.cpp \
   qt/assetsdialog.cpp \
   qt/createassetdialog.cpp \
   qt/assetcontroltreewidget.cpp \

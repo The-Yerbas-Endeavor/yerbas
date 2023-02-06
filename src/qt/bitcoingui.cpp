@@ -423,7 +423,7 @@ void BitcoinGUI::createActions()
     connect(TransferAssetsAction, SIGNAL(triggered()), this, SLOT(gotoAssetsPage()));
     connect(CreateAssetsAction, SIGNAL(triggered()), this, SLOT(gotoCreateAssetsPage()));
     connect(ManageAssetsAction, SIGNAL(triggered()), this, SLOT(gotoManageAssetsPage()));
-    //connect(RestrictedAssetsAction, SIGNAL(triggered()), this, SLOT(gotoRestrictedAssetsPage()));
+    connect(RestrictedAssetsAction, SIGNAL(triggered()), this, SLOT(gotoRestrictedAssetsPage()));
     
 #endif // ENABLE_WALLET
 
@@ -991,11 +991,11 @@ void BitcoinGUI::gotoManageAssetsPage()
     if (walletFrame) walletFrame->gotoManageAssetsPage();
 };
 
-/*void BitcoinGUI::gotoRestrictedAssetsPage()
+void BitcoinGUI::gotoRestrictedAssetsPage()
 {
-    restrictedAssetAction->setChecked(true);
+    RestrictedAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoRestrictedAssetsPage();
-};*/
+};
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)
 {

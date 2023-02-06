@@ -2636,9 +2636,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 }
 
 
-                //if (vpwallets.size())
+                if (vpwallets.size())
                     //reenable later
-                    //vpwallets[0]->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
+                    vpwallets[0]->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
 
             }
         }
