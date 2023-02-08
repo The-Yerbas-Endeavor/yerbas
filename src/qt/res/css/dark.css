@@ -100,13 +100,13 @@ WalletFrame {
     }
     
     .QValidatedLineEdit, .QLineEdit { /* Text Entry Fields */
-    background-color: #4F7942;
     font-size:11px;
     min-height:31px;
     outline:0;
     padding: 0px 3px 0px 3px;
-    background-color: #0f130d;
+    background-color: #2c3d2d; 
     color: #aaa;
+    border: 1px solid #005805;
     }
     
     .QLineEdit:!focus {
@@ -114,7 +114,7 @@ WalletFrame {
     }
     
     .QValidatedLineEdit:disabled, .QLineEdit:disabled {
-    background-color: #3e3e3e;
+    background-color: #25311f;
     }
     
     .QRadioButton {
@@ -165,9 +165,9 @@ WalletFrame {
     }
     
     QComboBox { /* Dropdown Menus */
-    border: 1px solid #1c75bc;
+    border: 1px solid #005805;
     padding: 0px 5px 0px 5px;
-    background: #0f130d;
+    background: #1a2016;
     min-height:31px;
     color: #aaa;
     }
@@ -1052,17 +1052,19 @@ WalletFrame {
     /* RECENT TRANSACTIONS */
     
     QWidget .QFrame#frame_2 { /* Transactions Widget */
-    min-width:510px;
+    min-width:450px;
     margin-right:20px;
     margin-left:0;
     margin-top:0;
     }
+
     QWidget .QFrame#assetFrame { /* Transactions Widget */
-      min-width:510px;
+      min-width:450px;
       margin-right:20px;
       margin-left:0;
       margin-top:0;
     }
+
     QWidget .QFrame#assetFrame QListView{ /* Transactions Widget */
     background-color: #091306;
     color: #ccc;
@@ -1108,9 +1110,9 @@ WalletFrame {
     color: #ccc;
     font-weight:normal;
     font-size:12px;
-    max-width:369px;
-    margin-top:12px;
-    margin-left:0px; /* CSS Voodoo - set to -66px to hide default transaction icons */
+    margin-top:0px;
+    margin-left:5px;
+    margin-right:5px;
     }
     
     /* MODAL OVERLAY */
@@ -1814,6 +1816,39 @@ WalletFrame {
     
     /* MASTERNODE LIST TAB */
     
-    QWidget#MasternodeList QTableWidget#tableWidgetMasternodesDIP3 {
+    QWidget#SmartnodeList QTableWidget#tableWidgetSmartnodesDIP3 {
     color: #aaa;
     }
+
+    QTableWidget::item
+    {
+      background-color: #091306;
+      border:1px solid #242e20; 
+    }
+    QTableWidget::item:selected
+    { 
+      background-color: #2b4d21;
+      font-weight:bold; 
+    }
+    QTableWidget::item:hover:!selected
+    { 
+      background-color: #27531b; 
+    }
+
+     /* TRANSACTION LIST TAB */
+
+     TransactionView ::item
+    {
+      background-color: #091306;
+      border:1px solid #242e20; 
+    }
+    TransactionView ::item:selected
+    { 
+      background-color: #2b4d21;
+      font-weight:bold; 
+    }
+    TransactionView ::item:hover:!selected
+    { 
+      background-color: #27531b; 
+    }
+   

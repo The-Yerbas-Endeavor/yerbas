@@ -293,7 +293,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="../raven.qrc"/>
+  <include location="../yerbas.qrc"/>
  </resources>
  <connections/>
 </ui>

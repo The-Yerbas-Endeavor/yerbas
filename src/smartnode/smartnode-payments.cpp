@@ -320,7 +320,7 @@ bool CSmartnodePayments::GetSmartnodeTxOuts(int nBlockHeight, CAmount blockRewar
 bool CSmartnodePayments::GetBlockTxOuts(int nBlockHeight, CAmount blockReward, std::vector<CTxOut>& voutSmartnodePaymentsRet) const
 {
     voutSmartnodePaymentsRet.clear();
-
+ 
     CAmount smartnodeReward = GetSmartnodePayment(nBlockHeight, blockReward);
     if(smartnodeReward == 0) {
     	return false;
@@ -374,7 +374,7 @@ bool CSmartnodePayments::IsTransactionValid(const CTransaction& txNew, int nBloc
         // can't verify historical blocks here
         return true;
     }
-
+        
     std::vector<CTxOut> voutSmartnodePayments;
     if (!GetBlockTxOuts(nBlockHeight, blockReward, voutSmartnodePayments)) {
         LogPrintf("CSmartnodePayments::%s -- ERROR failed to get payees for block at height %s\n", __func__, nBlockHeight);

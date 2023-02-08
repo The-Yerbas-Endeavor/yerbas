@@ -1131,8 +1131,11 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
 }
 
 CAmount GetSmartnodePayment(int nHeight, CAmount blockValue)
-{
-	size_t mnCount = chainActive.Tip() == nullptr ? 0 : deterministicMNManager->GetListForBlock(chainActive.Tip()).GetAllMNsCount();
+{ 
+	size_t mnCount = 0;
+    if (chainActive.Tip() != nullptr){ //fix empty list when -checklevel = 4
+          mnCount = deterministicMNManager->GetListForBlock(chainActive[nHeight - 1]).GetAllMNsCount();      
+    }
 	if(mnCount >= 10) {
 		int percentage = Params().GetConsensus().nCollaterals.getRewardPercentage(nHeight);
 		return blockValue * percentage / 100;
@@ -1300,7 +1303,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
         txundo.vprevout.reserve(tx.vin.size());
         for (const CTxIn &txin : tx.vin) {
             txundo.vprevout.emplace_back();
-            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
+            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back(), assetCache);
             assert(is_spent);
         }
     }
@@ -1601,6 +1604,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     }
 
     // undo transactions in reverse order
+    CAssetsCache tempCache(*assetsCache);
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = *(block.vtx[i]);
         uint256 hash = tx.GetHash();
@@ -1672,7 +1676,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             if (!tx.vout[o].scriptPubKey.IsUnspendable()) {
                 COutPoint out(hash, o);
                 Coin coin;
-                bool is_spent = view.SpendCoin(out, &coin);
+                bool is_spent = view.SpendCoin(out, &coin, &tempCache);
                 if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
                     fClean = false; // transaction output mismatch
                 }
@@ -2543,7 +2547,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
     LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
-
     if (!IsBlockPayeeValid(*block.vtx[0], pindex->nHeight, blockReward)) {
         return state.DoS(0, error("ConnectBlock(YERBAS): couldn't find smartnode or superblock payments"),
                                 REJECT_INVALID, "bad-cb-payee");
@@ -2956,6 +2959,7 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
     }
 
     // Update chainActive and related variables.
+    chainActive.SetTip(pindexDelete->pprev);
     UpdateTip(pindexDelete->pprev, chainparams);
     // Let wallets know transactions went from 1-confirmed to
     // 0-confirmed or conflicted:
@@ -4649,10 +4653,17 @@ static bool RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& inputs,
         return error("ReplayBlock(): ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
     }
 
+    // MUST process special txes before updating UTXO to ensure consistency between mempool and block processing
+    CValidationState state;
+    if (!ProcessSpecialTxsInBlock(block, pindex, state, false /*fJustCheck*/, false /*fScriptChecks*/)) {
+        return error("RollforwardBlock(YERB): ProcessSpecialTxsInBlock for block %s failed with %s",
+            pindex->GetBlockHash().ToString(), FormatStateMessage(state));
+    }
+
     for (const CTransactionRef& tx : block.vtx) {
         if (!tx->IsCoinBase()) {
             for (const CTxIn &txin : tx->vin) {
-                inputs.SpendCoin(txin.prevout);
+                inputs.SpendCoin(txin.prevout, nullptr, assetsCache);
             }
         }
         // Pass check = true as every addition may be an overwrite.

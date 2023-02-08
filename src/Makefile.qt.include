@@ -265,6 +265,8 @@ RES_ICONS = \
   qt/res/icons/tx_input.png \
   qt/res/icons/tx_output.png \
   qt/res/icons/tx_mined.png \
+  qt/res/icons/tx_asset_input.png \
+  qt/res/icons/tx_asset_output.png \
   qt/res/icons/asset_administrator.png \
   qt/res/icons/external_link.png \
   qt/res/icons/about.png \

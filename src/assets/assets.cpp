@@ -4210,9 +4210,7 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
         
         CAssetTransfer assetTransfer(asset_name, nAmount, message, expireTime);
         assetTransfer.ConstructTransaction(scriptPubKey);
-        std::cout << "message: " << assetTransfer.message << std::endl;
-        std::cout << "scriptPubKey: " << HexStr(scriptPubKey.begin(), scriptPubKey.end()) << std::endl;
-
+        
         CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
         vecSend.push_back(recipient);
     }

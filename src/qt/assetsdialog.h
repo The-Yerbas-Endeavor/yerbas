@@ -26,7 +26,7 @@ QT_BEGIN_NAMESPACE
 class QUrl;
 QT_END_NAMESPACE
 
-/** Dialog for sending ravens */
+/** Dialog for sending yerbas */
 class AssetsDialog : public QDialog
 {
     Q_OBJECT
