@@ -209,7 +209,7 @@ bool SendAssetsEntry::validate()
     if (!ui->memoBox->text().isEmpty()) {
         size_t size = ui->memoBox->text().size();
         
-        if (size != 64) {
+        if (size != 46) {
             //ui->memoBox->setStyleSheet(STYLE_INVALID);
             retval = false;
         }      
@@ -504,13 +504,20 @@ void SendAssetsEntry::switchAdministratorList(bool fSwitchStatus)
                 if (!IsAssetNameAnOwner(name))
                     list << QString::fromStdString(name);
             }
+            int index = ui->assetSelectionBox->currentIndex();
+            QString name = ui->assetSelectionBox->currentText();
 
             stringModel->setStringList(list);
-            ui->assetSelectionBox->lineEdit()->setPlaceholderText(tr("Select an asset to transfer"));
-            //ui->payAssetAmount->clear();
-            //ui->payAssetAmount->setUnit(MAX_UNIT);
-            ui->assetAmountLabel->clear();
-            ui->assetSelectionBox->setFocus();
+            if (index == 0){
+                ui->assetSelectionBox->lineEdit()->setPlaceholderText(tr("Select an asset to transfer"));
+                ui->payAssetAmount->clear();
+                ui->payAssetAmount->setUnit(MAX_UNIT);
+                ui->assetAmountLabel->clear();
+                ui->assetSelectionBox->setFocus();
+            } else { //restore previous values
+                index = ui->assetSelectionBox->findText(name);
+                ui->assetSelectionBox->setCurrentIndex(index);
+            }
         } else {
             ui->payTo->setFocus();
         }

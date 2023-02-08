@@ -160,7 +160,7 @@ void WalletView::setBitcoinGUI(BitcoinGUI *gui)
         connect(this, SIGNAL(encryptionStatusChanged(int)), gui, SLOT(setEncryptionStatus(int)));
 
         // Pass through transaction notifications
-        connect(this, SIGNAL(incomingTransaction(QString,int,CAmount,QString,QString,QString)), gui, SLOT(incomingTransaction(QString,int,CAmount,QString,QString,QString)));
+        connect(this, SIGNAL(incomingTransaction(QString,int,CAmount,QString,QString,QString,QString)), gui, SLOT(incomingTransaction(QString,int,CAmount,QString,QString,QString,QString)));
 
         // Connect HD enabled state signal
         connect(this, SIGNAL(hdEnabledStatusChanged(int)), gui, SLOT(setHDStatus(int)));
@@ -224,7 +224,7 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
     }
 }
 
-void WalletView::processNewTransaction(const QModelIndex& parent, int start, int /*end*/)
+void WalletView::processNewTransaction(const QModelIndex& parent, int start, int end)
 {
     // Prevent balloon-spam when initial block download is in progress
     if (!walletModel || !clientModel || clientModel->inInitialBlockDownload())
@@ -234,8 +234,15 @@ void WalletView::processNewTransaction(const QModelIndex& parent, int start, int
     if (!ttm || ttm->processingQueuedTransactions())
         return;
 
-    QModelIndex index = ttm->index(start, 0, parent);
+    //QModelIndex index = ttm->index(start, 0, parent);
     QSettings settings;
+    QString assetName = "";
+for (int i = start; i <= end; i++) {
+    QString date = ttm->index(i, TransactionTableModel::Date, parent).data().toString();
+    qint64 amount = ttm->index(i, TransactionTableModel::Amount, parent).data(Qt::EditRole).toULongLong();
+    if (amount == 0) continue; //skip if amount is 0
+    QString type = ttm->index(i, TransactionTableModel::Type, parent).data().toString();
+    QModelIndex index = ttm->index(i, 0, parent);
     if (!settings.value("fShowPrivateSendPopups").toBool()) {
         QVariant nType = ttm->data(index, TransactionTableModel::TypeRole);
         if (nType == TransactionRecord::PrivateSendDenominate ||
@@ -243,15 +250,12 @@ void WalletView::processNewTransaction(const QModelIndex& parent, int start, int
             nType == TransactionRecord::PrivateSendMakeCollaterals ||
             nType == TransactionRecord::PrivateSendCreateDenominations) return;
     }
-
-    QString date = ttm->index(start, TransactionTableModel::Date, parent).data().toString();
-    qint64 amount = ttm->index(start, TransactionTableModel::Amount, parent).data(Qt::EditRole).toULongLong();
-    QString type = ttm->index(start, TransactionTableModel::Type, parent).data().toString();
     QString address = ttm->data(index, TransactionTableModel::AddressRole).toString();
     QString label = ttm->data(index, TransactionTableModel::LabelRole).toString();
+    assetName = ttm->data(index, TransactionTableModel::AssetNameRole).toString();
 
-    Q_EMIT incomingTransaction(date, walletModel->getOptionsModel()->getDisplayUnit(), amount, type, address, label);
-
+    Q_EMIT incomingTransaction(date, walletModel->getOptionsModel()->getDisplayUnit(), amount, type, address, label, assetName);
+ }
     assetsPage->processNewTransaction();
     createAssetsPage->updateAssetList();
     manageAssetsPage->updateAssetsList();
@@ -446,12 +450,13 @@ void WalletView::trxAmount(QString amount)
     transactionSum->setText(amount);
 }
 
+bool fFirstVisit = true;
 void WalletView::gotoAssetsPage()
 {
-    /*if (fFirstVisit){
+    if (fFirstVisit){
         fFirstVisit = false;
         assetsPage->handleFirstSelection();
-    }*/
+    }
     setCurrentWidget(assetsPage);
     assetsPage->focusAssetListBox();
 }

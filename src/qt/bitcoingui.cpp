@@ -1339,10 +1339,10 @@ void BitcoinGUI::showEvent(QShowEvent *event)
 }
 
 #ifdef ENABLE_WALLET
-void BitcoinGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label)
+void BitcoinGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& assetName)
 {
     IncomingTransactionMessage itx = {
-            date, unit, amount, type, address, label
+            date, unit, amount, type, address, label, assetName
     };
     incomingTransactions.emplace_back(itx);
 
@@ -1397,19 +1397,32 @@ void BitcoinGUI::showIncomingTransactions()
 
         QString msg;
         if (sentCount > 0) {
-            msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, sentAmount, true));
+            if (txs.back().assetName == "YERB")
+                msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, sentAmount, true));
+            else
+                msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithCustomName(txs.back().assetName, sentAmount, MAX_ASSET_UNITS, true));
+            
+            //msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, sentAmount, true));
         }
         if (receivedCount > 0) {
-            msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, receivedAmount, true));
+            if (txs.back().assetName == "YERB")
+                msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, receivedAmount, true));
+            else
+                msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithCustomName(txs.back().assetName, receivedAmount, MAX_ASSET_UNITS, true));
+            
+            //msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, receivedAmount, true));
         }
 
         message(title, msg, CClientUIInterface::MSG_INFORMATION);
     } else {
         for (auto& itx : txs) {
             // On new transaction, make an info balloon
-            QString msg = tr("Date: %1\n").arg(itx.date) +
-                          tr("Amount: %1\n").arg(BitcoinUnits::formatWithUnit(itx.unit, itx.amount, true)) +
-                          tr("Type: %1\n").arg(itx.type);
+            QString msg = tr("Date: %1\n").arg(itx.date);
+            if (itx.assetName == "YERB")
+                msg += tr("Amount: %1\n").arg(BitcoinUnits::formatWithUnit(itx.unit, itx.amount, true));
+            else
+                msg += tr("Amount: %1\n").arg(BitcoinUnits::formatWithCustomName(itx.assetName, itx.amount, MAX_ASSET_UNITS, true));
+            msg += tr("Type: %1\n").arg(itx.type);
             if (!itx.label.isEmpty())
                 msg += tr("Label: %1\n").arg(itx.label);
             else if (!itx.address.isEmpty())

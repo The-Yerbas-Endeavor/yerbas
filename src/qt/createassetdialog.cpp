@@ -342,14 +342,14 @@ void CreateAssetDialog::toggleIPFSText()
 
 void CreateAssetDialog::showMessage(QString string)
 {
-    ui->messageLabel->setStyleSheet("color: red; font-size: 15pt;font-weight: bold;");
+    ui->messageLabel->setStyleSheet("color: red; font-size: 12pt;font-weight: bold;");
     ui->messageLabel->setText(string);
     ui->messageLabel->show();
 }
 
 void CreateAssetDialog::showValidMessage(QString string)
 {
-    ui->messageLabel->setStyleSheet("color: green; font-size: 15pt;font-weight: bold;");
+    ui->messageLabel->setStyleSheet("color: green; font-size: 12pt;font-weight: bold;");
     ui->messageLabel->setText(string);
     ui->messageLabel->show();
 }
@@ -367,7 +367,7 @@ void CreateAssetDialog::hideMessage()
 void CreateAssetDialog::showInvalidVerifierStringMessage(QString string)
 {
     //ui->lineEditVerifierString->setStyleSheet(STYLE_INVALID);
-    ui->labelVerifierStringErrorMessage->setStyleSheet("color: red; font-size: 15pt;font-weight: bold;");
+    ui->labelVerifierStringErrorMessage->setStyleSheet("color: red; font-size: 12pt;font-weight: bold;");
     ui->labelVerifierStringErrorMessage->setText(string);
     ui->labelVerifierStringErrorMessage->show();
 }
@@ -402,7 +402,7 @@ bool CreateAssetDialog::checkIPFSHash(QString hash)
             disableCreateButton();
             return false;
         }
-        else if (hash.size() != 46 && hash.size() != 64) {
+        else if (hash.size() != 46) {
             ui->ipfsText->setStyleSheet("border: 2px solid red");
             showMessage(tr("IPFS/Txid Hash must have size of 46 characters, or 64 hex characters"));
             disableCreateButton();

@@ -1792,7 +1792,19 @@ WalletFrame {
     margin-bottom:1px;
     margin-right:1px;
     }
-    
+
+    TransactionView QTableView::item
+    {
+      background-color: #091306;
+      border:1px solid #242e20; 
+    }
+    TransactionView QTableView::item:selected
+    { 
+      background-color: #437733;
+      color: #091306;
+      font-weight:bold; 
+    }
+        
     QLabel#transactionSumLabel { /* Example of setObjectName for widgets without name */
     color: #ccc;
     font-weight:bold;
@@ -1820,35 +1832,17 @@ WalletFrame {
     color: #aaa;
     }
 
-    QTableWidget::item
+    QWidget#SmartnodeList QTableWidget::item
     {
       background-color: #091306;
       border:1px solid #242e20; 
     }
-    QTableWidget::item:selected
+    QWidget#SmartnodeList QTableWidget::item:selected
     { 
-      background-color: #2b4d21;
+      background-color: #437733;
+      color: #091306;
       font-weight:bold; 
     }
-    QTableWidget::item:hover:!selected
-    { 
-      background-color: #27531b; 
-    }
-
-     /* TRANSACTION LIST TAB */
-
-     TransactionView ::item
-    {
-      background-color: #091306;
-      border:1px solid #242e20; 
-    }
-    TransactionView ::item:selected
-    { 
-      background-color: #2b4d21;
-      font-weight:bold; 
-    }
-    TransactionView ::item:hover:!selected
-    { 
-      background-color: #27531b; 
-    }
+    
+  
    

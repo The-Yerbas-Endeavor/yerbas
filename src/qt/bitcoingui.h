@@ -157,6 +157,7 @@ private:
         QString type;
         QString address;
         QString label;
+        QString assetName;
     };
     std::list<IncomingTransactionMessage> incomingTransactions;
     QTimer* incomingTransactionsTimer;
@@ -228,7 +229,7 @@ public Q_SLOTS:
     bool handlePaymentRequest(const SendCoinsRecipient& recipient);
 
     /** Show incoming transaction notification for new transactions. */
-    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label);
+    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& assetName);
     void showIncomingTransactions();
 #endif // ENABLE_WALLET
 

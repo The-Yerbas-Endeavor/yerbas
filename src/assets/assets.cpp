@@ -1858,8 +1858,7 @@ bool CAssetsCache::UndoTransfer(const CAssetTransfer& transfer, const std::strin
     if (fAssetIndex) {
         // Make sure we are in a valid state to undo the transfer of the asset
         if (!GetBestAssetAddressAmount(*this, transfer.strName, address))
-            return error("%s : Failed to get the assets address balance from the database. Asset : %s Address : %s",
-                         __func__, transfer.strName, address);
+            return true;
 
         auto pair = std::make_pair(transfer.strName, address);
         if (!mapAssetsAddressAmount.count(pair))
