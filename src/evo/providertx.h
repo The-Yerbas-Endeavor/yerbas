@@ -259,29 +259,12 @@ public:
 
 };
 
-class CNewAssetTx {
+class CAssetTx {
 public:
     static const uint16_t CURRENT_VERSION = 1;
 
     uint16_t nVersion{CURRENT_VERSION};// message version
-    std::string Name;
-    bool updatable = false;//if true this asset meta can be modify using assetTx update process. 
-    bool isunique = false;//true if this is asset is unique it has an identity per token (NFT flag)
-    uint8_t Decimalpoint = 0;
-    std::string referenceHash; //hash of the underlying physical or digital assets, IPFS hash can be used here.
     uint16_t fee; // fee was paid for this asset creation in addition to miner fee. it is a whole non-decimal point value.
-    //  distribution
-    uint8_t type;//manual, coinbase, address, schedule
-    CKeyID targetAddress;
-    uint8_t issueFrequency;
-    CAmount Amount;
-    CKeyID ownerAddress;
-    CKeyID collateralAddress;
-    
-    uint16_t exChainType = 0; // external chain type. each 15 bit unsign number will be map to a external chain. i.e 0 for btc
-    CScript externalPayoutScript;
-    uint256 externalTxid;
-    uint16_t externalConfirmations = 0;
     uint256 inputsHash; // replay protection
 
 public:
@@ -290,22 +273,7 @@ public:
     template<typename Stream, typename Operation>
     inline void SerializationOp(Stream &s, Operation ser_action) {
         READWRITE(nVersion);
-        READWRITE(Name);
-        READWRITE(updatable);
-        READWRITE(isunique);
-        READWRITE(Decimalpoint);
-        READWRITE(referenceHash);
         READWRITE(fee);
-        READWRITE(type);
-        READWRITE(targetAddress);
-        READWRITE(issueFrequency);
-        READWRITE(Amount);
-        READWRITE(ownerAddress);
-        READWRITE(collateralAddress);
-        READWRITE(exChainType);
-        READWRITE(externalPayoutScript);
-        READWRITE(externalTxid);
-        READWRITE(externalConfirmations);
         READWRITE(inputsHash);
     }
 
@@ -315,27 +283,7 @@ public:
         obj.clear();
         obj.setObject();
         obj.pushKV("version", nVersion);
-        obj.pushKV("Name", Name);
-        obj.pushKV("Isunique", isunique); 
-        obj.pushKV("Updatable", updatable);  
-        obj.pushKV("Decimalpoint", (int) Decimalpoint);
-        obj.pushKV("ReferenceHash", referenceHash);
         obj.pushKV("fee", fee);
-        obj.pushKV("Type", type);
-        obj.pushKV("TargetAddress", EncodeDestination(targetAddress));
-        obj.pushKV("ownerAddress", EncodeDestination(ownerAddress));
-        obj.pushKV("collateralAddress", EncodeDestination(collateralAddress));
-        obj.pushKV("IssueFrequency", issueFrequency);
-        obj.pushKV("Amount", Amount);
-        obj.pushKV("exChainType", exChainType);
-        CTxDestination dest;
-        if (ExtractDestination(externalPayoutScript, dest)) {
-            obj.pushKV("externalPayoutAddress", EncodeDestination(dest));
-        } else {
-            obj.pushKV("externalPayoutAddress", "N/A");
-        }
-        obj.pushKV("externalTxid", externalTxid.ToString());
-        obj.pushKV("externalConfirmations", (int) externalConfirmations);
         obj.pushKV("inputsHash", inputsHash.ToString());
     }
 };

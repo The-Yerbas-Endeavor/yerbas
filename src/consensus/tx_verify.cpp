@@ -593,7 +593,7 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
     txfee = txfee_aux;
     return true;
 }
- /* YERB ASSETS START */ 
+ /* RTM ASSETS START */ 
 
     //! Check to make sure that the inputs and outputs CAmount match exactly.
 //! Check to make sure that the inputs and outputs CAmount match exactly.
@@ -842,4 +842,4 @@ bool Consensus::CheckTxAssets(const CTransaction& tx, CValidationState& state, c
     return true;
 }
 
-    /* YERB ASSETS END */
+    /* RTM ASSETS END */

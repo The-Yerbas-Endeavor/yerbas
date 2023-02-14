@@ -11,6 +11,8 @@
 #include "validation.h"
 #include "timedata.h"
 #include "wallet/wallet.h"
+#include "assets/assets.h"
+#include "core_io.h"
 
 #include "privatesend/privatesend.h"
 
@@ -48,6 +50,12 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
         {
             const CTxOut& txout = wtx.tx->vout[i];
             isminetype mine = wallet->IsMine(txout);
+
+            /** RVN START */
+            if (txout.scriptPubKey.IsAssetScript() || txout.scriptPubKey.IsNullAssetTxDataScript() || txout.scriptPubKey.IsNullGlobalRestrictionAssetTxDataScript())
+                continue;
+            /** RVN END */
+
             if(mine)
             {
                 TransactionRecord sub(hash, nTime);
@@ -100,6 +108,12 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
         bool fAllToMeDenom = true;
         int nToMe = 0;
         for (const CTxOut& txout : wtx.tx->vout) {
+
+            /** RVN START */
+            if (txout.scriptPubKey.IsAssetScript() || txout.scriptPubKey.IsNullAssetTxDataScript() || txout.scriptPubKey.IsNullGlobalRestrictionAssetTxDataScript())
+                continue;
+            /** RVN END */
+            
             if(wallet->IsMine(txout)) {
                 fAllToMeDenom = fAllToMeDenom && CPrivateSend::IsDenominatedAmount(txout.nValue);
                 nToMe++;
@@ -194,6 +208,12 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             for (unsigned int nOut = 0; nOut < wtx.tx->vout.size() && !fDone; nOut++)
             {
                 const CTxOut& txout = wtx.tx->vout[nOut];
+
+                /** RVN START */
+                if (txout.scriptPubKey.IsAssetScript())
+                    continue;
+                /** RVN END */
+
                 TransactionRecord sub(hash, nTime);
                 sub.idx = nOut;
                 sub.involvesWatchAddress = involvesWatchAddress;
@@ -248,6 +268,105 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             parts.last().involvesWatchAddress = involvesWatchAddress;
         }
     }
+
+     /** RVN START */
+    if (AreAssetsDeployed()) {
+        CAmount nFee;
+        std::string strSentAccount;
+        std::list<COutputEntry> listReceived;
+        std::list<COutputEntry> listSent;
+
+        std::list<CAssetOutputEntry> listAssetsReceived;
+        std::list<CAssetOutputEntry> listAssetsSent;
+
+        wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, ISMINE_ALL, listAssetsReceived, listAssetsSent);
+
+        //LogPrintf("TXID: %s: Rec: %d Sent: %d\n", wtx.GetHash().ToString(), listAssetsReceived.size(), listAssetsSent.size());
+
+        if (listAssetsReceived.size() > 0)
+        {
+            for (const CAssetOutputEntry &data : listAssetsReceived)
+            {
+                TransactionRecord sub(hash, nTime);
+                sub.idx = data.vout;
+
+                const CTxOut& txout = wtx.tx->vout[sub.idx];
+                isminetype mine = wallet->IsMine(txout);
+
+                sub.address = EncodeDestination(data.destination);
+                sub.assetName = data.assetName;
+                sub.credit = data.nAmount;
+                sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
+
+                if (data.type == TX_NEW_ASSET)
+                    sub.type = TransactionRecord::Issue;
+                else if (data.type == TX_REISSUE_ASSET)
+                    sub.type = TransactionRecord::Reissue;
+                else if (data.type == TX_TRANSFER_ASSET)
+                    sub.type = TransactionRecord::TransferFrom;
+                else {
+                    sub.type = TransactionRecord::Other;
+                }
+
+                sub.units = DEFAULT_UNITS;
+
+                if (IsAssetNameAnOwner(sub.assetName))
+                    sub.units = OWNER_UNITS;
+                else if (CheckIssueDataTx(wtx.tx->vout[sub.idx]))
+                {
+                    CNewAsset asset;
+                    std::string strAddress;
+                    if (AssetFromTransaction(wtx, asset, strAddress))
+                        sub.units = asset.units;
+                }
+                else
+                {
+                    CNewAsset asset;
+                    if (passets->GetAssetMetaDataIfExists(sub.assetName, asset))
+                        sub.units = asset.units;
+                }
+
+                parts.append(sub);
+            }
+        }
+
+        if (listAssetsSent.size() > 0)
+        {
+            for (const CAssetOutputEntry &data : listAssetsSent)
+            {
+                TransactionRecord sub(hash, nTime);
+                sub.idx = data.vout;
+                sub.address = EncodeDestination(data.destination);
+                sub.assetName = data.assetName;
+                sub.credit = -data.nAmount;
+                sub.involvesWatchAddress = false;
+
+                if (data.type == TX_TRANSFER_ASSET)
+                    sub.type = TransactionRecord::TransferTo;
+                else
+                    sub.type = TransactionRecord::Other;
+
+                if (IsAssetNameAnOwner(sub.assetName))
+                    sub.units = OWNER_UNITS;
+                else if (CheckIssueDataTx(wtx.tx->vout[sub.idx]))
+                {
+                    CNewAsset asset;
+                    std::string strAddress;
+                    if (AssetFromTransaction(wtx, asset, strAddress))
+                        sub.units = asset.units;
+                }
+                else
+                {
+                    CNewAsset asset;
+                    if (passets->GetAssetMetaDataIfExists(sub.assetName, asset))
+                        sub.units = asset.units;
+                }
+
+                parts.append(sub);
+            }
+        }
+    }
+    /** RVN END */
 
     return parts;
 }

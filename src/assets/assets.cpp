@@ -29,6 +29,8 @@
 #include "coins.h"
 #include "wallet/wallet.h"
 #include "LibBoolEE.h"
+#include <spork.h>
+#include "core_io.h"
 
 #define SIX_MONTHS 15780000 // Six months worth of seconds
 
@@ -1856,8 +1858,7 @@ bool CAssetsCache::UndoTransfer(const CAssetTransfer& transfer, const std::strin
     if (fAssetIndex) {
         // Make sure we are in a valid state to undo the transfer of the asset
         if (!GetBestAssetAddressAmount(*this, transfer.strName, address))
-            return error("%s : Failed to get the assets address balance from the database. Asset : %s Address : %s",
-                         __func__, transfer.strName, address);
+            return true;
 
         auto pair = std::make_pair(transfer.strName, address);
         if (!mapAssetsAddressAmount.count(pair))
@@ -3123,7 +3124,7 @@ bool CheckReissueBurnTx(const CTxOut& txOut)
         return false;
 
     // Check destination address is the correct burn address
-    if (EncodeDestination(destination) != "")
+    if (EncodeDestination(destination) != "rYEPqoJ64bTGndjGwtYxmEvHqiL7mbyNAE")
         return false;
 
     return true;
@@ -3616,7 +3617,12 @@ CAmount GetBurnAmount(const int nType)
 CAmount GetBurnAmount(const AssetType type)
 {
     return 1000000000;
-}
+    /*if(!sporkManager.IsSporkActive(SPORK_22_SPECIAL_TX_FEE)) {
+        return 0;
+    }
+    int64_t specialTxValue = sporkManager.GetSporkValue(SPORK_22_SPECIAL_TX_FEE);
+    return (specialTxValue & 0xffff) * COIN;
+*/}
 
 std::string GetBurnAddress(const int nType)
 {
@@ -3722,7 +3728,7 @@ std::string DecodeAssetData(std::string encoded)
         return std::string(vec.begin(), vec.end());
     }
 
-    return "";
+    return encoded;
 
 };
 
@@ -3735,7 +3741,7 @@ std::string EncodeAssetData(std::string decoded)
         return HexStr(decoded);
     }
 
-    return "";
+    return decoded;
 }
 
 // 46 char base58 --> 34 char KAW compatible
@@ -4095,7 +4101,7 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
     }
 
     // Get the script for the burn address
-    CScript scriptPubKeyBurn = GetScriptForDestination(DecodeDestination(""));
+    CScript scriptPubKeyBurn = GetScriptForDestination(DecodeDestination(GetBurnAddress(0)));
 
     // Create and send the transaction
     CRecipient recipient = {scriptPubKeyBurn, burnAmount, fSubtractFeeFromAmount};
@@ -4200,9 +4206,10 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
         CScript scriptPubKey = GetScriptForDestination(DecodeDestination(address));
 
         // Update the scriptPubKey with the transfer asset information
+        
         CAssetTransfer assetTransfer(asset_name, nAmount, message, expireTime);
         assetTransfer.ConstructTransaction(scriptPubKey);
-
+        
         CRecipient recipient = {scriptPubKey, 0, fSubtractFeeFromAmount};
         vecSend.push_back(recipient);
     }

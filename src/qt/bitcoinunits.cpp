@@ -251,6 +251,45 @@ bool BitcoinUnits::parse(int unit, const QString &value, CAmount *val_out)
     return ok;
 }
 
+bool BitcoinUnits::assetParse(int assetUnit, const QString &value, CAmount *val_out)
+{
+    if(!(assetUnit >= 0 && assetUnit <= 8) || value.isEmpty())
+        return false; // Refuse to parse invalid unit or empty string
+    int num_decimals = assetUnit;
+
+    // Ignore spaces and thin spaces when parsing
+    QStringList parts = removeSpaces(value).split(".");
+
+    if(parts.size() > 2)
+    {
+        return false; // More than one dot
+    }
+    QString whole = parts[0];
+    QString decimals;
+
+    if(parts.size() > 1)
+    {
+        decimals = parts[1];
+    }
+    if(decimals.size() > num_decimals)
+    {
+        return false; // Exceeds max precision
+    }
+    bool ok = false;
+    QString str = whole + decimals.leftJustified(num_decimals, '0');
+
+    if(str.size() > 18)
+    {
+        return false; // Longer numbers will exceed 63 bits
+    }
+    CAmount retvalue(str.toLongLong(&ok));
+    if(val_out)
+    {
+        *val_out = retvalue;
+    }
+    return ok;
+}
+
 QString BitcoinUnits::getAmountColumnTitle(int unit)
 {
     QString amountTitle = QObject::tr("Amount");

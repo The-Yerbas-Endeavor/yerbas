@@ -13,6 +13,8 @@
 #include "paymentserver.h"
 #include "recentrequeststablemodel.h"
 #include "transactiontablemodel.h"
+#include "assettablemodel.h"
+#include "myrestrictedassettablemodel.h"
 
 #include "base58.h"
 #include "chain.h"
@@ -40,6 +42,7 @@
 WalletModel::WalletModel(const PlatformStyle *platformStyle, CWallet *_wallet, OptionsModel *_optionsModel, QObject *parent) :
     QObject(parent), wallet(_wallet), optionsModel(_optionsModel), addressTableModel(0),
     transactionTableModel(0),
+    assetTableModel(0),
     recentRequestsTableModel(0),
     cachedBalance(0),
     cachedUnconfirmedBalance(0),
@@ -59,6 +62,9 @@ WalletModel::WalletModel(const PlatformStyle *platformStyle, CWallet *_wallet, O
     addressTableModel = new AddressTableModel(wallet, this);
     transactionTableModel = new TransactionTableModel(platformStyle, wallet, this);
     recentRequestsTableModel = new RecentRequestsTableModel(wallet, this);
+    assetTableModel = new AssetTableModel(this);
+    myRestrictedAssetsTableModel = new MyRestrictedAssetsTableModel(platformStyle, wallet, this);
+
 
     // This timer will be fired repeatedly to update the balance
     pollTimer = new QTimer(this);
@@ -150,6 +156,8 @@ void WalletModel::pollBalanceChanged()
         checkBalanceChanged();
         if(transactionTableModel)
             transactionTableModel->updateConfirmations();
+        if(assetTableModel)
+            assetTableModel->checkBalanceChanged();
     }
 }
 
@@ -489,6 +497,16 @@ TransactionTableModel *WalletModel::getTransactionTableModel()
     return transactionTableModel;
 }
 
+AssetTableModel *WalletModel::getAssetTableModel()
+{
+    return assetTableModel;
+}
+
+MyRestrictedAssetsTableModel *WalletModel::getMyRestrictedAssetsTableModel()
+{
+    return myRestrictedAssetsTableModel;
+}
+
 RecentRequestsTableModel *WalletModel::getRecentRequestsTableModel()
 {
     return recentRequestsTableModel;
@@ -609,6 +627,16 @@ static void ShowProgress(WalletModel *walletmodel, const std::string &title, int
                               Q_ARG(int, nProgress));
 }
 
+static void NotifyMyRestrictedAssetChanged(WalletModel *walletmodel, CWallet *wallet, const std::string &address, const std::string& asset_name,  int type, uint32_t date)
+{
+    Q_UNUSED(wallet);
+    Q_UNUSED(address);
+    Q_UNUSED(asset_name);
+    Q_UNUSED(type);
+    Q_UNUSED(date);
+    QMetaObject::invokeMethod(walletmodel, "updateMyRestrictedAssets", Qt::QueuedConnection);
+}
+
 static void NotifyWatchonlyChanged(WalletModel *walletmodel, bool fHaveWatchonly)
 {
     QMetaObject::invokeMethod(walletmodel, "updateWatchOnlyFlag", Qt::QueuedConnection,
@@ -625,6 +653,8 @@ void WalletModel::subscribeToCoreSignals()
     wallet->NotifyChainLockReceived.connect(boost::bind(NotifyChainLockReceived, this, _1));
     wallet->ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
     wallet->NotifyWatchonlyChanged.connect(boost::bind(NotifyWatchonlyChanged, this, _1));
+    wallet->NotifyMyRestrictedAssetsChanged.connect(boost::bind(NotifyMyRestrictedAssetChanged, this, _1, _2, _3, _4, _5));
+    
 }
 
 void WalletModel::unsubscribeFromCoreSignals()
@@ -633,6 +663,7 @@ void WalletModel::unsubscribeFromCoreSignals()
     wallet->NotifyStatusChanged.disconnect(boost::bind(&NotifyKeyStoreStatusChanged, this, _1));
     wallet->NotifyAddressBookChanged.disconnect(boost::bind(NotifyAddressBookChanged, this, _1, _2, _3, _4, _5, _6));
     wallet->NotifyTransactionChanged.disconnect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3));
+    wallet->NotifyMyRestrictedAssetsChanged.disconnect(boost::bind(NotifyMyRestrictedAssetChanged, this, _1, _2, _3, _4, _5));
     wallet->NotifyISLockReceived.disconnect(boost::bind(NotifyISLockReceived, this));
     wallet->NotifyChainLockReceived.disconnect(boost::bind(NotifyChainLockReceived, this, _1));
     wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));

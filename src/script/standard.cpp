@@ -30,11 +30,12 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_MULTISIG: return "multisig";
     case TX_NULL_DATA: return "nulldata";
 
-    /** YERB ASSETS START */
+    /** RTM ASSETS START */
     case TX_NEW_ASSET: return ASSET_NEW_STRING;
     case TX_TRANSFER_ASSET: return ASSET_TRANSFER_STRING;
     case TX_REISSUE_ASSET: return ASSET_REISSUE_STRING;
-    /** YERB ASSETS END */
+    case TX_RESTRICTED_ASSET_DATA: return "nullassetdata";
+    /** RTM ASSETS END */
     }
     return nullptr;
 }
@@ -91,6 +92,19 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
         return true;
     }
 
+    // Provably prunable, asset data-carrying output
+    //
+    // So long as script passes the IsUnspendable() test and all but the first three
+    // byte passes the IsPushOnly()
+    if (scriptPubKey.size() >= 1 && scriptPubKey[0] == OP_YERB_ASSET && scriptPubKey.IsPushOnly(scriptPubKey.begin()+1)) {
+        typeRet = TX_RESTRICTED_ASSET_DATA;
+
+        if (scriptPubKey.size() >= 23 && scriptPubKey[1] != OP_RESERVED) {
+            std::vector<unsigned char> hashBytes(scriptPubKey.begin() + 2, scriptPubKey.begin() + 22);
+            vSolutionsRet.push_back(hashBytes);
+        }
+        return true;
+    }
     // Scan templates
     const CScript& script1 = scriptPubKey;
     for (const std::pair<txnouttype, CScript>& tplate : mTemplates)
@@ -201,7 +215,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
         return true;
-    /** YERB ASSETS START */
+    /** RTM ASSETS START */
     } else if (whichType == TX_NEW_ASSET || whichType == TX_REISSUE_ASSET || whichType == TX_TRANSFER_ASSET) {
         addressRet = CKeyID(uint160(vSolutions[0]));
         return true;
@@ -211,7 +225,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
             return true;
         }
     } 
-    /** YERB ASSETS END */
+    /** RTM ASSETS END */
     // Multisig txns have more than one address...
     return false;
 }

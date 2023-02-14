@@ -7,15 +7,14 @@
 #include "config/yerbas-config.h"
 #endif
 
-#include <netbase.h>
+#include "netbase.h"
 
-#include <hash.h>
-#include <sync.h>
-#include <uint256.h>
-#include <random.h>
-#include <tinyformat.h>
-#include <util.h>
-#include <utilstrencodings.h>
+#include "hash.h"
+#include "sync.h"
+#include "uint256.h"
+#include "random.h"
+#include "util.h"
+#include "utilstrencodings.h"
 
 #include <atomic>
 
@@ -24,14 +23,11 @@
 #endif
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
-#ifdef USE_POLL
-#include <poll.h>
-#endif
+#include <boost/algorithm/string/predicate.hpp> // for startswith() and endswith()
 
-#if !defined(MSG_NOSIGNAL)
+#if !defined(HAVE_MSG_NOSIGNAL)
 #define MSG_NOSIGNAL 0
 #endif
-
 
 // Settings
 static proxyType proxyInfo[NET_MAX];
@@ -124,7 +120,8 @@ bool LookupHost(const char *pszName, std::vector<CNetAddr>& vIP, unsigned int nM
     std::string strHost(pszName);
     if (strHost.empty())
         return false;
-    if (strHost.front() == '[' && strHost.back() == ']') {
+    if (boost::algorithm::starts_with(strHost, "[") && boost::algorithm::ends_with(strHost, "]"))
+    {
         strHost = strHost.substr(1, strHost.size() - 2);
     }
 

@@ -48,6 +48,7 @@
 #include <boost/thread.hpp>
 
 #include "assets/assets.h"
+#include "core_io.h"
 
 std::vector<CWalletRef> vpwallets;
 /** Transaction fee set by the user */
@@ -671,6 +672,12 @@ std::set<uint256> CWallet::GetConflicts(const uint256& txid) const
 void CWallet::Flush(bool shutdown)
 {
     dbw->Flush(shutdown);
+}
+
+void CWallet::UpdateMyRestrictedAssets(std::string& address, std::string& asset_name, int type, uint32_t date)
+{
+    LOCK(cs_wallet);
+    NotifyMyRestrictedAssetsChanged(this, address, asset_name, type, date);
 }
 
 bool CWallet::Verify()
@@ -4303,7 +4310,7 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
                 for (const auto& recipient : vecSend)
                 {
                     CTxOut txout(recipient.nAmount, recipient.scriptPubKey);
-
+                    std::cout << "scipt: " << ScriptToAsmStr(recipient.scriptPubKey) << std::endl;
                     /** RVN START */
                     // Check to see if you need to make an asset data outpoint OP_YERB_ASSET data
                     if (recipient.scriptPubKey.IsNullAssetTxDataScript()) {

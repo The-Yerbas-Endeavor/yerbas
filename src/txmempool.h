@@ -474,10 +474,10 @@ public:
     mutable CCriticalSection cs;
     indexed_transaction_set mapTx;
 
-    /* YERB ASSETS START */
+    /* RTM ASSETS START */
     std::map<std::string, uint256> mapAssetToHash;
     std::map<uint256, std::string> mapHashToAsset;
-    /* YERB ASSETS END */
+    /* RTM ASSETS END */
 
     typedef indexed_transaction_set::nth_index<0>::type::iterator txiter;
     std::vector<std::pair<uint256, txiter> > vTxHashes; //!< All tx hashes/entries in mapTx, in random order

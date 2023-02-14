@@ -226,7 +226,7 @@ CCoinsViewDB *pcoinsdbview = nullptr;
 CCoinsViewCache *pcoinsTip = nullptr;
 CBlockTreeDB *pblocktree = nullptr;
 
-/* YERB ASSETS START */
+/* RTM ASSETS START */
 CAssetsDB *passetsdb = nullptr;
 CAssetsCache *passets = nullptr;
 CLRUCache<std::string, CDatabasedAssetData> *passetsCache = nullptr;
@@ -245,7 +245,7 @@ CLRUCache<std::string, int8_t> *passetsQualifierCache = nullptr;
 CLRUCache<std::string, int8_t> *passetsRestrictionCache = nullptr;
 CLRUCache<std::string, int8_t> *passetsGlobalRestrictionCache = nullptr;
 CRestrictedDB *prestricteddb = nullptr;
-/* YERB ASSETS END*/
+/* RTM ASSETS END*/
 
 enum FlushStateMode {
     FLUSH_STATE_NONE,
@@ -685,7 +685,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
         }
 
-        /** YERB START START */
+        /** RTM START START */
             if (!isAssetsactive) {
                 for (auto out : tx.vout)
                     if (out.scriptPubKey.IsAssetScript())
@@ -697,7 +697,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                                  FormatStateMessage(state));
                 }
             }
-        /** YERB ASSETS END */
+        /** RTM ASSETS END */
 
         // Check for non-standard pay-to-script-hash in inputs
         if (fRequireStandard && !AreInputsStandard(tx, view))
@@ -1131,8 +1131,11 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
 }
 
 CAmount GetSmartnodePayment(int nHeight, CAmount blockValue)
-{
-	size_t mnCount = chainActive.Tip() == nullptr ? 0 : deterministicMNManager->GetListForBlock(chainActive.Tip()).GetAllMNsCount();
+{ 
+	size_t mnCount = 0;
+    if (chainActive.Tip() != nullptr){ //fix empty list when -checklevel = 4
+          mnCount = deterministicMNManager->GetListForBlock(chainActive[nHeight - 1]).GetAllMNsCount();      
+    }
 	if(mnCount >= 10) {
 		int percentage = Params().GetConsensus().nCollaterals.getRewardPercentage(nHeight);
 		return blockValue * percentage / 100;
@@ -1300,7 +1303,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
         txundo.vprevout.reserve(tx.vin.size());
         for (const CTxIn &txin : tx.vin) {
             txundo.vprevout.emplace_back();
-            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
+            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back(), assetCache);
             assert(is_spent);
         }
     }
@@ -1601,6 +1604,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
     }
 
     // undo transactions in reverse order
+    CAssetsCache tempCache(*assetsCache);
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = *(block.vtx[i]);
         uint256 hash = tx.GetHash();
@@ -1636,7 +1640,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                     addressIndex.push_back(std::make_pair(CAddressIndexKey(1, hashBytes, pindex->nHeight, i, hash, k, false), out.nValue));
                     addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, hashBytes, hash, k), CAddressUnspentValue()));
                 } else {
-                  /** YERB ASSETS START */
+                  /** RTM ASSETS START */
                     if (isAssetsactive) {
                         std::string assetName;
                         CAmount assetAmount;
@@ -1659,7 +1663,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                             continue;
                         }
                     }
-                    /** YERB ASSETS END */
+                    /** RTM ASSETS END */
                 }
             }
 
@@ -1672,11 +1676,11 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
             if (!tx.vout[o].scriptPubKey.IsUnspendable()) {
                 COutPoint out(hash, o);
                 Coin coin;
-                bool is_spent = view.SpendCoin(out, &coin);
+                bool is_spent = view.SpendCoin(out, &coin, &tempCache);
                 if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
                     fClean = false; // transaction output mismatch
                 }
-                /** YERB ASSETS START */
+                /** RTM ASSETS START */
                 if (isAssetsactive) {
                     if (assetsCache) {
                         if (IsScriptTransferAsset(tx.vout[o].scriptPubKey))
@@ -1962,7 +1966,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                         addressIndex.push_back(std::make_pair(CAddressIndexKey(1, hashBytes, pindex->nHeight, i, hash, j, false), prevout.nValue));
                         addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, hashBytes, hash, j), CAddressUnspentValue()));
                     } else  {
-                        /** YERB ASSETS START */
+                        /** RTM ASSETS START */
                         if (isAssetsactive) {
                             std::string assetName;
                             CAmount assetAmount;
@@ -1986,7 +1990,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                                 continue;
                             }
                         }
-                        /** YERB ASSETS END */
+                        /** RTM ASSETS END */
                     }
                 }
 
@@ -2299,7 +2303,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                  REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
             }
 
-             /** YERB START START */
+             /** RTM START START */
             if (!isAssetsactive) {
                 for (auto out : tx.vout)
                     if (out.scriptPubKey.IsAssetScript())
@@ -2311,7 +2315,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                  FormatStateMessage(state));
                 }
             }
-            /** YERB ASSETS END */
+            /** RTM ASSETS END */
 
             // Check that transaction is BIP68 final
             // BIP68 lock checks (as opposed to nLockTime checks) must
@@ -2543,7 +2547,6 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
     LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
-
     if (!IsBlockPayeeValid(*block.vtx[0], pindex->nHeight, blockReward)) {
         return state.DoS(0, error("ConnectBlock(YERBAS): couldn't find smartnode or superblock payments"),
                                 REJECT_INVALID, "bad-cb-payee");
@@ -2617,8 +2620,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             message.nBlockHeight = nHeight;
             
             //reenable later
-            //if (message.nExpiredTime == 0 || GetTime() < message.nExpiredTime)
-              //  GetMainSignals().NewAssetMessage(message);
+            if (message.nExpiredTime == 0 || GetTime() < message.nExpiredTime)
+                GetMainSignals().NewAssetMessage(message);
 
             if (IsChannelSubscribed(message.strName)) {
                 AddMessage(message);
@@ -2636,9 +2639,9 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 }
 
 
-                //if (vpwallets.size())
+                if (vpwallets.size())
                     //reenable later
-                    //vpwallets[0]->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
+                    vpwallets[0]->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
 
             }
         }
@@ -2956,6 +2959,7 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
     }
 
     // Update chainActive and related variables.
+    chainActive.SetTip(pindexDelete->pprev);
     UpdateTip(pindexDelete->pprev, chainparams);
     // Let wallets know transactions went from 1-confirmed to
     // 0-confirmed or conflicted:
@@ -4142,9 +4146,9 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
 
     // begin tx and let it rollback
     auto dbTx = evoDb->BeginTransaction();
-    /** YERB ASSETS START */
+    /** RTM ASSETS START */
     CAssetsCache assetCache = *GetCurrentAssetCache();
-    /** YERB ASSETS END */
+    /** RTM ASSETS END */
     // NOTE: CheckBlockHeader is called by CheckBlock
     if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, FormatStateMessage(state));
@@ -4649,10 +4653,17 @@ static bool RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& inputs,
         return error("ReplayBlock(): ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
     }
 
+    // MUST process special txes before updating UTXO to ensure consistency between mempool and block processing
+    CValidationState state;
+    if (!ProcessSpecialTxsInBlock(block, pindex, state, false /*fJustCheck*/, false /*fScriptChecks*/)) {
+        return error("RollforwardBlock(YERB): ProcessSpecialTxsInBlock for block %s failed with %s",
+            pindex->GetBlockHash().ToString(), FormatStateMessage(state));
+    }
+
     for (const CTransactionRef& tx : block.vtx) {
         if (!tx->IsCoinBase()) {
             for (const CTxIn &txin : tx->vin) {
-                inputs.SpendCoin(txin.prevout);
+                inputs.SpendCoin(txin.prevout, nullptr, assetsCache);
             }
         }
         // Pass check = true as every addition may be an overwrite.
