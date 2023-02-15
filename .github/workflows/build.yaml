@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-      - dev
       - v2.1.1*
+      - dev
   pull_request:
     branches:
-      - v2.1.1*
+      - dev
 env:
   COIN_NAME: yerbas
   BUILD_DIR: yerbas-build
@@ -16,41 +16,44 @@ env:
   TEST_LOG_ARTIFACT_DIR: test-logs
 jobs:
   checking-build-version:
-    name: Checking Build Versioning
-    runs-on: ubuntu-18.04
+    name: Get Version
+    runs-on: ubuntu-latest
     steps:
-      - name: Trigger by
+      - name: Triggered By
         run: |
-          echo "checking out $GITHUB_REF trigger by $GITHUB_EVENT_NAME"
+          echo "checking out $GITHUB_REF triggered by $GITHUB_EVENT_NAME"
+
       - name: Checkout
-        uses: actions/checkout@v2
-      - name: Read build.properties key for master
-        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main'}}
-        id: release-version
-        uses: christian-draeger/read-properties@1.0.1
+        uses: actions/checkout@v3
+
+      - name: Read versions
+        id: versions
+        uses: christian-draeger/read-properties@1.1.1
         with:
           path: build.properties
-          property: 'release-version'
-      - name: Read build.properties key for develop
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/v2.1.1.5'}}
-        id: snapshot-version
-        uses: christian-draeger/read-properties@1.0.1
-        with:
-          path: build.properties
-          property: 'snapshot-version'
-      - name: create version
-        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main'}}
+          properties: 'release-version snapshot-version'
+
+      - name: Choose version
+        id: selected-version
+        shell: bash
         run: |
-          echo "BUILD_VERSION=${{ steps.release-version.outputs.value }}" > version.txt
-      - name: create snapshot version
-        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/v2.1.1.5'}}
-        run: |
-          echo "BUILD_VERSION=${{ steps.snapshot-version.outputs.value }}" > version.txt
-      - name: Upload Artifact
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]] || [[ "$GITHUB_REF" == *dev ]] || [[ "$GITHUB_REF" == *v2.1.1* ]]; then
+              version=${{ steps.versions.outputs.snapshot-version }}
+          elif [[ "$GITHUB_EVENT_NAME" != "pull_request" ]] && [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              version=${{ steps.versions.outputs.release-version }}
+          fi
+          echo "version is: [$version]"
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "BUILD_VERSION=$version" > version.txt
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: version
           path: version.txt
+
+    outputs:
+      version: ${{ steps.selected-version.outputs.version }}
 
   build-macos:
     name: macos build
@@ -58,14 +61,9 @@ jobs:
     runs-on: macos-11
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
+        uses: actions/download-artifact@v3
       - name: Install Required Packages
         run: |
           brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
@@ -82,7 +80,7 @@ jobs:
         run: |
           make -j8
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} $BUILD_DIR/
           strip $BUILD_DIR/*
       - name: generate checksum and compress
         run: |
@@ -98,11 +96,11 @@ jobs:
           openssl sha256 yerbas-qt >> checksums.txt
           cat checksums.txt
           cd ..
-          tar -cvzf ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          tar -cvzf ${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz $BUILD_DIR/*
           mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
-          shasum ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          openssl sha256 ${COMPRESS_DIR}/${COIN_NAME}-macos-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          mv ${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz ${COMPRESS_DIR}/
+          shasum ${COMPRESS_DIR}/${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          openssl sha256 ${COMPRESS_DIR}/${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
           cat ${COMPRESS_DIR}/checksums.txt
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v3
@@ -117,78 +115,15 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
           path: Yerbas-Qt.dmg
-  build-ubuntu18:
-    name: Ubuntu18 build
-    needs: checking-build-version
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
-      - name: Install Required Packages
-        run: |
-          echo "building $BUILD_VERSION version"
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
-      - name: build depends
-        run: |
-          echo "building with $(nproc) threads"
-          make -C depends -j$(nproc)
-      - name: configure
-        run: |
-          ./autogen.sh
-          ./configure --prefix=`pwd`/depends/x86_64-pc-linux-gnu
-      - name: build binary
-        run: |
-          make -j$(nproc)
-          mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
-          strip $BUILD_DIR/*
-      - name: generate checksum and compress
-        run: |
-          echo "buildng $BUILD_VERSION version"
-          cd $BUILD_DIR
-          echo "sha256:" >> checksums.txt
-          echo "------------------------------------" >> checksums.txt
-          shasum * >> checksums.txt
-          echo "------------------------------------" >> checksums.txt
-          echo "openssl-sha256:" >> checksums.txt
-          echo "------------------------------------" >> checksums.txt
-          sha256sum * >> checksums.txt
-          cat checksums.txt
-          cd ..
-          tar -cvzf ${COIN_NAME}-ubuntu18-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
-          mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-ubuntu18-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
-          shasum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu18-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          sha256sum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu18-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          cat ${COMPRESS_DIR}/checksums.txt
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.COIN_NAME }}-ubuntu18-${{ env.BUILD_VERSION }}
-          path: ${{ env.COMPRESS_DIR }}
   build-ubuntu20:
     name: Ubuntu20 build
     needs: checking-build-version
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
+        uses: actions/download-artifact@v3
       - name: Install Required Packages
         run: |
           sudo apt-get update -y
@@ -206,7 +141,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} $BUILD_DIR/
           strip $BUILD_DIR/*
       - name: generate checksum and compress
         run: |
@@ -221,11 +156,11 @@ jobs:
           sha256sum * >> checksums.txt
           cat checksums.txt
           cd ..
-          tar -cvzf ${COIN_NAME}-ubuntu20-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          tar -cvzf ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz $BUILD_DIR/*
           mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-ubuntu20-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
-          shasum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu20-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          sha256sum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu20-${BUILD_VERSION}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          mv ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz ${COMPRESS_DIR}/
+          shasum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          sha256sum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
           cat ${COMPRESS_DIR}/checksums.txt
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
@@ -238,14 +173,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
+        uses: actions/download-artifact@v3
       - name: Install Required Packages
         run: |
           sudo apt-get update -y
@@ -266,7 +196,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli.exe,yerbas-tx.exe,yerbasd.exe,qt/yerbas-qt.exe} $BUILD_DIR/
+          mv src/{yerbas-cli.exe,yerbasd.exe,qt/yerbas-qt.exe} $BUILD_DIR/
           strip $BUILD_DIR/*
       - name: generate checksum and compress
         run: |
@@ -281,11 +211,11 @@ jobs:
           sha256sum * >> checksums.txt
           cat checksums.txt
           cd ..
-          zip -r ${COIN_NAME}-win-${BUILD_VERSION}.zip $BUILD_DIR/
+          zip -r ${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip $BUILD_DIR/
           mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-win-${BUILD_VERSION}.zip ${COMPRESS_DIR}/
-          shasum ${COMPRESS_DIR}/${COIN_NAME}-win-${BUILD_VERSION}.zip >> ${COMPRESS_DIR}/checksums.txt
-          sha256sum ${COMPRESS_DIR}/${COIN_NAME}-win-${BUILD_VERSION}.zip >> ${COMPRESS_DIR}/checksums.txt
+          mv ${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip ${COMPRESS_DIR}/
+          shasum ${COMPRESS_DIR}/${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip >> ${COMPRESS_DIR}/checksums.txt
+          sha256sum ${COMPRESS_DIR}/${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip >> ${COMPRESS_DIR}/checksums.txt
           cat ${COMPRESS_DIR}/checksums.txt
       - name: Upload Binary Artifacts
         uses: actions/upload-artifact@v3
@@ -295,17 +225,12 @@ jobs:
   build-arm-32:
     name: arm 32 bit build
     needs: checking-build-version
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
+        uses: actions/download-artifact@v3
       - name: Install Required Packages
         run: |
           sudo apt-get update -y
@@ -323,7 +248,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} $BUILD_DIR/
       - name: generate checksum and compress binary
         run: |
           echo "buildng $BUILD_VERSION version"
@@ -337,12 +262,12 @@ jobs:
           sha256sum * >> checksums.txt
           cat checksums.txt
           cd ..
-          tar -cvzf ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          tar -cvzf ${COIN_NAME}-arm32-${{ needs.get-version.outputs.version }}.tar.gz $BUILD_DIR/*
           mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
+          mv ${COIN_NAME}-arm32-${{ needs.get-version.outputs.version }}.tar.gz ${COMPRESS_DIR}/
           cd ${COMPRESS_DIR}
-          echo "sha256: `shasum ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz`" >> checksums.txt
-          echo "openssl-sha256: `sha256sum ${COIN_NAME}-arm32-${BUILD_VERSION}.tar.gz`" >> checksums.txt
+          echo "sha256: `shasum ${COIN_NAME}-arm32-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-arm32-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
           cat checksums.txt
           cd ..
       - name: Upload Binary Artifacts
@@ -353,17 +278,12 @@ jobs:
   build-arm-64:
     name: arm 64 bit build
     needs: checking-build-version
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Getting Version
-        uses: actions/download-artifact@v1
-        with:
-          name: version
-      - name: Extract version
-        run: |
-          cat version/version.txt >> $GITHUB_ENV
+        uses: actions/download-artifact@v3
       - name: Install Required Packages
         run: |
           sudo apt-get update -y
@@ -381,7 +301,7 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbas-tx,yerbasd,qt/yerbas-qt} $BUILD_DIR/
+          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} $BUILD_DIR/
       - name: generate checksum and compress binary
         run: |
           echo "buildng $BUILD_VERSION version"
@@ -395,12 +315,12 @@ jobs:
           sha256sum * >> checksums.txt
           cat checksums.txt
           cd ..
-          tar -cvzf ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz $BUILD_DIR/*
+          tar -cvzf ${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz $BUILD_DIR/*
           mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz ${COMPRESS_DIR}/
+          mv ${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz ${COMPRESS_DIR}/
           cd ${COMPRESS_DIR}
-          echo "sha256: `shasum ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz`" >> checksums.txt
-          echo "openssl-sha256: `sha256sum ${COIN_NAME}-arm64-${BUILD_VERSION}.tar.gz`" >> checksums.txt
+          echo "sha256: `shasum ${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
           cat checksums.txt
           cd ..
       - name: Upload Binary Artifacts
