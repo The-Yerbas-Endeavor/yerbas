@@ -30,6 +30,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <set>
 
 #include <boost/signals2/signal.hpp>
 
