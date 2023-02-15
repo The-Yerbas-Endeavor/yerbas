@@ -264,7 +264,8 @@ public:
     static const uint16_t CURRENT_VERSION = 1;
 
     uint16_t nVersion{CURRENT_VERSION};// message version
-    uint16_t fee; // fee was paid for this asset creation in addition to miner fee. it is a whole non-decimal point value.
+    uint16_t type;
+    CAmount fee; // fee was paid for this asset creation/reisue in addition to miner fee.
     uint256 inputsHash; // replay protection
 
 public:
@@ -273,6 +274,7 @@ public:
     template<typename Stream, typename Operation>
     inline void SerializationOp(Stream &s, Operation ser_action) {
         READWRITE(nVersion);
+        READWRITE(type);
         READWRITE(fee);
         READWRITE(inputsHash);
     }
@@ -283,12 +285,13 @@ public:
         obj.clear();
         obj.setObject();
         obj.pushKV("version", nVersion);
+        obj.pushKV("type", type);
         obj.pushKV("fee", fee);
         obj.pushKV("inputsHash", inputsHash.ToString());
     }
 };
 
-
+bool CheckAssetTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state);
 bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state);
 bool CheckProUpServTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state);
 bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state);

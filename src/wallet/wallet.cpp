@@ -38,6 +38,7 @@
 #include "spork.h"
 
 #include "evo/providertx.h"
+#include "evo/specialtx.h"
 
 #include "llmq/quorums_instantsend.h"
 #include "llmq/quorums_chainlocks.h"
@@ -1822,7 +1823,20 @@ bool CWallet::IsMine(const CTransaction& tx) const
 
 bool CWallet::IsFromMe(const CTransaction& tx) const
 {
-    return (GetDebit(tx, ISMINE_ALL) > 0);
+    return (GetDebit(tx, ISMINE_ALL) > 0 || HasMyAssets(tx));
+}
+
+CAmount CWallet::HasMyAssets(const CTransaction& tx) const
+{
+    for (const CTxIn& txin : tx.vin)
+    {
+        CAssetOutputEntry assetData;
+        GetDebit(txin, ISMINE_ALL, assetData);
+        if (assetData.nAmount > 0)
+            return true;
+    }
+
+    return false;
 }
 
 CAmount CWallet::GetDebit(const CTransaction& tx, const isminefilter& filter) const
@@ -4184,7 +4198,7 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
         if (recipient.fSubtractFeeFromAmount)
             nSubtractFeeFromAmount++;
     }
-    if (vecSend.empty())
+    if (vecSend.empty() && !(fTransferAsset || fNewAsset || fReissueAsset))
     {
         strFailReason = _("Transaction must have at least one recipient");
         return false;
@@ -4197,6 +4211,22 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
     }
 
     CMutableTransaction txNew;
+    CAssetTx atx;
+    CAmount specialFees = 0;
+    if(fNewAsset || fReissueAsset){
+      txNew.nVersion = 3;
+      if (fNewAsset)
+      txNew.nType = TRANSACTION_ASSET_REGISTER;
+      else
+      txNew.nType = TRANSACTION_ASSET_REISUE;
+      atx.nVersion = CAssetTx::CURRENT_VERSION;
+      atx.type = (uint16_t)assetType;
+      if (fNewAsset)
+        specialFees = GetAssetsFees(assetType) * assets.size();
+      else
+        specialFees = GetAssetsFees(assetType);
+      atx.fee = specialFees;  
+    }
 
     // Discourage fee sniping.
     //
@@ -4310,7 +4340,6 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
                 for (const auto& recipient : vecSend)
                 {
                     CTxOut txout(recipient.nAmount, recipient.scriptPubKey);
-                    std::cout << "scipt: " << ScriptToAsmStr(recipient.scriptPubKey) << std::endl;
                     /** RVN START */
                     // Check to see if you need to make an asset data outpoint OP_YERB_ASSET data
                     if (recipient.scriptPubKey.IsNullAssetTxDataScript()) {
@@ -4344,10 +4373,19 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
                             strFailReason = _("Transaction amount too small");
                         return false;
                     }
+
                     txNew.vout.push_back(txout);
                 }
 
+                //add extrapayload here since vecSend is empty with NewAsset or ReissueAsset transaction
+                if(fNewAsset || fReissueAsset){
+                    CDataStream ds(SER_NETWORK, PROTOCOL_VERSION);
+                    ds << atx;
+                    txNew.vExtraPayload.assign(ds.begin(), ds.end());
+                    nExtraPayloadSize = txNew.vExtraPayload.size();
+                }
                 // Choose coins to use
+                nValueToSelect += specialFees;
                 if (pick_new_inputs) {
                     nValueIn = 0;
                     setCoins.clear();
@@ -4692,6 +4730,12 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
 
         if (nChangePosInOut == -1) reservekey.ReturnKey(); // Return any reserved key if we don't have change
 
+        if(fNewAsset || fReissueAsset){
+            atx.inputsHash = CalcTxInputsHash(txNew);
+            //UpdateSpecialTxInputsHash(txNew, atx);
+        	SetTxPayload(txNew, atx);
+        }
+
         if (sign)
         {
             CTransaction txNewConst(txNew);
@@ -4720,7 +4764,7 @@ bool CWallet::CreateTransactionAll(const std::vector<CRecipient>& vecSend, CWall
     if (gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS)) {
         // Lastly, ensure this tx will pass the mempool's chain limits
         LockPoints lp;
-        CTxMemPoolEntry entry(wtxNew.tx, 0, 0, 0, false, 0, lp);
+        CTxMemPoolEntry entry(wtxNew.tx, 0, 0, 0, 0, false, 0, lp);
         CTxMemPool::setEntries setAncestors;
         size_t nLimitAncestors = gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
         size_t nLimitAncestorSize = gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;
@@ -5133,7 +5177,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
     if (gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS)) {
         // Lastly, ensure this tx will pass the mempool's chain limits
         LockPoints lp;
-        CTxMemPoolEntry entry(wtxNew.tx, 0, 0, 0, false, 0, lp);
+        CTxMemPoolEntry entry(wtxNew.tx, 0, 0, 0, 0, false, 0, lp);
         CTxMemPool::setEntries setAncestors;
         size_t nLimitAncestors = gArgs.GetArg("-limitancestorcount", DEFAULT_ANCESTOR_LIMIT);
         size_t nLimitAncestorSize = gArgs.GetArg("-limitancestorsize", DEFAULT_ANCESTOR_SIZE_LIMIT)*1000;

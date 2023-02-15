@@ -377,12 +377,9 @@ public :
 };
 
 //! Functions to be used to get access to the current burn amount required for specific asset issuance transactions
-CAmount GetBurnAmount(const AssetType type);
-CAmount GetBurnAmount(const int nType);
-
-//! Functions to be used to get access to the burn address for a given asset type issuance
-std::string GetBurnAddress(const AssetType type);
-std::string GetBurnAddress(const int nType);
+CAmount GetAssetsFees(const AssetType type);
+CAmount GetAssetsFees(const int nType);
+CAmount GetAssetsFees(const CTransaction& tx, const int nType);
 
 void GetTxOutAssetTypes(const std::vector<CTxOut>& vout, int& issues, int& reissues, int& transfers, int& owners);
 
@@ -444,14 +441,6 @@ bool RestrictedAssetFromScript(const CScript& scriptPubKey, CNewAsset& asset, st
 bool AssetNullDataFromScript(const CScript& scriptPubKey, CNullAssetTxData& assetData, std::string& strAddress);
 bool AssetNullVerifierDataFromScript(const CScript& scriptPubKey, CNullAssetTxVerifierString& verifierData);
 bool GlobalAssetNullDataFromScript(const CScript& scriptPubKey, CNullAssetTxData& assetData);
-
-//! Check to make sure the script contains the burn transaction
-bool CheckIssueBurnTx(const CTxOut& txOut, const AssetType& type, const int numberIssued);
-bool CheckIssueBurnTx(const CTxOut& txOut, const AssetType& type);
-
-// TODO, maybe remove this function and input that check into the CheckIssueBurnTx.
-//! Check to make sure the script contains the reissue burn data
-bool CheckReissueBurnTx(const CTxOut& txOut);
 
 //! issue asset scripts to make sure script meets the standards
 bool CheckIssueDataTx(const CTxOut& txOut); // OP_YERBAS_ASSET YERBQ (That is a Q as in Que not an O)

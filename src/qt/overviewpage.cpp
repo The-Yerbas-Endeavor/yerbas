@@ -479,7 +479,6 @@ void OverviewPage::handleAssetRightClicked(const QModelIndex &index)
         QAction* action = contextMenu->exec(QCursor::pos());
 
         if (action) {
-            std::cout << action->objectName().toStdString() << std::endl;
             if (action->objectName() == "Send")
                 Q_EMIT assetSendClicked(assetFilter->mapToSource(index));
             else if (action->objectName() == "Sub")

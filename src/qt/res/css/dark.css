@@ -339,6 +339,7 @@ WalletFrame {
     .QTableView { /* Table - has to be selected as a class otherwise it throws off QCalendarWidget */
     border: 0px solid #091306;
     background-color: #0f130d;
+    color: #aaa;
     }
     
     QTableView::item { /* Table Item */
@@ -348,7 +349,7 @@ WalletFrame {
     }
     
     QTableView::item:selected { /* Table Item Selected */
-    background-color: #0f130d;
+    background-color: #437733;
     color: #ccc;
     }
     
@@ -1494,6 +1495,50 @@ WalletFrame {
        }
 
    /* ReissueAssetDialog */
+
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl { /* Coin Control Section */
+    min-height:100px;
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl > .QLabel { /* Default Font Color and  Size */
+   font-weight:normal;
+   color: #999;
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QPushButton#pushButtonCoinControl { /* Coin Control Inputs Button */
+   padding-left:10px;
+   padding-right:10px;
+   min-height:25px;
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QLabel#labelCoinControlFeatures { /* Coin Control Header */
+   color:#999;
+   font-weight:normal;
+   font-size:14px;
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QWidget#widgetCoinControl { /* Coin Control Inputs */
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QWidget#widgetCoinControl > .QLabel { /* Coin Control Inputs Labels */
+   padding:2px;
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QCheckBox#checkBoxCoinControlChange { /* Custom Change Label */
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QValidatedLineEdit#lineEditCoinControlChange { /* Custom Change Address */
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QLabel#labelCoinControlChangeLabel { /* Custom Change Address Validation Label */
+   font-weight:normal;
+   qproperty-margin:-6;
+   margin-right:112px;
+   }
+   
+   QDialog#ReissueAssetDialog .QFrame#frameCoinControl .QLabel#labelCoinControlInsuffFunds { /* Insufficient Funds Label */
+   color: #ff4500;
+   }
       QDialog#ReissueAssetDialog .QScrollArea#scrollArea .QWidget#scrollAreaWidgetContents { /* Send To Widget */
       background-color: #0f130d;
       }
@@ -1843,6 +1888,5 @@ WalletFrame {
       color: #091306;
       font-weight:bold; 
     }
-    
   
    

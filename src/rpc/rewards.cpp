@@ -369,7 +369,7 @@ UniValue distributereward(const JSONRPCRequest& request) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid snapshot_height: block height should be less than or equal to the current active chain height"));
     }
 
-    if (distribution_asset_name != "RVN") {
+    if (distribution_asset_name != "YERB" && distribution_asset_name != "tYERB") {
         if (!IsAssetNameValid(distribution_asset_name, distributionAssetType))
             throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid distribution_asset_name: Please use a valid asset name"));
 

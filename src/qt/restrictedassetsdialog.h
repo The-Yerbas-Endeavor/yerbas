@@ -48,9 +48,9 @@ public:
      */
     QWidget *setupTabChain(QWidget *prev);
 public Q_SLOTS:
-    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
+    void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
                     const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
-
+    
 
 private:
     Ui::RestrictedAssetsDialog *ui;
@@ -69,8 +69,8 @@ private Q_SLOTS:
 
 
     Q_SIGNALS:
-            // Fired when a message should be reported to the user
-            void message(const QString &title, const QString &message, unsigned int style);
+        // Fired when a message should be reported to the user
+        void message(const QString &title, const QString &message, unsigned int style);
 };
 
 #endif // RAVEN_QT_RESTRICTEDASSETSSDIALOG_H

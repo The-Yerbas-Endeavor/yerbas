@@ -37,6 +37,7 @@ public:
     explicit TransactionView(const PlatformStyle *platformStyle, QWidget *parent = 0);
 
     void setModel(WalletModel *model);
+    void showAssets();
 
     // Date ranges for filter
     enum DateEnum
@@ -70,6 +71,9 @@ private:
     QComboBox *instantsendWidget;
     QLineEdit *addressWidget;
     QLineEdit *amountWidget;
+    QLineEdit *assetNameWidget;
+
+    bool showingAssets;
 
     QMenu *contextMenu;
     QSignalMapper *mapperThirdPartyTxUrls;
@@ -95,6 +99,7 @@ private Q_SLOTS:
     void copyAddress();
     void editLabel();
     void copyLabel();
+    void copyAssetName();
     void copyAmount();
     void copyTxID();
     void copyTxHex();
@@ -118,6 +123,7 @@ public Q_SLOTS:
     void chooseWatchonly(int idx);
     void chooseInstantSend(int idx);
     void changedAmount();
+    void changedAssetName();
     void changedPrefix();
     void exportClicked();
     void focusTransaction(const QModelIndex&);

@@ -209,8 +209,6 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint2
                     }
                 }
             }    
-        }else{
-             std::cout << "no asset cache" << std::endl;
         }
     }
     /** RTM ASSETS END */

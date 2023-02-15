@@ -34,7 +34,7 @@ AssignQualifier::AssignQualifier(const PlatformStyle *_platformStyle, QWidget *p
     ui->lineEditAddress->installEventFilter(this);
     ui->lineEditChangeAddress->installEventFilter(this);
     ui->lineEditAssetData->installEventFilter(this);
-    connect(ui->buttonClear, SIGNAL(clicked()), this, SLOT(clear()));
+    connect(ui->buttonClear, SIGNAL(clicked()), this, SLOT(onClearButtonClicked()));
     connect(ui->buttonCheck, SIGNAL(clicked()), this, SLOT(check()));
     connect(ui->lineEditAddress, SIGNAL(textChanged(QString)), this, SLOT(dataChanged()));
     connect(ui->lineEditChangeAddress, SIGNAL(textChanged(QString)), this, SLOT(dataChanged()));
@@ -202,3 +202,7 @@ void AssignQualifier::check()
         showWarning(tr("Unable to preform action at this time"));
     }
 };
+
+void AssignQualifier::onClearButtonClicked(){
+    clear();
+}

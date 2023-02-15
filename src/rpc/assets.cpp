@@ -422,7 +422,7 @@ UniValue issue(const JSONRPCRequest& request)
             "1. \"asset_name\"            (string, required) a unique name\n"
             "2. \"qty\"                   (numeric, optional, default=1) the number of units to be issued\n"
             "3. \"to_address\"            (string), optional, default=\"\"), address asset will be sent to, if it is empty, address will be generated for you\n"
-            "4. \"change_address\"        (string), optional, default=\"\"), address the the rvn change will be sent to, if it is empty, change address will be generated for you\n"
+            "4. \"change_address\"        (string), optional, default=\"\"), address the the yerb change will be sent to, if it is empty, change address will be generated for you\n"
             "5. \"units\"                 (integer, optional, default=0, min=0, max=8), the number of decimals precision for the asset (0 for whole units (\"1\"), 8 for max precision (\"1.00000000\")\n"
             "6. \"reissuable\"            (boolean, optional, default=true (false for unique assets)), whether future reissuance is allowed\n"
             "7. \"has_ipfs\"              (boolean, optional, default=false), whether ipfs hash is going to be added to the asset\n"
@@ -596,7 +596,7 @@ UniValue issueunique(const JSONRPCRequest& request)
                 "2. \"asset_tags\"            (array, required) the unique tag for each asset which is to be issued\n"
                 "3. \"ipfs_hashes\"           (array, optional) ipfs hashes or txid hashes corresponding to each supplied tag (should be same size as \"asset_tags\")\n"
                 "4. \"to_address\"            (string, optional, default=\"\"), address assets will be sent to, if it is empty, address will be generated for you\n"
-                "5. \"change_address\"        (string, optional, default=\"\"), address the the rvn change will be sent to, if it is empty, change address will be generated for you\n"
+                "5. \"change_address\"        (string, optional, default=\"\"), address the the yerb change will be sent to, if it is empty, change address will be generated for you\n"
 
                 "\nResult:\n"
                 "\"txid\"                     (string) The transaction id\n"
@@ -2194,7 +2194,7 @@ UniValue checkaddresstag(const JSONRPCRequest& request)
                 "\nChecks to see if an address has the given tag\n"
 
                 "\nArguments:\n"
-                "1. \"address\"          (string, required) the RVN address to search\n"
+                "1. \"address\"          (string, required) the YERB address to search\n"
                 "1. \"tag_name\"         (string, required) the tag to search\n"
 
                 "\nResult:\n"
@@ -2235,7 +2235,7 @@ UniValue checkaddressrestriction(const JSONRPCRequest& request)
                 "\nChecks to see if an address has been frozen by the given restricted asset\n"
 
                 "\nArguments:\n"
-                "1. \"address\"          (string, required) the RVN address to search\n"
+                "1. \"address\"          (string, required) the YERB address to search\n"
                 "1. \"restricted_name\"   (string, required) the restricted asset to search\n"
 
                 "\nResult:\n"
@@ -2318,7 +2318,7 @@ UniValue issuequalifierasset(const JSONRPCRequest& request)
                 "1. \"asset_name\"            (string, required) a unique name\n"
                 "2. \"qty\"                   (numeric, optional, default=1) the number of units to be issued\n"
                 "3. \"to_address\"            (string), optional, default=\"\"), address asset will be sent to, if it is empty, address will be generated for you\n"
-                "4. \"change_address\"        (string), optional, default=\"\"), address the the rvn change will be sent to, if it is empty, change address will be generated for you\n"
+                "4. \"change_address\"        (string), optional, default=\"\"), address the the yerb change will be sent to, if it is empty, change address will be generated for you\n"
                 "5. \"has_ipfs\"              (boolean, optional, default=false), whether ipfs hash is going to be added to the asset\n"
                 "6. \"ipfs_hash\"             (string, optional but required if has_ipfs = 1), an ipfs hash or a txid hash once RIP5 is activated\n"
 
@@ -2473,7 +2473,7 @@ UniValue issuerestrictedasset(const JSONRPCRequest& request)
                 "2. \"qty\"                   (numeric, required) the quantity of the asset to be issued\n"
                 "3. \"verifier\"              (string, required) the verifier string that will be evaluated when restricted asset transfers are made\n"
                 "4. \"to_address\"            (string, required) address asset will be sent to, this address must meet the verifier string requirements\n"
-                "5. \"change_address\"        (string, optional, default=\"\") address that the rvn change will be sent to, if it is empty, change address will be generated for you\n"
+                "5. \"change_address\"        (string, optional, default=\"\") address that the yerb change will be sent to, if it is empty, change address will be generated for you\n"
                 "6. \"units\"                 (integer, optional, default=0, min=0, max=8) the number of decimals precision for the asset (0 for whole units (\"1\"), 8 for max precision (\"1.00000000\")\n"
                 "7. \"reissuable\"            (boolean, optional, default=true (false for unique assets)) whether future reissuance is allowed\n"
                 "8. \"has_ipfs\"              (boolean, optional, default=false) whether an ipfs hash or txid hash is going to be added to the asset\n"
@@ -2620,7 +2620,7 @@ UniValue reissuerestrictedasset(const JSONRPCRequest& request)
                 "3. \"to_address\"            (string, required) address asset will be sent to, this address must meet the verifier string requirements\n"
                 "4. \"change_verifier\"       (boolean, optional, default=false) if the verifier string will get changed\n"
                 "5. \"new_verifier\"          (string, optional, default=\"\") the new verifier string that will be evaluated when restricted asset transfers are made\n"
-                "6. \"change_address\"        (string, optional, default=\"\") address that the rvn change will be sent to, if it is empty, change address will be generated for you\n"
+                "6. \"change_address\"        (string, optional, default=\"\") address that the yerb change will be sent to, if it is empty, change address will be generated for you\n"
                 "7. \"new_units\"             (numeric, optional, default=-1) the new units that will be associated with the asset\n"
                 "8. \"reissuable\"            (boolean, optional, default=true (false for unique assets)) whether future reissuance is allowed\n"
                 "9. \"new_ipfs\"              (string, optional, default=\"\") whether to update the current ipfs hash or txid once RIP5 is active\n"

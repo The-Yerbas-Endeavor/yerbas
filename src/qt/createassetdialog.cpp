@@ -268,13 +268,13 @@ void CreateAssetDialog::setUpValues()
 
     // Setup the asset types
     QStringList list;
-    list.append(tr("Main Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::ROOT)) + ")");
-    list.append(tr("Sub Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::SUB)) + ")");
-    list.append(tr("Unique Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::UNIQUE)) + ")");
-    list.append(tr("Messaging Channel Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::MSGCHANNEL)) + ")");
-    list.append(tr("Qualifier Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::QUALIFIER)) + ")");
-    list.append(tr("Sub Qualifier Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::SUB_QUALIFIER)) + ")");
-    list.append(tr("Restricted Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::RESTRICTED)) + ")");
+    list.append(tr("Main Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::ROOT)) + ")");
+    list.append(tr("Sub Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::SUB)) + ")");
+    list.append(tr("Unique Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::UNIQUE)) + ")");
+    list.append(tr("Messaging Channel Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::MSGCHANNEL)) + ")");
+    list.append(tr("Qualifier Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::QUALIFIER)) + ")");
+    list.append(tr("Sub Qualifier Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::SUB_QUALIFIER)) + ")");
+    list.append(tr("Restricted Asset") + " (" + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::RESTRICTED)) + ")");
 
     ui->assetType->addItems(list);
     type = IntFromAssetType(AssetType::ROOT);
@@ -731,17 +731,6 @@ void CreateAssetDialog::onCreateAssetClicked()
     // Format confirmation message
     QStringList formatted;
 
-    // generate bold amount string
-    QString amount = "<b>" + QString::fromStdString(ValueFromAmountString(GetBurnAmount(type), 8)) + " RVN";
-    amount.append("</b>");
-    // generate monospace address string
-    QString addressburn = "<span style='font-family: monospace;'>" + QString::fromStdString(GetBurnAddress(type));
-    addressburn.append("</span>");
-
-    QString recipientElement1;
-    recipientElement1 = tr("%1 to %2").arg(amount, addressburn);
-    formatted.append(recipientElement1);
-
     // generate the bold asset amount
     QString assetAmount = "<b>" + QString::fromStdString(ValueFromAmountString(asset.nAmount, asset.units)) + " " + QString::fromStdString(asset.strName);
     assetAmount.append("</b>");
@@ -764,14 +753,21 @@ void CreateAssetDialog::onCreateAssetClicked()
         questionString.append(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), nFeeRequired));
         questionString.append("</span> ");
         questionString.append(tr("added as transaction fee"));
+        questionString.append("<br />");
+        questionString.append("<span style='color:#e82121;'>");
+        questionString.append(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(type)));
+        questionString.append("</span> ");
+        questionString.append(tr("added as special transaction fee"));
 
         // append transaction size
-        //questionString.append(" (" + QString::number((double)GetVirtualTransactionSize(tx) / 1000) + " kB)");
+        questionString.append("<hr />");
+        questionString.append(tr("Transaction size: %1").arg(QString::number((double)tx.tx->GetTotalSize() / 1000)) + " kB");
+        //questionString.append(" (" + QString::number(tx.tx->GetTotalSize() / 1000) + " kB)");
     }
 
     // add total amount in all subdivision units
     questionString.append("<hr />");
-    CAmount totalAmount = GetBurnAmount(type) + nFeeRequired;
+    CAmount totalAmount = GetAssetsFees(type) + nFeeRequired;
     QStringList alternativeUnits;
     for (BitcoinUnits::Unit u : BitcoinUnits::availableUnits())
     {
@@ -780,7 +776,7 @@ void CreateAssetDialog::onCreateAssetClicked()
     }
     questionString.append(tr("Total Amount %1")
                                   .arg(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), totalAmount)));
-    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />(=%2)</span>")
+    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />%2</span>")
                                   .arg(alternativeUnits.join(" " + tr("or") + "<br />")));
 
     SendConfirmationDialog confirmationDialog(tr("Confirm send assets"),
@@ -1182,7 +1178,7 @@ void CreateAssetDialog::coinControlUpdateLabels()
     CoinControlDialog::payAmounts.clear();
     CoinControlDialog::fSubtractFeeFromAmount = false;
 
-    CoinControlDialog::payAmounts.append(GetBurnAmount(type));
+    CoinControlDialog::payAmounts.append(GetAssetsFees(type));
 
     if (CoinControlDialog::coinControl->HasSelected())
     {

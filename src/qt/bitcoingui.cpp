@@ -35,6 +35,7 @@
 #endif
 
 #include "chainparams.h"
+#include "validation.h"
 #include "init.h"
 #include "ui_interface.h"
 #include "util.h"
@@ -1430,6 +1431,29 @@ void BitcoinGUI::showIncomingTransactions()
             message((itx.amount)<0 ? tr("Sent transaction") : tr("Incoming transaction"),
                     msg, CClientUIInterface::MSG_INFORMATION);
         }
+    }
+}
+
+void BitcoinGUI::checkAssets()
+{
+    // Check that status of RIP2 and activate the assets icon if it is active
+    if(AreAssetsDeployed()) {
+        TransferAssetsAction->setDisabled(false);
+        TransferAssetsAction->setToolTip(tr("Transfer assets to RVN addresses"));
+        CreateAssetsAction->setDisabled(false);
+        CreateAssetsAction->setToolTip(tr("Create new assets"));
+        ManageAssetsAction->setDisabled(false);
+        RestrictedAssetsAction->setDisabled(false);
+        RestrictedAssetsAction->setToolTip(tr("Manage restricted assets"));
+        }
+    else {
+        TransferAssetsAction->setDisabled(true);
+        TransferAssetsAction->setToolTip(tr("Assets not yet active"));
+        CreateAssetsAction->setDisabled(true);
+        CreateAssetsAction->setToolTip(tr("Assets not yet active"));
+        ManageAssetsAction->setDisabled(true);
+        RestrictedAssetsAction->setDisabled(true);
+        RestrictedAssetsAction->setToolTip(tr("Restricted Assets not yet active"));
     }
 }
 #endif // ENABLE_WALLET

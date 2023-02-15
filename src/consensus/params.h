@@ -115,6 +115,14 @@ struct LLMQParams {
     int keepOldConnections;
 };
 
+struct AssetsRewardShare {
+	float smartnode;
+	float miner;
+	float founder;
+	AssetsRewardShare() : smartnode(0), miner(0), founder(0) {}
+	AssetsRewardShare(float _smartnode, float _miner, float _founder) : smartnode(_smartnode), miner(_miner), founder(_founder) {}
+};
+
 /**
  * Parameters that influence chain consensus.
  */
@@ -183,6 +191,7 @@ struct Params {
     LLMQType llmqTypeInstantSend{LLMQ_NONE};
 
     FounderPayment nFounderPayment;
+    AssetsRewardShare nAssetsRewardShare;
     SmartnodeCollaterals nCollaterals;
     int smartnodePaymentFixedBlock;
     int nAssetsForkBlock;

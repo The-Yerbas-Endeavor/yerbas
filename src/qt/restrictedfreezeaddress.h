@@ -63,6 +63,7 @@ private Q_SLOTS:
     void dataChanged();
     void globalOptionSelected();
     void changeAddressChanged(int);
+    void onClearButtonClicked();
 };
 
 #endif // RAVEN_QT_FREEZEADDRESS_H

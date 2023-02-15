@@ -74,6 +74,7 @@ private:
     CTransactionRef tx;
     CAmount nFee;              //!< Cached to avoid expensive parent-transaction lookups
     size_t nTxSize;            //!< ... and avoid recomputing tx size
+    CAmount specialTxFee;
     size_t nUsageSize;         //!< ... and total memory usage
     int64_t nTime;             //!< Local time when entering the mempool
     unsigned int entryHeight;  //!< Chain height when entering the mempool
@@ -96,7 +97,7 @@ private:
     unsigned int nSigOpCountWithAncestors;
 
 public:
-    CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
+    CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee, const CAmount& _specialTxFee,
                     int64_t _nTime, unsigned int _entryHeight,
                     bool spendsCoinbase,
                     unsigned int nSigOps, LockPoints lp);
@@ -106,6 +107,7 @@ public:
     const CTransaction& GetTx() const { return *this->tx; }
     CTransactionRef GetSharedTx() const { return this->tx; }
     const CAmount& GetFee() const { return nFee; }
+    const CAmount& GetSpecialTxFee() const { return specialTxFee; }
     size_t GetTxSize() const { return nTxSize; }
     int64_t GetTime() const { return nTime; }
     unsigned int GetHeight() const { return entryHeight; }

@@ -62,6 +62,7 @@ private Q_SLOTS:
     void check();
     void dataChanged();
     void changeAddressChanged(int);
+    void onClearButtonClicked();
 };
 
 #endif // RAVEN_QT_ASSIGNQUALIFIER_H

@@ -225,7 +225,7 @@ void ReissueAssetDialog::setModel(WalletModel *_model)
         else
             ui->confTargetSelector->setCurrentIndex(getIndexForConfTarget(settings.value("nConfTarget").toInt()));
 
-        ui->reissueCostLabel->setText(tr("Cost") + ": " + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetBurnAmount(AssetType::REISSUE)));
+        ui->reissueCostLabel->setText(tr("Cost") + ": " + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::REISSUE)));
         ui->reissueCostLabel->setStyleSheet("font-weight: bold");
 
         // Setup the default values
@@ -393,7 +393,7 @@ void ReissueAssetDialog::CheckFormState()
     }
 
     // If the quantity is to large
-    if (asset->nAmount + ui->quantitySpinBox->value() * COIN > MAX_MONEY) {
+    if (asset->nAmount + ui->quantitySpinBox->value() * COIN > MAX_ASSET_MONEY) {
         showMessage(tr("Quantity is to large. Max is 21,000,000,000"));
         return;
     }
@@ -657,7 +657,6 @@ void ReissueAssetDialog::onAssetSelected(int index)
                 verifierString = "No verifier string found";
             }
         }
-        std::cout << name.toStdString() << std::endl;
         ui->currentAssetData->append(name);
         ui->currentAssetData->append(quantity);
         ui->currentAssetData->append(units);
@@ -849,17 +848,6 @@ void ReissueAssetDialog::onReissueAssetClicked()
     // Format confirmation message
     QStringList formatted;
 
-    // generate bold amount string
-    QString amount = "<b>" + QString::fromStdString(ValueFromAmountString(GetBurnAmount(0), 8)) + " YERB";
-    amount.append("</b>");
-    // generate monospace address string
-    QString addressburn = "<span style='font-family: monospace;'>" + QString::fromStdString(GetBurnAddress(0));
-    addressburn.append("</span>");
-
-    QString recipientElement1;
-    recipientElement1 = tr("%1 to %2").arg(amount, addressburn);
-    formatted.append(recipientElement1);
-
     // generate the bold asset amount
     QString assetAmount = "<b>" + QString::fromStdString(ValueFromAmountString(reissueAsset.nAmount, 8)) + " " + QString::fromStdString(reissueAsset.strName);
     assetAmount.append("</b>");
@@ -882,14 +870,22 @@ void ReissueAssetDialog::onReissueAssetClicked()
         questionString.append(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), nFeeRequired));
         questionString.append("</span> ");
         questionString.append(tr("added as transaction fee"));
+        questionString.append("<br />");
+        questionString.append("<span style='color:#e82121;'>");
+        questionString.append(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), GetAssetsFees(AssetType::REISSUE)));
+        questionString.append("</span> ");
+        questionString.append(tr("added as special transaction fee"));
 
         // append transaction size
-      //  questionString.append(" (" + QString::number((double)GetVirtualTransactionSize(tx) / 1000) + " kB)");
+        questionString.append("<hr />");
+        questionString.append(tr("Transaction size: %1").arg(QString::number((double)tx.tx->GetTotalSize() / 1000)) + " kB");
+               
+        //questionString.append(" (" + QString::number(tx.tx->GetTotalSize() / 1000) + " kB)");
     }
 
     // add total amount in all subdivision units
     questionString.append("<hr />");
-    CAmount totalAmount = GetBurnAmount(0) + nFeeRequired;
+    CAmount totalAmount = GetAssetsFees(AssetType::REISSUE) + nFeeRequired;
     QStringList alternativeUnits;
     for (BitcoinUnits::Unit u : BitcoinUnits::availableUnits())
     {
@@ -898,7 +894,7 @@ void ReissueAssetDialog::onReissueAssetClicked()
     }
     questionString.append(tr("Total Amount %1")
                                   .arg(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), totalAmount)));
-    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />(=%2)</span>")
+    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />%2</span>")
                                   .arg(alternativeUnits.join(" " + tr("or") + "<br />")));
 
     SendConfirmationDialog confirmationDialog(tr("Confirm reissue assets"),
@@ -1157,7 +1153,7 @@ void ReissueAssetDialog::coinControlUpdateLabels()
     CoinControlDialog::payAmounts.clear();
     CoinControlDialog::fSubtractFeeFromAmount = false;
 
-    CoinControlDialog::payAmounts.append(GetBurnAmount(AssetType::REISSUE));
+    CoinControlDialog::payAmounts.append(GetAssetsFees(AssetType::REISSUE));
 
     if (CoinControlDialog::coinControl->HasSelected())
     {

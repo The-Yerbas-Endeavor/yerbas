@@ -90,6 +90,30 @@ static bool CheckInputsHash(const CTransaction& tx, const ProTx& proTx, CValidat
     return true;
 }
 
+bool CheckAssetTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+{
+
+    if(!Params().IsAssetsActive(chainActive.Tip())) {
+        return state.DoS(100, false, REJECT_INVALID, "assets-not-enabled");
+    }
+
+    if (tx.nType != TRANSACTION_ASSET_REGISTER && tx.nType != TRANSACTION_ASSET_REISUE) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-assets-type");
+    }
+
+    CAssetTx assettx;
+    if (!GetTxPayload(tx, assettx)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-assets-payload");
+    }
+    
+    if (!CheckInputsHash(tx, assettx, state)) {
+        std::cout << "bad-assets-inputsHash" << std::endl;
+        return false;
+    }
+    
+    return true;
+}
+
 bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
 {
     if (tx.nType != TRANSACTION_PROVIDER_REGISTER) {

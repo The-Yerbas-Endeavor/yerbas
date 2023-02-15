@@ -422,7 +422,9 @@ bool ContextualCheckTransaction(const CTransaction& tx, CValidationState &state,
                 tx.nType != TRANSACTION_PROVIDER_UPDATE_REGISTRAR &&
                 tx.nType != TRANSACTION_PROVIDER_UPDATE_REVOKE &&
                 tx.nType != TRANSACTION_COINBASE &&
-                tx.nType != TRANSACTION_QUORUM_COMMITMENT) {
+                tx.nType != TRANSACTION_QUORUM_COMMITMENT &&
+                tx.nType != TRANSACTION_ASSET_REGISTER &&
+                tx.nType != TRANSACTION_ASSET_REISUE) {
                 return state.DoS(100, false, REJECT_INVALID, "bad-txns-type");
             }
             if (tx.IsCoinBase() && tx.nType != TRANSACTION_COINBASE)
@@ -681,7 +683,8 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         } // end LOCK(pool.cs)
 
         CAmount nFees = 0;
-        if (!Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view), nFees)) {
+        CAmount specialTxFees = 0;
+        if (!Consensus::CheckTxInputs(tx, state, view, GetSpendHeight(view), nFees, specialTxFees, true)) {
             return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
         }
 
@@ -720,7 +723,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             }
         }
 
-        CTxMemPoolEntry entry(ptx, nFees, nAcceptTime, chainActive.Height(),
+        CTxMemPoolEntry entry(ptx, nFees, specialTxFees, nAcceptTime, chainActive.Height(),
                               fSpendsCoinbase, nSigOps, lp);
         unsigned int nSize = entry.GetTxSize();
 
@@ -1130,7 +1133,7 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
     return nSubsidy * COIN;
 }
 
-CAmount GetSmartnodePayment(int nHeight, CAmount blockValue)
+CAmount GetSmartnodePayment(int nHeight, CAmount blockValue, CAmount specialTxFees)
 { 
 	size_t mnCount = 0;
     if (chainActive.Tip() != nullptr){ //fix empty list when -checklevel = 4
@@ -1138,7 +1141,8 @@ CAmount GetSmartnodePayment(int nHeight, CAmount blockValue)
     }
 	if(mnCount >= 10) {
 		int percentage = Params().GetConsensus().nCollaterals.getRewardPercentage(nHeight);
-		return blockValue * percentage / 100;
+		CAmount specialFeeReward = specialTxFees * Params().GetConsensus().nAssetsRewardShare.smartnode; 
+        return blockValue * percentage / 100 + specialFeeReward;
 	} else {
 		return 0;
 	}
@@ -2266,6 +2270,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     std::vector<int> prevheights;
     CAmount nFees = 0;
+    CAmount specialTxFees = 0;
     int nInputs = 0;
     unsigned int nSigOps = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
@@ -2283,6 +2288,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
 
     bool fDIP0001Active_context = Params().GetConsensus().DIP0001Enabled;
     bool isAssetsactive = Params().IsAssetsActive(chainActive.Tip());
+    bool isSyncing = IsInitialBlockDownload();
     
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
@@ -2294,15 +2300,20 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         if (!tx.IsCoinBase())
         {
             CAmount txfee = 0;
-            if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee)) {
+            CAmount specialTxFee = 0;
+            if (!Consensus::CheckTxInputs(tx, state, view, pindex->nHeight, txfee, specialTxFee, !isSyncing)) {
                 return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
             }
             nFees += txfee;
+            specialTxFees += specialTxFee;
             if (!MoneyRange(nFees)) {
                 return state.DoS(100, error("%s: accumulated fee in the block out of range.", __func__),
                                  REJECT_INVALID, "bad-txns-accumulated-fee-outofrange");
             }
-
+            if (!MoneyRange(specialTxFees)) {
+                return state.DoS(100, error("%s: accumulated specialTxFees in the block out of range.", __func__),
+                                 REJECT_INVALID, "bad-txns-accumulated-specialTxFees-outofrange");
+            }
              /** RTM START START */
             if (!isAssetsactive) {
                 for (auto out : tx.vout)
@@ -2541,13 +2552,13 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     int64_t nTime5_2 = GetTimeMicros(); nTimeSubsidy += nTime5_2 - nTime5_1;
     LogPrint(BCLog::BENCHMARK, "      - GetBlockSubsidy: %.2fms [%.2fs]\n", 0.001 * (nTime5_2 - nTime5_1), nTimeSubsidy * 0.000001);
 
-    if (!IsBlockValueValid(block, pindex->nHeight, blockReward, strError)) {
+    if (!IsBlockValueValid(block, pindex->nHeight, (blockReward + specialTxFees), strError)) {
         return state.DoS(0, error("ConnectBlock(YERBAS): %s", strError), REJECT_INVALID, "bad-cb-amount");
     }
 
     int64_t nTime5_3 = GetTimeMicros(); nTimeValueValid += nTime5_3 - nTime5_2;
     LogPrint(BCLog::BENCHMARK, "      - IsBlockValueValid: %.2fms [%.2fs]\n", 0.001 * (nTime5_3 - nTime5_2), nTimeValueValid * 0.000001);
-    if (!IsBlockPayeeValid(*block.vtx[0], pindex->nHeight, blockReward)) {
+    if (!IsBlockPayeeValid(*block.vtx[0], pindex->nHeight, blockReward, specialTxFees)) {
         return state.DoS(0, error("ConnectBlock(YERBAS): couldn't find smartnode or superblock payments"),
                                 REJECT_INVALID, "bad-cb-payee");
     }
@@ -3131,6 +3142,35 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     LogPrint(BCLog::BENCHMARK, "- Connect block: %.2fms [%.2fs]\n", (nTime6 - nTime1) * 0.001, nTimeTotal * 0.000001);
 
     connectTrace.BlockConnected(pindexNew, std::move(pthisBlock));
+
+        /** RVN START */
+
+    //  Determine if the new block height has any pending snapshot requests,
+    //      and if so, capture a snapshot of the relevant target assets.
+    if (pSnapshotRequestDb != nullptr) {
+        //  Retrieve the scheduled snapshot requests
+        std::set<CSnapshotRequestDBEntry> assetsToSnapshot;
+        if (pSnapshotRequestDb->RetrieveSnapshotRequestsForHeight("", pindexNew->nHeight, assetsToSnapshot)) {
+            //  Loop through them
+            for (auto const & assetEntry : assetsToSnapshot) {
+                //  Add a snapshot entry for the target asset ownership
+                if (!pAssetSnapshotDb->AddAssetOwnershipSnapshot(assetEntry.assetName, pindexNew->nHeight)) {
+                   LogPrint(BCLog::REWARDS, "ConnectTip: Failed to snapshot owners for '%s' at height %d!\n",
+                       assetEntry.assetName.c_str(), pindexNew->nHeight);
+                }
+            }
+        }
+        else {
+            LogPrint(BCLog::REWARDS, "ConnectTip: Failed to load payable Snapshot Requests at height %d!\n", pindexNew->nHeight);
+        }
+    }
+
+#ifdef ENABLE_WALLET
+    if (vpwallets.size()) {
+        CheckRewardDistributions(vpwallets[0]);
+    }
+#endif
+    /** RVN END */
     return true;
 }
 

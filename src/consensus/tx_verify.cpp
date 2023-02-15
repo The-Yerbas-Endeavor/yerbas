@@ -9,6 +9,8 @@
 #include "primitives/transaction.h"
 #include "script/interpreter.h"
 #include "validation.h"
+#include <evo/specialtx.h>
+#include <evo/providertx.h>
 #include <wallet/wallet.h>
 #include <assets/assets.h>
 #include <assets/messages.h>
@@ -17,6 +19,32 @@
 #include "chain.h"
 #include "coins.h"
 #include "utilmoneystr.h"
+
+extern CChain chainActive;
+
+static bool checkSpecialTxFee(const CTransaction &tx, CAmount& nFeeTotal, CAmount& specialTxFee, bool fFeeVerify = false) {
+	if(tx.nVersion >= 3) {
+		switch(tx.nType){
+            case TRANSACTION_ASSET_REGISTER:
+            case TRANSACTION_ASSET_REISUE:{
+                CAssetTx asset;
+                if(GetTxPayload(tx.vExtraPayload, asset)) {
+                    if(!Params().IsAssetsActive(chainActive.Tip())) {
+                        return false;
+                    }
+                    
+                    if(fFeeVerify && asset.fee != GetAssetsFees(tx, asset.type)){
+                        return false;
+                    }
+                    specialTxFee = asset.fee;
+                    nFeeTotal -= specialTxFee;
+                }
+            }
+            break;
+        }
+	}
+    return true;
+}
 
 bool IsFinalTx(const CTransaction &tx, int nBlockHeight, int64_t nBlockTime)
 {
@@ -179,7 +207,6 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, int nHeig
     bool fContainsNewRestrictedAsset = false;
     bool fContainsRestrictedAssetReissue = false;
     bool fContainsNullAssetVerifierTx = false;
-    int nCountAddTagOuts = 0;
     for (const auto& txout : tx.vout)
     {
         if (txout.nValue < 0)
@@ -213,13 +240,6 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, int nHeig
 
                 if (mapNullDataTxCount.at(pair) > 1)
                     return state.DoS(100, false, REJECT_INVALID, "bad-txns-null-data-only-one-change-per-asset-address");
-
-                // For each qualifier that is added, there is a burn fee
-                if (IsAssetNameAQualifier(data.asset_name)) {
-                    if (data.flag == (int)QualifierType::ADD_QUALIFIER) {
-                        nCountAddTagOuts++;
-                    }
-                }
 
             } else if (txout.scriptPubKey.IsNullGlobalRestrictionAssetTxDataScript()) {
                 if (!GlobalAssetNullDataFromScript(txout.scriptPubKey, data))
@@ -320,12 +340,6 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, int nHeig
                 return state.DoS(0, false, REJECT_INVALID, "bad-asset-type-not-any-of-the-main-three");
             }
         }
-    }
-
-    // Check for Add Tag Burn Fee
-    if (nCountAddTagOuts) {
-        if (!tx.CheckAddingTagBurnFee(nCountAddTagOuts))
-            return state.DoS(100, false, REJECT_INVALID, "bad-txns-tx-doesn't-contain-required-burn-fee-for-adding-tags");
     }
 
     for (auto entry: mapNullDataTxCount) {
@@ -550,7 +564,7 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state, int nHeig
     return true;
 }
 
-bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, int nSpendHeight, CAmount& txfee)
+bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, int nSpendHeight, CAmount& txfee, CAmount& specialTxFee, bool fFeeVerify)
 {
     // are the actual inputs available?
     if (!inputs.HaveInputs(tx)) {
@@ -591,6 +605,16 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, CValidationState& state, c
     }
 
     txfee = txfee_aux;
+
+    if(!checkSpecialTxFee(tx, txfee, specialTxFee, fFeeVerify)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-txns-wrong-asset-fee-or-not-enable");
+
+    }
+
+    if(txfee < 0) {
+		return state.DoS(100, false, REJECT_INVALID, "bad-txns-fee-too-low", false,
+		            strprintf("fee (%s), special tx fee (%s)", FormatMoney(txfee), FormatMoney(specialTxFee)));
+	}
     return true;
 }
  /* RTM ASSETS START */ 

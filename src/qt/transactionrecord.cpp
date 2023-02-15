@@ -41,7 +41,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
     uint256 hash = wtx.GetHash();
     std::map<std::string, std::string> mapValue = wtx.mapValue;
 
-    if (nNet > 0 || wtx.IsCoinBase())
+    if (nNet >= 0 || wtx.IsCoinBase())
     {
         //
         // Credit
@@ -294,6 +294,8 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 isminetype mine = wallet->IsMine(txout);
 
                 sub.address = EncodeDestination(data.destination);
+                sub.txDest = sub.address.Get();
+                sub.strAddress = EncodeDestination(data.destination);
                 sub.assetName = data.assetName;
                 sub.credit = data.nAmount;
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
@@ -337,6 +339,8 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 TransactionRecord sub(hash, nTime);
                 sub.idx = data.vout;
                 sub.address = EncodeDestination(data.destination);
+                sub.txDest = sub.address.Get();
+                sub.strAddress = EncodeDestination(data.destination);
                 sub.assetName = data.assetName;
                 sub.credit = -data.nAmount;
                 sub.involvesWatchAddress = false;

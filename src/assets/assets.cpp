@@ -344,36 +344,36 @@ bool IsTypeCheckNameValid(const AssetType type, const std::string& name, std::st
         boost::split(parts, name, boost::is_any_of(MSG_CHANNEL_TAG_DELIMITER));
         bool valid = IsNameValidBeforeTag(parts.front()) && IsMsgChannelTagValid(parts.back());
         if (parts.back().size() > MAX_CHANNEL_NAME_LENGTH) { error = "Channel name is greater than max length of " + std::to_string(MAX_CHANNEL_NAME_LENGTH); return false; }
-        if (!valid) { error = "Message Channel name contains invalid characters (Valid characters are: A-Z 0-9 _ .) (special characters can't be the first or last characters)";  return false; }
+        if (!valid) { error = "Message Channel name contains invalid characters (Valid characters are: A-Z 0-9 _ .)\n(special characters can't be the first or last characters)";  return false; }
         return true;
     } else if (type == AssetType::OWNER) {
         if (name.size() > MAX_NAME_LENGTH) { error = "Name is greater than max length of " + std::to_string(MAX_NAME_LENGTH); return false; }
         bool valid = IsNameValidBeforeTag(name.substr(0, name.size() - 1));
-        if (!valid) { error = "Owner name contains invalid characters (Valid characters are: A-Z 0-9 _ .) (special characters can't be the first or last characters)";  return false; }
+        if (!valid) { error = "Owner name contains invalid characters (Valid characters are: A-Z 0-9 _ .)\n(special characters can't be the first or last characters)";  return false; }
         return true;
     } else if (type == AssetType::VOTE) {
         if (name.size() > MAX_NAME_LENGTH) { error = "Name is greater than max length of " + std::to_string(MAX_NAME_LENGTH); return false; }
         std::vector<std::string> parts;
         boost::split(parts, name, boost::is_any_of(VOTE_TAG_DELIMITER));
         bool valid = IsNameValidBeforeTag(parts.front()) && IsVoteTagValid(parts.back());
-        if (!valid) { error = "Vote name contains invalid characters (Valid characters are: A-Z 0-9 _ .) (special characters can't be the first or last characters)";  return false; }
+        if (!valid) { error = "Vote name contains invalid characters (Valid characters are: A-Z 0-9 _ .)\n(special characters can't be the first or last characters)";  return false; }
         return true;
     } else if (type == AssetType::QUALIFIER || type == AssetType::SUB_QUALIFIER) {
         if (name.size() > MAX_NAME_LENGTH) { error = "Name is greater than max length of " + std::to_string(MAX_NAME_LENGTH); return false; }
         bool valid = IsQualifierNameValidBeforeTag(name);
-        if (!valid) { error = "Qualifier name contains invalid characters (Valid characters are: A-Z 0-9 _ .) (# must be the first character, _ . special characters can't be the first or last characters)";  return false; }
+        if (!valid) { error = "Qualifier name contains invalid characters (Valid characters are: A-Z 0-9 _ .)\n(# must be the first character, _ . special characters can't be the first or last characters)";  return false; }
         return true;
     } else if (type == AssetType::RESTRICTED) {
         if (name.size() > MAX_NAME_LENGTH) { error = "Name is greater than max length of " + std::to_string(MAX_NAME_LENGTH); return false; }
         bool valid = IsRestrictedNameValid(name);
-        if (!valid) { error = "Restricted name contains invalid characters (Valid characters are: A-Z 0-9 _ .) ($ must be the first character, _ . special characters can't be the first or last characters)";  return false; }
+        if (!valid) { error = "Restricted name contains invalid characters (Valid characters are: A-Z 0-9 _ .)\n($ must be the first character, _ . special characters can't be the first or last characters)";  return false; }
         return true;
     } else {
         if (name.size() > MAX_NAME_LENGTH - 1) { error = "Name is greater than max length of " + std::to_string(MAX_NAME_LENGTH - 1); return false; }  //Assets and sub-assets need to leave one extra char for OWNER indicator
         if (!IsAssetNameASubasset(name) && name.size() < MIN_ASSET_LENGTH) { error = "Name must be contain " + std::to_string(MIN_ASSET_LENGTH) + " characters"; return false; }
         bool valid = IsNameValidBeforeTag(name);
         if (!valid && IsAssetNameASubasset(name) && name.size() < 3) { error = "Name must have at least 3 characters (Valid characters are: A-Z 0-9 _ .)";  return false; }
-        if (!valid) { error = "Name contains invalid characters (Valid characters are: A-Z 0-9 _ .) (special characters can't be the first or last characters)";  return false; }
+        if (!valid) { error = "Name contains invalid characters (Valid characters are: A-Z 0-9 _ .)\n(special characters can't be the first or last characters)";  return false; }
         return true;
     }
 }
@@ -911,8 +911,7 @@ bool CTransaction::IsNewAsset() const
     // New Asset transaction will always have at least three outputs.
     // 1. Owner Token output
     // 2. Issue Asset output
-    // 3. YERB Burn Fee
-    if (vout.size() < 3) {
+    if (vout.size() < 2 || nType != TRANSACTION_ASSET_REGISTER) {
         return false;
     }
 
@@ -935,7 +934,7 @@ bool CTransaction::IsNewAsset() const
 //! Make sure to call VerifyNewUniqueAsset if this call returns true
 bool CTransaction::IsNewUniqueAsset() const
 {
-    if (vout.size() == 0)
+    if (vout.size() == 0 || nType != TRANSACTION_ASSET_REGISTER)
         return false;
     // Check trailing outpoint for issue data with unique asset name
     if (!CheckIssueDataTx(vout[vout.size() - 1]))
@@ -950,8 +949,8 @@ bool CTransaction::IsNewUniqueAsset() const
 //! Call this function after IsNewUniqueAsset
 bool CTransaction::VerifyNewUniqueAsset(std::string& strError) const
 {
-    // Must contain at least 3 outpoints (YERB burn, owner change and one or more new unique assets that share a root (should be in trailing position))
-    if (vout.size() < 3) {
+    // Must contain at least 2 outpoints (owner change and one or more new unique assets that share a root (should be in trailing position))
+    if (vout.size() < 2) {
         strError  = "bad-txns-unique-vout-size-to-small";
         return false;
     }
@@ -993,20 +992,6 @@ bool CTransaction::VerifyNewUniqueAsset(std::string& strError) const
         return false;
     }
 
-    // check for burn outpoint (must account for each new asset)
-    bool fBurnOutpointFound = false;
-    for (auto out : vout) {
-        if (CheckIssueBurnTx(out, AssetType::UNIQUE, assetOutpointCount)) {
-            fBurnOutpointFound = true;
-            break;
-        }
-    }
-
-    if (!fBurnOutpointFound) {
-        strError = "bad-txns-issue-unique-asset-burn-outpoints-not-found";
-        return false;
-    }
-
     // check for owner change outpoint that matches root
     bool fOwnerOutFound = false;
     for (auto out : vout) {
@@ -1042,8 +1027,8 @@ bool CTransaction::VerifyNewUniqueAsset(std::string& strError) const
 
 //! To be called on CTransactions where IsNewAsset returns true
 bool CTransaction::VerifyNewAsset(std::string& strError) const {
-    // Issuing an Asset must contain at least 3 CTxOut( Yerbas Burn Tx, Any Number of other Outputs ..., Owner Asset Tx, New Asset Tx)
-    if (vout.size() < 3) {
+    // Issuing an Asset must contain at least 2 CTxOut(  Number of other Outputs ..., Owner Asset Tx, New Asset Tx)
+    if (vout.size() < 2) {
         strError = "bad-txns-issue-vout-size-to-small";
         return false;
     }
@@ -1079,20 +1064,6 @@ bool CTransaction::VerifyNewAsset(std::string& strError) const {
 
     if (strOwnerName != asset.strName + OWNER_TAG) {
         strError = "bad-txns-issue-owner-name-doesn't-match";
-        return false;
-    }
-
-    // Check for the Burn CTxOut in one of the vouts ( This is needed because the change CTxOut is places in a random position in the CWalletTx
-    bool fFoundIssueBurnTx = false;
-    for (auto out : vout) {
-        if (CheckIssueBurnTx(out, assetType)) {
-            fFoundIssueBurnTx = true;
-            break;
-        }
-    }
-
-    if (!fFoundIssueBurnTx) {
-        strError = "bad-txns-issue-burn-not-found";
         return false;
     }
 
@@ -1134,7 +1105,7 @@ bool CTransaction::VerifyNewAsset(std::string& strError) const {
 //! Make sure to call VerifyNewUniqueAsset if this call returns true
 bool CTransaction::IsNewMsgChannelAsset() const
 {
-    if (vout.size() == 0)
+    if (vout.size() == 0  || nType != TRANSACTION_ASSET_REGISTER)
         return false;
     // Check trailing outpoint for issue data with unique asset name
     if (!CheckIssueDataTx(vout[vout.size() - 1]))
@@ -1149,8 +1120,8 @@ bool CTransaction::IsNewMsgChannelAsset() const
 //! To be called on CTransactions where IsNewAsset returns true
 bool CTransaction::VerifyNewMsgChannelAsset(std::string &strError) const
 {
-    // Issuing an Asset must contain at least 3 CTxOut( Yerbas Burn Tx, Any Number of other Outputs ..., Owner Asset Tx, New Asset Tx)
-    if (vout.size() < 3) {
+    // Issuing an Asset must contain at least 2 CTxOut(  Number of other Outputs ..., Owner Asset Tx, New Asset Tx)
+    if (vout.size() < 2) {
         strError  = "bad-txns-issue-msgchannel-vout-size-to-small";
         return false;
     }
@@ -1171,20 +1142,6 @@ bool CTransaction::VerifyNewMsgChannelAsset(std::string &strError) const
 
     AssetType assetType;
     IsAssetNameValid(asset.strName, assetType);
-
-    // Check for the Burn CTxOut in one of the vouts ( This is needed because the change CTxOut is places in a random position in the CWalletTx
-    bool fFoundIssueBurnTx = false;
-    for (auto out : vout) {
-        if (CheckIssueBurnTx(out, AssetType::MSGCHANNEL)) {
-            fFoundIssueBurnTx = true;
-            break;
-        }
-    }
-
-    if (!fFoundIssueBurnTx) {
-        strError = "bad-txns-issue-msgchannel-burn-not-found";
-        return false;
-    }
 
     // check for owner change outpoint that matches root
     std::string root = GetParentName(asset.strName);
@@ -1223,7 +1180,7 @@ bool CTransaction::VerifyNewMsgChannelAsset(std::string &strError) const
 //! Make sure to call VerifyNewQualifierAsset if this call returns true
 bool CTransaction::IsNewQualifierAsset() const
 {
-    if (vout.size() == 0)
+    if (vout.size() == 0 || nType != TRANSACTION_ASSET_REGISTER)
         return false;
     // Check trailing outpoint for issue data with unique asset name
     if (!CheckIssueDataTx(vout[vout.size() - 1]))
@@ -1238,7 +1195,7 @@ bool CTransaction::IsNewQualifierAsset() const
 //! To be called on CTransactions where IsNewQualifierAsset returns true
 bool CTransaction::VerifyNewQualfierAsset(std::string &strError) const
 {
-    // Issuing an Asset must contain at least 2 CTxOut( Yerbas Burn Tx, New Asset Tx, Any Number of other Outputs...)
+    // Issuing an Asset must contain at least 2 CTxOut( New Asset Tx, Any Number of other Outputs...)
     if (vout.size() < 2) {
         strError  = "bad-txns-issue-qualifier-vout-size-to-small";
         return false;
@@ -1260,20 +1217,6 @@ bool CTransaction::VerifyNewQualfierAsset(std::string &strError) const
 
     AssetType assetType;
     IsAssetNameValid(asset.strName, assetType);
-
-    // Check for the Burn CTxOut in one of the vouts ( This is needed because the change CTxOut is places in a random position in the CWalletTx
-    bool fFoundIssueBurnTx = false;
-    for (auto out : vout) {
-        if (CheckIssueBurnTx(out, assetType)) {
-            fFoundIssueBurnTx = true;
-            break;
-        }
-    }
-
-    if (!fFoundIssueBurnTx) {
-        strError = "bad-txns-issue-qualifier-burn-not-found";
-        return false;
-    }
 
     if (assetType == AssetType::SUB_QUALIFIER) {
         // Check that there is an asset transfer with the parent name, qualifier use just the parent name, they don't use not parent + !
@@ -1314,7 +1257,7 @@ bool CTransaction::VerifyNewQualfierAsset(std::string &strError) const
 //! Make sure to call VerifyNewAsset if this call returns true
 bool CTransaction::IsNewRestrictedAsset() const
 {
-    if (vout.size() == 0)
+    if (vout.size() == 0 || nType != TRANSACTION_ASSET_REGISTER)
         return false;
     // Check trailing outpoint for issue data with unique asset name
     if (!CheckIssueDataTx(vout[vout.size() - 1]))
@@ -1350,20 +1293,6 @@ bool CTransaction::VerifyNewRestrictedAsset(std::string& strError) const {
 
     AssetType assetType;
     IsAssetNameValid(asset.strName, assetType);
-
-    // Check for the Burn CTxOut in one of the vouts ( This is needed because the change CTxOut is places in a random position in the CWalletTx
-    bool fFoundIssueBurnTx = false;
-    for (auto out : vout) {
-        if (CheckIssueBurnTx(out, assetType)) {
-            fFoundIssueBurnTx = true;
-            break;
-        }
-    }
-
-    if (!fFoundIssueBurnTx) {
-        strError = "bad-txns-issue-restricted-burn-not-found";
-        return false;
-    }
 
     // Check that there is an asset transfer with the parent name, restricted assets use the root owner token. So issuing $TOKEN requires TOKEN!
     bool fRootOwnerOutFound = false;
@@ -1447,7 +1376,7 @@ bool CTransaction::GetVerifierStringFromTx(CNullAssetTxVerifierString& verifier,
 
 bool CTransaction::IsReissueAsset() const
 {
-    if (vout.size() == 0)
+    if (vout.size() == 0 || nType != TRANSACTION_ASSET_REISUE)
         return false;
     // Check for the reissue asset data CTxOut. This will always be the last output in the transaction
     if (!CheckReissueDataTx(vout[vout.size() - 1]))
@@ -1459,8 +1388,8 @@ bool CTransaction::IsReissueAsset() const
 //! To be called on CTransactions where IsReissueAsset returns true
 bool CTransaction::VerifyReissueAsset(std::string& strError) const
 {
-    // Reissuing an Asset must contain at least 3 CTxOut ( Yerbas Burn Tx, Any Number of other Outputs ..., Reissue Asset Tx, Owner Asset Change Tx)
-    if (vout.size() < 3) {
+    // Reissuing an Asset must contain at least 2 CTxOut (  Number of other Outputs ..., Reissue Asset Tx, Owner Asset Change Tx)
+    if (vout.size() < 2) {
         strError  = "bad-txns-vout-size-to-small";
         return false;
     }
@@ -1508,20 +1437,6 @@ bool CTransaction::VerifyReissueAsset(std::string& strError) const
         return false;
     }
 
-    // Check for the Burn CTxOut in one of the vouts ( This is needed because the change CTxOut is placed in a random position in the CWalletTx
-    bool fFoundReissueBurnTx = false;
-    for (auto out : vout) {
-        if (CheckReissueBurnTx(out)) {
-            fFoundReissueBurnTx = true;
-            break;
-        }
-    }
-
-    if (!fFoundReissueBurnTx) {
-        strError = "bad-txns-reissue-burn-outpoint-not-found";
-        return false;
-    }
-
     // Loop through all of the vouts and make sure only the expected asset creations are taking place
     int nTransfers = 0;
     int nOwners = 0;
@@ -1535,20 +1450,6 @@ bool CTransaction::VerifyReissueAsset(std::string& strError) const
     }
 
     return true;
-}
-
-bool CTransaction::CheckAddingTagBurnFee(const int& count) const
-{
-    // check for burn outpoint )
-    bool fBurnOutpointFound = false;
-    for (auto out : vout) {
-        if (CheckIssueBurnTx(out, AssetType::NULL_ADD_QUALIFIER, count)) {
-            fBurnOutpointFound = true;
-            break;
-        }
-    }
-
-   return fBurnOutpointFound;
 }
 
 CAssetTransfer::CAssetTransfer(const std::string& strAssetName, const CAmount& nAmount, const std::string& message, const int64_t& nExpireTime)
@@ -3067,69 +2968,6 @@ size_t CAssetsCache::GetCacheSizeV2() const
     return size;
 }
 
-bool CheckIssueBurnTx(const CTxOut& txOut, const AssetType& type, const int numberIssued)
-{
-    if (type == AssetType::REISSUE || type == AssetType::VOTE || type == AssetType::OWNER || type == AssetType::INVALID)
-        return false;
-
-    CAmount burnAmount = 0;
-    std::string burnAddress = "";
-
-    // Get the burn address and amount for the type of asset
-    burnAmount = GetBurnAmount(type);
-    burnAddress = GetBurnAddress(type);
-
-    // If issuing multiple (unique) assets need to burn for each
-    burnAmount *= numberIssued;
-
-    // Check if script satisfies the burn amount
-    if (!(txOut.nValue == burnAmount))
-        return false;
-
-    // Extract the destination
-    CTxDestination destination;
-    if (!ExtractDestination(txOut.scriptPubKey, destination))
-        return false;
-
-    // Verify destination is valid
-    if (!IsValidDestination(destination))
-        return false;
-
-    // Check destination address is the burn address
-    auto strDestination = EncodeDestination(destination);
-    if (!(strDestination == burnAddress))
-        return false;
-
-    return true;
-}
-
-bool CheckIssueBurnTx(const CTxOut& txOut, const AssetType& type)
-{
-    return CheckIssueBurnTx(txOut, type, 1);
-}
-
-bool CheckReissueBurnTx(const CTxOut& txOut)
-{
-    // Check the first transaction and verify that the correct YERB Amount
-    if (txOut.nValue != GetBurnAmount(0))
-        return false;
-
-    // Extract the destination
-    CTxDestination destination;
-    if (!ExtractDestination(txOut.scriptPubKey, destination))
-        return false;
-
-    // Verify destination is valid
-    if (!IsValidDestination(destination))
-        return false;
-
-    // Check destination address is the correct burn address
-    if (EncodeDestination(destination) != "rYEPqoJ64bTGndjGwtYxmEvHqiL7mbyNAE")
-        return false;
-
-    return true;
-}
-
 bool CheckIssueDataTx(const CTxOut& txOut)
 {
     // Verify 'yerbq' is in the transaction
@@ -3591,7 +3429,7 @@ void GetAllMyAssets(CWallet* pwallet, std::vector<std::string>& names, int nMinC
         return;
 
     std::map<std::string, std::vector<COutput> > mapAssets;
-    pwallet->AvailableAssets(mapAssets, true, nullptr, 1, MAX_MONEY, MAX_MONEY, 0, nMinConf); // Set the mincof, set the rest to the defaults
+    pwallet->AvailableAssets(mapAssets, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, nMinConf); // Set the mincof, set the rest to the defaults
 
     for (auto item : mapAssets) {
         bool isOwner = IsAssetNameAnOwner(item.first);
@@ -3608,30 +3446,119 @@ void GetAllMyAssets(CWallet* pwallet, std::vector<std::string>& names, int nMinC
 }
 #endif
 
-
-CAmount GetBurnAmount(const int nType)
-{
-    return GetBurnAmount((AssetType(nType)));
-}
-
-CAmount GetBurnAmount(const AssetType type)
-{
-    return 1000000000;
-    /*if(!sporkManager.IsSporkActive(SPORK_22_SPECIAL_TX_FEE)) {
-        return 0;
+CAmount GetAssetsFees(const CTransaction& tx, const int nType){
+    AssetType type = AssetType::INVALID;
+    switch (AssetType(nType)) {
+        case AssetType::ROOT:
+        case AssetType::SUB:{
+            if (tx.IsNewAsset()) {
+                CNewAsset asset;
+                std::string strAddress;
+                if (AssetFromTransaction(tx, asset, strAddress)) {
+                    IsAssetNameValid(asset.strName, type);
+                } 
+            } 
+            break;
+        }
+        case AssetType::MSGCHANNEL:{
+            if (tx.IsNewMsgChannelAsset()) {
+                type = AssetType::MSGCHANNEL;
+            }
+            break;
+        }
+        case AssetType::OWNER:
+            return 0;
+        case AssetType::UNIQUE:{
+            if (tx.IsNewUniqueAsset()) {
+                int numberIssued = 0;
+                for (auto out : tx.vout) {
+                    CNewAsset asset;
+                    std::string strAddress;
+                    if (IsScriptNewUniqueAsset(out.scriptPubKey)) {
+                        numberIssued++;
+                    }
+                }
+                return GetAssetsFees(AssetType::UNIQUE) * numberIssued;
+            }
+            break;
+        }
+        case AssetType::VOTE:
+            return 0;
+            break;
+        case AssetType::REISSUE:{
+            if (tx.IsReissueAsset()) {
+                type = AssetType::REISSUE;
+            }
+            break;
+        }
+        case AssetType::QUALIFIER:
+        case AssetType::SUB_QUALIFIER:{
+            if (tx.IsNewQualifierAsset()) {
+                CNewAsset asset;
+                std::string strAddress;
+                if (QualifierAssetFromTransaction(tx, asset, strAddress)) {
+                    IsAssetNameValid(asset.strName, type);
+                } else {
+                    std::cout << "failed to get QualifierAssetFromTransaction" << std::endl;
+                }
+            }
+            break;
+        }
+        case AssetType::RESTRICTED:{
+            if (tx.IsNewRestrictedAsset()) {
+                CNewAsset asset;
+                std::string strAddress;
+                if (RestrictedAssetFromTransaction(tx, asset, strAddress)){
+                    IsAssetNameValid(asset.strName, type);  
+                }
+            }
+            break;
+        }
+        case AssetType::NULL_ADD_QUALIFIER:
+            return 0;
+        break;
     }
-    int64_t specialTxValue = sporkManager.GetSporkValue(SPORK_22_SPECIAL_TX_FEE);
-    return (specialTxValue & 0xffff) * COIN;
-*/}
-
-std::string GetBurnAddress(const int nType)
-{
-    return GetBurnAddress((AssetType(nType)));
+    if(AssetType(nType) != type){ //check if type is corrected filled
+    //std::cout << "ERROR: got type: " << (uint16_t)type << " expected: " << nType << std::endl;
+    return 0;
+    }
+    
+    return GetAssetsFees(type);
 }
 
-std::string GetBurnAddress(const AssetType type)
+CAmount GetAssetsFees(const int nType)
 {
-    return "rYEPqoJ64bTGndjGwtYxmEvHqiL7mbyNAE";
+    return GetAssetsFees((AssetType(nType)));
+}
+
+CAmount GetAssetsFees(const AssetType type)
+{
+    switch (type) {
+        case AssetType::ROOT:
+            return 69.420 * COIN;
+        case AssetType::SUB:
+            return 20 * COIN;
+        case AssetType::MSGCHANNEL:
+            return 4.2 * COIN;
+        case AssetType::OWNER:
+            return 0;
+        case AssetType::UNIQUE:
+            return 0.2 * COIN;
+        case AssetType::VOTE:
+            return 0;
+        case AssetType::REISSUE:
+            return 20 * COIN;
+        case AssetType::QUALIFIER:
+            return 42.0 * COIN;
+        case AssetType::SUB_QUALIFIER:
+            return 4 * COIN;
+        case AssetType::RESTRICTED:
+            return 69.420 * COIN;
+        case AssetType::NULL_ADD_QUALIFIER:
+            return 0;
+        default:
+            return 0;
+    }
 }
 
 //! This will get the amount that an address for a certain asset contains from the database if they cache doesn't already have it
@@ -3671,7 +3598,7 @@ bool GetAllMyAssetBalances(std::map<std::string, std::vector<COutput> >& outputs
         return false;
 
     // Get the map of assetnames to outputs
-    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_MONEY, MAX_MONEY, 0, confirmations);
+    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
 
     // Loop through all pairs of Asset Name -> vector<COutput>
     for (const auto& pair : outputs) {
@@ -3697,7 +3624,7 @@ bool GetMyAssetBalance(const std::string& name, CAmount& balance, const int& con
 
     // Get the map of assetnames to outputs
     std::map<std::string, std::vector<COutput> > outputs;
-    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_MONEY, MAX_MONEY, 0, confirmations);
+    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
 
     // Loop through all pairs of Asset Name -> vector<COutput>
     if (outputs.count(name)) {
@@ -3823,13 +3750,11 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
     }
 
     // Assign the correct burn amount and the correct burn address depending on the type of asset issuance that is happening
-    CAmount burnAmount = GetBurnAmount(assetType) * assets.size();
-    CScript scriptPubKey = GetScriptForDestination(DecodeDestination(GetBurnAddress(assetType)));
-
+    CAmount feesAmount = GetAssetsFees(assetType) * assets.size();
     CAmount curBalance = pwallet->GetBalance();
 
     // Check to make sure the wallet has the YERB required by the burnAmount
-    if (curBalance < burnAmount) {
+    if (curBalance < feesAmount) {
         error = std::make_pair(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
         return false;
     }
@@ -3846,9 +3771,6 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
     std::vector<CRecipient> vecSend;
     int nChangePosRet = -1;
     bool fSubtractFeeFromAmount = false;
-
-    CRecipient recipient = {scriptPubKey, burnAmount, fSubtractFeeFromAmount};
-    vecSend.push_back(recipient);
 
     // If the asset is a subasset or unique asset. We need to send the ownertoken change back to ourselfs
     if (assetType == AssetType::SUB || assetType == AssetType::UNIQUE || assetType == AssetType::MSGCHANNEL) {
@@ -3926,7 +3848,7 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
     }
 
     if (!pwallet->CreateTransactionWithAssets(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strTxError, coinControl, assets, DecodeDestination(address), assetType)) {
-        if (!fSubtractFeeFromAmount && burnAmount + nFeeRequired > curBalance)
+        if (!fSubtractFeeFromAmount && feesAmount + nFeeRequired > curBalance)
             strTxError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         error = std::make_pair(RPC_WALLET_ERROR, strTxError);
         return false;
@@ -4029,10 +3951,10 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
     CAmount curBalance = pwallet->GetBalance();
 
     // Get the current burn amount for issuing an asset
-    CAmount burnAmount = GetBurnAmount(0);
+    CAmount feesAmount = GetAssetsFees(AssetType::REISSUE);
 
     // Check to make sure the wallet has the YERB required by the burnAmount
-    if (curBalance < burnAmount) {
+    if (curBalance < feesAmount) {
         error = std::make_pair(RPC_WALLET_INSUFFICIENT_FUNDS, "Insufficient funds");
         return false;
     }
@@ -4100,16 +4022,11 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
         }
     }
 
-    // Get the script for the burn address
-    CScript scriptPubKeyBurn = GetScriptForDestination(DecodeDestination(GetBurnAddress(0)));
-
     // Create and send the transaction
-    CRecipient recipient = {scriptPubKeyBurn, burnAmount, fSubtractFeeFromAmount};
-    CRecipient recipient2 = {scriptTransferOwnerAsset, 0, fSubtractFeeFromAmount};
+    CRecipient recipient = {scriptTransferOwnerAsset, 0, fSubtractFeeFromAmount};
     vecSend.push_back(recipient);
-    vecSend.push_back(recipient2);
     if (!pwallet->CreateTransactionWithReissueAsset(vecSend, wtxNew, reservekey, nFeeRequired, nChangePosRet, strTxError, coinControl, reissueAsset, DecodeDestination(address))) {
-        if (!fSubtractFeeFromAmount && burnAmount + nFeeRequired > curBalance)
+        if (!fSubtractFeeFromAmount && feesAmount + nFeeRequired > curBalance)
             strTxError = strprintf("Error: This transaction requires a transaction fee of at least %s", FormatMoney(nFeeRequired));
         error = std::make_pair(RPC_WALLET_ERROR, strTxError);
         return false;
@@ -4217,7 +4134,6 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
     // If assetTxData is not nullptr, the user wants to add some OP_YERB_ASSET data transactions into the transaction
     if (nullAssetTxData) {
         std::string strError = "";
-        int nAddTagCount = 0;
         for (auto pair : *nullAssetTxData) {
 
             if (IsAssetNameAQualifier(pair.first.asset_name)) {
@@ -4225,8 +4141,6 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
                     error = std::make_pair(RPC_INVALID_REQUEST, strError);
                     return false;
                 }
-                if (pair.first.flag == (int)QualifierType::ADD_QUALIFIER)
-                    nAddTagCount++;
             } else if (IsAssetNameAnRestricted(pair.first.asset_name)) {
                 if (!VerifyRestrictedAddressChange(*passets, pair.first, pair.second, strError)) {
                     error = std::make_pair(RPC_INVALID_REQUEST, strError);
@@ -4240,13 +4154,7 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
             CRecipient recipient = {dataScript, 0, false};
             vecSend.push_back(recipient);
         }
-
-        // Add the burn recipient for adding tags to addresses
-        if (nAddTagCount) {
-            CScript addTagBurnScript = GetScriptForDestination(DecodeDestination(GetBurnAddress(AssetType::NULL_ADD_QUALIFIER)));
-            CRecipient addTagBurnRecipient = {addTagBurnScript, GetBurnAmount(AssetType::NULL_ADD_QUALIFIER) * nAddTagCount, false};
-            vecSend.push_back(addTagBurnRecipient);
-        }
+ 
     }
 
     // nullGlobalRestiotionData, the user wants to add OP_YERB_ASSET OP_YERB_ASSET OP_YERB_ASSETS data transaction to the transaction
@@ -5233,8 +5141,8 @@ bool CheckNewAsset(const CNewAsset& asset, std::string& strError)
         return false;
     }
 
-    if (asset.nAmount > MAX_MONEY) {
-        strError = _("Invalid parameter: asset amount greater than max money: ") + std::to_string(MAX_MONEY / COIN);
+    if (asset.nAmount > MAX_ASSET_MONEY) {
+        strError = _("Invalid parameter: asset amount greater than max money: ") + std::to_string(MAX_ASSET_MONEY / COIN);
         return false;
     }
 
@@ -5305,7 +5213,7 @@ bool CheckReissueAsset(const CReissueAsset& asset, std::string& strError)
 {
     strError = "";
 
-    if (asset.nAmount < 0 || asset.nAmount >= MAX_MONEY) {
+    if (asset.nAmount < 0 || asset.nAmount >= MAX_ASSET_MONEY) {
         strError = _("Unable to reissue asset: amount must be 0 or larger");
         return false;
     }
@@ -5315,19 +5223,7 @@ bool CheckReissueAsset(const CReissueAsset& asset, std::string& strError)
         return false;
     }
 
-    /// -------- TESTNET ONLY ---------- ///
-    // Testnet has a couple blocks that have invalid nReissue values before constriants were created
-    bool fSkip = false;
-    if (Params().NetworkIDString() == CBaseChainParams::TESTNET) {
-        if (asset.strName == "GAMINGWEB" && asset.nReissuable == 109) {
-            fSkip = true;
-        } else if (asset.strName == "UINT8" && asset.nReissuable == -47) {
-            fSkip = true;
-        }
-    }
-    /// -------- TESTNET ONLY ---------- ///
-
-    if (!fSkip && asset.nReissuable != 0 && asset.nReissuable != 1) {
+    if (asset.nReissuable != 0 && asset.nReissuable != 1) {
         strError = _("Unable to reissue asset: reissuable must be 0 or 1");
         return false;
     }
@@ -5369,7 +5265,7 @@ bool ContextualCheckReissueAsset(CAssetsCache* assetCache, const CReissueAsset& 
         return false;
     }
 
-    if (prev_asset.nAmount + reissue_asset.nAmount > MAX_MONEY) {
+    if (prev_asset.nAmount + reissue_asset.nAmount > MAX_ASSET_MONEY) {
         strError = _("Unable to reissue asset: asset_name '") + reissue_asset.strName +
                    _("' the amount trying to reissue is to large");
         return false;
@@ -5454,7 +5350,7 @@ bool ContextualCheckReissueAsset(CAssetsCache* assetCache, const CReissueAsset& 
             return false;
         }
 
-        if (prev_asset.nAmount + reissue_asset.nAmount > MAX_MONEY) {
+        if (prev_asset.nAmount + reissue_asset.nAmount > MAX_ASSET_MONEY) {
             strError = _("Unable to reissue asset: asset_name '") + reissue_asset.strName +
                        _("' the amount trying to reissue is to large");
             return false;

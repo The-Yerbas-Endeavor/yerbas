@@ -346,7 +346,10 @@ void AssetsDialog::on_sendButton_clicked()
         questionString.append(tr("added as transaction fee"));
 
         // append transaction size
-        //questionString.append(" (" + QString::number((double)GetVirtualTransactionSize(tx) / 1000) + " kB)");
+        questionString.append("<hr />");
+        questionString.append(tr("Transaction size: %1").arg(QString::number((double)tx.tx->GetTotalSize() / 1000)) + " kB");
+        
+        //questionString.append(" (" + QString::number(tx.tx->GetTotalSize() / 1000) + " kB)");
     }
 
     SendConfirmationDialog confirmationDialog(tr("Confirm send assets"),

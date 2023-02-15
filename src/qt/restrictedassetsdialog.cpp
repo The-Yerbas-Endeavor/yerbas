@@ -70,10 +70,9 @@ void RestrictedAssetsDialog::setModel(WalletModel *_model)
     this->model = _model;
 
     if(_model && _model->getOptionsModel()) {
-        setBalance(_model->getBalance(), _model->getUnconfirmedBalance(), _model->getImmatureBalance(),
+        setBalance(_model->getBalance(), _model->getUnconfirmedBalance(), _model->getImmatureBalance(), _model->getAnonymizedBalance(),
                    _model->getWatchBalance(), _model->getWatchUnconfirmedBalance(), _model->getWatchImmatureBalance());
-        connect(_model, SIGNAL(balanceChanged(CAmount, CAmount, CAmount, CAmount, CAmount, CAmount)), this,
-                SLOT(setBalance(CAmount, CAmount, CAmount, CAmount, CAmount, CAmount)));
+        connect(_model, SIGNAL(balanceChanged(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)), this, SLOT(setBalance(CAmount,CAmount,CAmount,CAmount,CAmount,CAmount,CAmount)));
         connect(_model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
         updateDisplayUnit();
 
@@ -97,6 +96,8 @@ void RestrictedAssetsDialog::setModel(WalletModel *_model)
         ui->myAddressList->horizontalHeader()->setStretchLastSection(true);
         ui->myAddressList->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
         ui->myAddressList->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        ui->myAddressList->setSelectionBehavior(QAbstractItemView::SelectRows);
+        ui->myAddressList->setSelectionMode(QAbstractItemView::ContiguousSelection);
         ui->myAddressList->setAlternatingRowColors(true);
         ui->myAddressList->setSortingEnabled(true);
         ui->myAddressList->verticalHeader()->hide();
@@ -104,6 +105,8 @@ void RestrictedAssetsDialog::setModel(WalletModel *_model)
         ui->listAssets->setModel(assetFilterProxy);
         ui->listAssets->horizontalHeader()->setStretchLastSection(true);
         ui->listAssets->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        ui->listAssets->setSelectionBehavior(QAbstractItemView::SelectRows);
+        ui->listAssets->setSelectionMode(QAbstractItemView::ContiguousSelection);
         ui->listAssets->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         ui->listAssets->setAlternatingRowColors(true);
         ui->listAssets->verticalHeader()->hide();
@@ -143,7 +146,7 @@ QWidget *RestrictedAssetsDialog::setupTabChain(QWidget *prev)
     return prev;
 }
 
-void RestrictedAssetsDialog::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance,
+void RestrictedAssetsDialog::setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
                                  const CAmount& watchBalance, const CAmount& watchUnconfirmedBalance, const CAmount& watchImmatureBalance)
 {
     Q_UNUSED(unconfirmedBalance);
@@ -163,7 +166,7 @@ void RestrictedAssetsDialog::setBalance(const CAmount& balance, const CAmount& u
 
 void RestrictedAssetsDialog::updateDisplayUnit()
 {
-    setBalance(model->getBalance(), 0, 0, 0, 0, 0);
+    setBalance(model->getBalance(), 0, 0, 0, 0, 0, 0);
 }
 
 void RestrictedAssetsDialog::freezeAddressClicked()
@@ -280,7 +283,10 @@ void RestrictedAssetsDialog::freezeAddressClicked()
         questionString.append(tr("added as transaction fee"));
 
         // append transaction size
-        //questionString.append(" (" + QString::number((double)GetVirtualTransactionSize(transaction) / 1000) + " kB)");
+        questionString.append("<hr />");
+        questionString.append(tr("Transaction size: %1").arg(QString::number((double)transaction.tx->GetTotalSize() / 1000)) + " kB");
+                
+        //questionString.append(" (" + QString::number(transaction.tx->GetTotalSize() / 1000) + " kB)");
     }
 
     // add total amount in all subdivision units
@@ -399,7 +405,10 @@ void RestrictedAssetsDialog::assignQualifierClicked()
         questionString.append(tr("added as transaction fee"));
 
         // append transaction size
-        //questionString.append(" (" + QString::number((double)GetVirtualTransactionSize(transaction) / 1000) + " kB)");
+        questionString.append("<hr />");
+        questionString.append(tr("Transaction size: %1").arg(QString::number((double)transaction.tx->GetTotalSize() / 1000)) + " kB");
+        
+       // questionString.append(" (" + QString::number(transaction.tx->GetTotalSize() / 1000) + " kB)");
     }
 
     // add total amount in all subdivision units
@@ -413,7 +422,7 @@ void RestrictedAssetsDialog::assignQualifierClicked()
     }
     questionString.append(tr("Total Amount %1")
                                   .arg(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), totalAmount)));
-    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />(=%2)</span>")
+    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />%2</span>")
                                   .arg(alternativeUnits.join(" " + tr("or") + "<br />")));
 
     QString addString = tr("Confirm adding qualifier");

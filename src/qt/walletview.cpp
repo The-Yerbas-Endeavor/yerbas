@@ -164,6 +164,9 @@ void WalletView::setBitcoinGUI(BitcoinGUI *gui)
 
         // Connect HD enabled state signal
         connect(this, SIGNAL(hdEnabledStatusChanged(int)), gui, SLOT(setHDStatus(int)));
+
+        // Pass through checkAssets calls to the GUI
+        connect(this, SIGNAL(checkAssets()), gui, SLOT(checkAssets()));
     }
 }
 
@@ -256,6 +259,9 @@ for (int i = start; i <= end; i++) {
 
     Q_EMIT incomingTransaction(date, walletModel->getOptionsModel()->getDisplayUnit(), amount, type, address, label, assetName);
  }
+    overviewPage->showAssets();
+    transactionView->showAssets();
+    Q_EMIT checkAssets();
     assetsPage->processNewTransaction();
     createAssetsPage->updateAssetList();
     manageAssetsPage->updateAssetsList();
@@ -264,6 +270,7 @@ for (int i = start; i <= end; i++) {
 void WalletView::gotoOverviewPage()
 {
     setCurrentWidget(overviewPage);
+    Q_EMIT checkAssets();
 }
 
 void WalletView::gotoHistoryPage()

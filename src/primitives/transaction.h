@@ -24,7 +24,8 @@ enum {
     TRANSACTION_COINBASE = 5,
     TRANSACTION_QUORUM_COMMITMENT = 6,
 	TRANSACTION_FUTURE = 7,
-    TRANSACTION_ASSET_REGISTER = 8,
+    TRANSACTION_ASSET_REGISTER= 8,
+    TRANSACTION_ASSET_REISUE= 9,
 };
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */
@@ -281,8 +282,6 @@ public:
     bool VerifyNewQualfierAsset(std::string &strError) const;
     bool IsNewRestrictedAsset() const;
     bool VerifyNewRestrictedAsset(std::string& strError) const;
-
-    bool CheckAddingTagBurnFee(const int& count) const;
 
     bool GetVerifierStringFromTx(CNullAssetTxVerifierString& verifier, std::string& strError) const;
     bool GetVerifierStringFromTx(CNullAssetTxVerifierString& verifier, std::string& strError, bool& fNotFound) const;

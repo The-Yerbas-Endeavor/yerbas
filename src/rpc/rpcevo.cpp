@@ -1114,7 +1114,7 @@ UniValue createConfigFile(string blsPrivateKey, string ip, string address) {
 	string password = generateRandomString(20, true);
 	configFile << "rpcuser=" << username << endl;
 	configFile << "rpcpassword=" << password << endl;
-	configFile << "rpcport=8484\n";
+	configFile << "rpcport=9494\n";
 	configFile << "rpcallowip=127.0.0.1\n";
 	configFile << "server=1\n";
 	configFile << "daemon=1\n";

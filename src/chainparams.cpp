@@ -502,6 +502,7 @@ public:
         vector<FounderRewardStructure> rewardStructures = {  {INT_MAX, 5}// 5% founder/dev fee forever
                                         										   };
         consensus.nFounderPayment = FounderPayment(rewardStructures, 420);
+        consensus.nAssetsRewardShare = Consensus::AssetsRewardShare(0.8,0.2,0.0);
         consensus.nCollaterals = SmartnodeCollaterals(
           { {69420, 10000 * COIN},
             {100420, 16000 * COIN},
@@ -588,7 +589,7 @@ public:
         consensus.BIPCSVEnabled = true;
         consensus.BIP147Enabled = true;
      //   consensus.DIP0003EnforcementHeight = 7300;
-        consensus.powLimit = uint256S("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // ~uint256(0) >> 20
+        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // ~uint256(0) >> 20
         consensus.nPowTargetTimespan = 24 * 60 * 60; // Yerbas: 1 day
         consensus.nPowTargetSpacing = 60; // Yerbas: 1 minutes
         consensus.fPowAllowMinDifficultyBlocks = true;
@@ -610,15 +611,15 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0"); // 0
 
         pchMessageStart[0] = 0x7a;//t
-        pchMessageStart[0] = 0x79;//y
-        pchMessageStart[1] = 0x65;//e
-        pchMessageStart[2] = 0x72;//r
-        nDefaultPort = 20421;
+        pchMessageStart[1] = 0x79;//y
+        pchMessageStart[2] = 0x65;//e
+        pchMessageStart[3] = 0x72;//r
+        nDefaultPort = 21421;
         nPruneAfterHeight = 1000;
-  //      FindMainNetGenesisBlock(1651158966, 0x20001fff, "test");
-        genesis = CreateGenesisBlock(1651158966, 5025, 0x20001fff, 4, 5000 * COIN);
+        //FindMainNetGenesisBlock(1675905317, 0x20001fff, "test");
+        genesis = CreateGenesisBlock(1675905317, 669, 0x20001fff, 4, 5000 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0xdfcc020dd96156eb9246cb7a3239169cbf45f0896cbc02a646905f5c8217b6bd"));
+        assert(consensus.hashGenesisBlock == uint256S("0xe3a4fabed29dfc45e9aebe696453545ee2e198bae150e4c115fcc80ef3298554"));
         assert(genesis.hashMerkleRoot == uint256S("0xbfe15871764bf35d6391308fc2dab8846f177ba563d256b1764271987ec99bc0"));
 
         vFixedSeeds.clear();
@@ -662,6 +663,7 @@ public:
         vector<FounderRewardStructure> rewardStructures = {  {INT_MAX, 5}// 5% founder/dev fee forever
                                                 										   };
 		consensus.nFounderPayment = FounderPayment(rewardStructures, 200, "rbKpULX5CgTcwJ7KbzY3BTwzEqwpFYHqXd");
+        consensus.nAssetsRewardShare = Consensus::AssetsRewardShare(0.8,0.2,0.0);
 
         fDefaultConsistencyChecks = false;
         fRequireStandard = false;
@@ -675,7 +677,7 @@ public:
         nPoolMaxParticipants = 5;
         nFulfilledRequestExpireTime = 5*60; // fulfilled requests expire in 5 minutes
 
-        vSporkAddresses = {"rqFiUnVGuHiyHEjcRKvajmYnetjdGPyz1o"};
+        vSporkAddresses = {"rWToSNnngGUfA1GP578U3HNEL5itQnkGV8"};
         nMinSporkKeys = 1;
         fBIP9CheckSmartnodesUpgraded = true;
 
@@ -686,7 +688,7 @@ public:
         };
 
         chainTxData = ChainTxData{
-        	1618814931, // * UNIX timestamp of last known number of transactions (Block 213054)
+        	1675905317, // * UNIX timestamp of last known number of transactions (Block 213054)
             0,    // * total number of transactions between genesis and that timestamp
                         //   (the tx=... number in the SetBestChain debug.log lines)
             0.01        // * estimated number of transactions per second after that timestamp
@@ -762,6 +764,7 @@ public:
         vector<FounderRewardStructure> rewardStructures = {  {INT_MAX, 5}// 5% founder/dev fee forever
                                                                 										   };
 		consensus.nFounderPayment = FounderPayment(rewardStructures, 200);
+        consensus.nAssetsRewardShare = Consensus::AssetsRewardShare(0.8,0.2,0.0);
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -902,6 +905,7 @@ public:
         vector<FounderRewardStructure> rewardStructures = {  {INT_MAX, 5}// 5% founder/dev fee forever
                                                         										   };
 		consensus.nFounderPayment = FounderPayment(rewardStructures, 200);
+        consensus.nAssetsRewardShare = Consensus::AssetsRewardShare(0.8,0.2,0.0);
 
         checkpointData = (CCheckpointData) {
             {
