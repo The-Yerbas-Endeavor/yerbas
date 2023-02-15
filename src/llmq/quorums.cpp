@@ -387,7 +387,7 @@ CQuorumCPtr CQuorumManager::GetQuorum(Consensus::LLMQType llmqType, const CBlock
         return nullptr;
     }
 
-    LOCK(quorumsCacheCs);
+     LOCK2(cs_main, quorumsCacheCs);
 
     auto it = quorumsCache.find(std::make_pair(llmqType, quorumHash));
     if (it != quorumsCache.end()) {

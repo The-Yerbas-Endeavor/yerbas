@@ -21,6 +21,7 @@ TransactionFilterProxy::TransactionFilterProxy(QObject *parent) :
     dateFrom(MIN_DATE.toTime_t()),
     dateTo(MAX_DATE.toTime_t()),
     addrPrefix(),
+    assetNamePrefix(),
     typeFilter(COMMON_TYPES),
     watchOnlyFilter(WatchOnlyFilter_All),
     instantsendFilter(InstantSendFilter_All),
@@ -42,6 +43,7 @@ bool TransactionFilterProxy::filterAcceptsRow(int sourceRow, const QModelIndex &
     QString label = index.data(TransactionTableModel::LabelRole).toString();
     qint64 amount = llabs(index.data(TransactionTableModel::AmountRole).toLongLong());
     int status = index.data(TransactionTableModel::StatusRole).toInt();
+    QString assetName = index.data(TransactionTableModel::AssetNameRole).toString();
 
     if(!showInactive && status == TransactionStatus::Conflicted)
         return false;
@@ -60,6 +62,8 @@ bool TransactionFilterProxy::filterAcceptsRow(int sourceRow, const QModelIndex &
     if (!address.contains(addrPrefix, Qt::CaseInsensitive) && !label.contains(addrPrefix, Qt::CaseInsensitive))
         return false;
     if(amount < minAmount)
+        return false;
+    if(!assetName.contains(assetNamePrefix, Qt::CaseInsensitive))
         return false;
 
     return true;
@@ -87,6 +91,12 @@ void TransactionFilterProxy::setTypeFilter(quint32 modes)
 void TransactionFilterProxy::setMinAmount(const CAmount& minimum)
 {
     this->minAmount = minimum;
+    invalidateFilter();
+}
+
+void TransactionFilterProxy::setAssetNamePrefix(const QString &_assetNamePrefix)
+{
+    this->assetNamePrefix = _assetNamePrefix;
     invalidateFilter();
 }
 

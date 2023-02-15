@@ -11,6 +11,8 @@
 #include "script/script.h"
 #include "serialize.h"
 
+static const std::string YERB = "YERB";
+
 struct CSpentIndexKey {
     uint256 txid;
     unsigned int outputIndex;
@@ -166,6 +168,7 @@ struct CTimestampIndexKey {
 struct CAddressUnspentKey {
     unsigned int type;
     uint160 hashBytes;
+    std::string asset;
     uint256 txhash;
     size_t index;
 
@@ -176,6 +179,7 @@ struct CAddressUnspentKey {
     void Serialize(Stream& s) const {
         ser_writedata8(s, type);
         hashBytes.Serialize(s);
+        ::Serialize(s, asset);
         txhash.Serialize(s);
         ser_writedata32(s, index);
     }
@@ -183,6 +187,7 @@ struct CAddressUnspentKey {
     void Unserialize(Stream& s) {
         type = ser_readdata8(s);
         hashBytes.Unserialize(s);
+        ::Unserialize(s, asset);
         txhash.Unserialize(s);
         index = ser_readdata32(s);
     }
@@ -190,6 +195,15 @@ struct CAddressUnspentKey {
     CAddressUnspentKey(unsigned int addressType, uint160 addressHash, uint256 txid, size_t indexValue) {
         type = addressType;
         hashBytes = addressHash;
+        asset = YERB;
+        txhash = txid;
+        index = indexValue;
+    }
+
+    CAddressUnspentKey(unsigned int addressType, uint160 addressHash, std::string assetName, uint256 txid, size_t indexValue) {
+        type = addressType;
+        hashBytes = addressHash;
+        asset = assetName;
         txhash = txid;
         index = indexValue;
     }
@@ -201,6 +215,7 @@ struct CAddressUnspentKey {
     void SetNull() {
         type = 0;
         hashBytes.SetNull();
+        asset.clear();
         txhash.SetNull();
         index = 0;
     }
@@ -244,6 +259,7 @@ struct CAddressUnspentValue {
 struct CAddressIndexKey {
     unsigned int type;
     uint160 hashBytes;
+    std::string asset;
     int blockHeight;
     unsigned int txindex;
     uint256 txhash;
@@ -257,6 +273,7 @@ struct CAddressIndexKey {
     void Serialize(Stream& s) const {
         ser_writedata8(s, type);
         hashBytes.Serialize(s);
+        ::Serialize(s, asset);
         // Heights are stored big-endian for key sorting in LevelDB
         ser_writedata32be(s, blockHeight);
         ser_writedata32be(s, txindex);
@@ -269,6 +286,7 @@ struct CAddressIndexKey {
     void Unserialize(Stream& s) {
         type = ser_readdata8(s);
         hashBytes.Unserialize(s);
+        ::Unserialize(s, asset);
         blockHeight = ser_readdata32be(s);
         txindex = ser_readdata32be(s);
         txhash.Unserialize(s);
@@ -281,6 +299,19 @@ struct CAddressIndexKey {
                      uint256 txid, size_t indexValue, bool isSpending) {
         type = addressType;
         hashBytes = addressHash;
+        asset = YERB;
+        blockHeight = height;
+        txindex = blockindex;
+        txhash = txid;
+        index = indexValue;
+        spending = isSpending;
+    }
+
+    CAddressIndexKey(unsigned int addressType, uint160 addressHash, std::string assetName, int height, int blockindex,
+                     uint256 txid, size_t indexValue, bool isSpending) {
+        type = addressType;
+        hashBytes = addressHash;
+        asset = assetName;
         blockHeight = height;
         txindex = blockindex;
         txhash = txid;
@@ -295,6 +326,7 @@ struct CAddressIndexKey {
     void SetNull() {
         type = 0;
         hashBytes.SetNull();
+        asset.clear();
         blockHeight = 0;
         txindex = 0;
         txhash.SetNull();

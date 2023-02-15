@@ -476,11 +476,6 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     if (IsInitialBlockDownload())
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Yerbas Core is downloading blocks...");
 
-    // Get expected MN/superblock payees. The call to GetBlockTxOuts might fail on regtest/devnet or when
-    // testnet is reset. This is fine and we ignore failure (blocks will be accepted)
-    std::vector<CTxOut> voutSmartnodePayments;
-    mnpayments.GetBlockTxOuts(chainActive.Height() + 1, 0, voutSmartnodePayments);
-
     // next bock is a superblock and we need governance info to correctly construct it
     if (sporkManager.IsSporkActive(SPORK_9_SUPERBLOCKS_ENABLED)
         && !smartnodeSync.IsSynced()
@@ -595,6 +590,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
 
         int index_in_template = i - 1;
         entry.push_back(Pair("fee", pblocktemplate->vTxFees[index_in_template]));
+        entry.push_back(Pair("specialTxfee", pblocktemplate->vSpecialTxFees[index_in_template]));
         entry.push_back(Pair("sigops", pblocktemplate->vTxSigOps[index_in_template]));
 
         transactions.push_back(entry);

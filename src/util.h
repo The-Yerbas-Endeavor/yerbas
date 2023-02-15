@@ -126,6 +126,7 @@ namespace BCLog {
         COINDB      = (1 << 18),
         QT          = (1 << 19),
         LEVELDB     = (1 << 20),
+        REWARDS     = (1 << 21),
 
         //Start Yerbas
         CHAINLOCKS  = ((uint64_t)1 << 32),
@@ -254,6 +255,10 @@ protected:
     CCriticalSection cs_args;
     std::map<std::string, std::string> mapArgs;
     std::map<std::string, std::vector<std::string> > mapMultiArgs;
+
+    std::string m_network;
+    std::set<std::string> m_network_only_args;
+    
 public:
     void ParseParameters(int argc, const char*const argv[]);
     void ReadConfigFile(const std::string& confPath);

@@ -21,6 +21,11 @@ class TransactionView;
 class WalletModel;
 class AddressBookPage;
 
+class AssetsDialog;
+class CreateAssetDialog;
+class ReissueAssetDialog;
+class RestrictedAssetsDialog;
+
 QT_BEGIN_NAMESPACE
 class QLabel;
 class QModelIndex;
@@ -74,6 +79,11 @@ private:
     QLabel *transactionSum;
     const PlatformStyle *platformStyle;
 
+    AssetsDialog *assetsPage;
+    CreateAssetDialog *createAssetsPage;
+    ReissueAssetDialog *manageAssetsPage;
+    RestrictedAssetsDialog *restrictedAssetsPage;
+
 public Q_SLOTS:
     /** Switch to overview (home) page */
     void gotoOverviewPage();
@@ -85,6 +95,11 @@ public Q_SLOTS:
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
+    /** Switch to Transfer Assets page */
+    void gotoAssetsPage();
+    void gotoCreateAssetsPage();
+    void gotoManageAssetsPage();
+    void gotoRestrictedAssetsPage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");
@@ -95,7 +110,7 @@ public Q_SLOTS:
 
         The new items are those between start and end inclusive, under the given parent item.
     */
-    void processNewTransaction(const QModelIndex& parent, int start, int /*end*/);
+    void processNewTransaction(const QModelIndex& parent, int start, int end);
     /** Encrypt the wallet */
     void encryptWallet(bool status);
     /** Backup the wallet */
@@ -134,9 +149,11 @@ Q_SIGNALS:
     /** HD-Enabled status of wallet changed (only possible during startup) */
     void hdEnabledStatusChanged(int hdEnabled);
     /** Notify that a new transaction appeared */
-    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label);
+    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& assetName);
     /** Notify that the out of sync warning icon has been pressed */
     void outOfSyncWarningClicked();
+    /** Show the assets GUI */
+    void checkAssets();
 };
 
 #endif // BITCOIN_QT_WALLETVIEW_H

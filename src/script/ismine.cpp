@@ -10,6 +10,8 @@
 #include "script/script.h"
 #include "script/standard.h"
 #include "script/sign.h"
+#include <validation.h>
+#include <chainparams.h>
 
 
 typedef std::vector<unsigned char> valtype;
@@ -48,6 +50,8 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
     case TX_NONSTANDARD:
     case TX_NULL_DATA:
         break;
+    case TX_RESTRICTED_ASSET_DATA:
+            break;
     case TX_PUBKEY:
         keyID = CPubKey(vSolutions[0]).GetID();
         if (keystore.HaveKey(keyID))
@@ -81,6 +85,35 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
             return ISMINE_SPENDABLE;
         break;
     }
+     /** RVN START */
+    case TX_NEW_ASSET: {
+        if (!AreAssetsDeployed())
+            return ISMINE_NO;
+        keyID = CKeyID(uint160(vSolutions[0]));
+        if (keystore.HaveKey(keyID))
+            return ISMINE_SPENDABLE;
+        break;
+
+    }
+
+    case TX_TRANSFER_ASSET: {
+        if (!AreAssetsDeployed())
+            return ISMINE_NO;
+        keyID = CKeyID(uint160(vSolutions[0]));
+        if (keystore.HaveKey(keyID))
+            return ISMINE_SPENDABLE;
+        break;
+    }
+
+    case TX_REISSUE_ASSET: {
+        if (!AreAssetsDeployed())
+            return ISMINE_NO;
+        keyID = CKeyID(uint160(vSolutions[0]));
+        if (keystore.HaveKey(keyID))
+            return ISMINE_SPENDABLE;
+        break;
+    }
+    /** RVN END*/
     }
 
     if (keystore.HaveWatchOnly(scriptPubKey)) {

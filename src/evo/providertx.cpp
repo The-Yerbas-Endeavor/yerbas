@@ -37,8 +37,14 @@ static bool CheckService(const uint256& proTxHash, const ProTx& proTx, CValidati
         return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr-port");
     }
 
-    if (!proTx.addr.IsIPv4()) {
-        return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
+    if (AreAssetsDeployed()){ //enable ipv6 after assets deployment
+        if (!proTx.addr.IsIPv4() && !proTx.addr.IsIPv6()) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
+        }
+    } else {
+        if (!proTx.addr.IsIPv4()) {
+            return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
+        }
     }
 
     return true;
@@ -81,6 +87,30 @@ static bool CheckInputsHash(const CTransaction& tx, const ProTx& proTx, CValidat
         return state.DoS(100, false, REJECT_INVALID, "bad-protx-inputs-hash");
     }
 
+    return true;
+}
+
+bool CheckAssetTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+{
+
+    if(!Params().IsAssetsActive(chainActive.Tip())) {
+        return state.DoS(100, false, REJECT_INVALID, "assets-not-enabled");
+    }
+
+    if (tx.nType != TRANSACTION_ASSET_REGISTER && tx.nType != TRANSACTION_ASSET_REISUE) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-assets-type");
+    }
+
+    CAssetTx assettx;
+    if (!GetTxPayload(tx, assettx)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-assets-payload");
+    }
+    
+    if (!CheckInputsHash(tx, assettx, state)) {
+        std::cout << "bad-assets-inputsHash" << std::endl;
+        return false;
+    }
+    
     return true;
 }
 

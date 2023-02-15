@@ -25,7 +25,8 @@ public:
     explicit AmountSpinBox(QWidget *parent):
         QAbstractSpinBox(parent),
         currentUnit(BitcoinUnits::YERB),
-        singleStep(100000) // satoshis
+        singleStep(100000), // satoshis
+        assetUnit(-1)
     {
         setAlignment(Qt::AlignRight);
 
@@ -48,7 +49,7 @@ public:
         CAmount val = parse(input, &valid);
         if(valid)
         {
-            input = BitcoinUnits::format(currentUnit, val, false, BitcoinUnits::separatorAlways);
+            input = BitcoinUnits::format(currentUnit, val, false, BitcoinUnits::separatorAlways, assetUnit);
             lineEdit()->setText(input);
         }
     }
@@ -60,7 +61,7 @@ public:
 
     void setValue(const CAmount& value)
     {
-        lineEdit()->setText(BitcoinUnits::format(currentUnit, value, false, BitcoinUnits::separatorAlways));
+        lineEdit()->setText(BitcoinUnits::format(currentUnit, value, false, BitcoinUnits::separatorAlways, assetUnit));
         Q_EMIT valueChanged();
     }
 
@@ -91,6 +92,22 @@ public:
         singleStep = step;
     }
 
+    void setAssetUnit(int unit)
+    {
+        if (unit > MAX_ASSET_UNITS)
+            unit = MAX_ASSET_UNITS;
+
+        assetUnit = unit;
+
+        bool valid = false;
+        CAmount val = value(&valid);
+
+        if(valid)
+            setValue(val);
+        else
+            clear();
+    }
+
     QSize minimumSizeHint() const
     {
         if(cachedMinimumSizeHint.isEmpty())
@@ -99,7 +116,7 @@ public:
 
             const QFontMetrics fm(fontMetrics());
             int h = lineEdit()->minimumSizeHint().height();
-            int w = fm.width(BitcoinUnits::format(BitcoinUnits::YERB, BitcoinUnits::maxMoney(), false, BitcoinUnits::separatorAlways));
+            int w = fm.width(BitcoinUnits::format(BitcoinUnits::YERB, BitcoinUnits::maxMoney(), false, BitcoinUnits::separatorAlways, assetUnit));
             w += 2; // cursor blinking space
 
             QStyleOptionSpinBox opt;
@@ -128,6 +145,7 @@ private:
     int currentUnit;
     CAmount singleStep;
     mutable QSize cachedMinimumSizeHint;
+    int assetUnit;
 
     /**
      * Parse a string into a number of base monetary units and
@@ -137,7 +155,15 @@ private:
     CAmount parse(const QString &text, bool *valid_out=0) const
     {
         CAmount val = 0;
-        bool valid = BitcoinUnits::parse(currentUnit, text, &val);
+
+        // Update parsing function to work with asset parsing units
+        bool valid = false;
+        if (assetUnit >= 0) {
+            valid = BitcoinUnits::assetParse(assetUnit, text, &val);
+        }
+        else
+            valid = BitcoinUnits::parse(currentUnit, text, &val);
+
         if(valid)
         {
             if(val < 0 || val > BitcoinUnits::maxMoney())
@@ -300,3 +326,93 @@ void BitcoinAmountField::setSingleStep(const CAmount& step)
 {
     amount->setSingleStep(step);
 }
+
+AssetAmountField::AssetAmountField(QWidget *parent) :
+        QWidget(parent),
+        amount(0)
+{
+    amount = new AmountSpinBox(this);
+    amount->setLocale(QLocale::c());
+    amount->installEventFilter(this);
+    amount->setMaximumWidth(170);
+
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->addWidget(amount);
+    layout->addStretch(1);
+    layout->setContentsMargins(0,0,0,0);
+
+    setLayout(layout);
+
+    setFocusPolicy(Qt::TabFocus);
+    setFocusProxy(amount);
+
+    // If one if the widgets changes, the combined content changes as well
+    connect(amount, SIGNAL(valueChanged()), this, SIGNAL(valueChanged()));
+
+    // Set default based on configuration
+    setUnit(MAX_ASSET_UNITS);
+}
+
+void AssetAmountField::clear()
+{
+    amount->clear();
+    setUnit(MAX_ASSET_UNITS);
+}
+
+void AssetAmountField::setEnabled(bool fEnabled)
+{
+    amount->setEnabled(fEnabled);
+}
+
+bool AssetAmountField::validate()
+{
+    bool valid = false;
+    value(&valid);
+    setValid(valid);
+    return valid;
+}
+
+void AssetAmountField::setValid(bool valid)
+{
+    if (valid)
+        amount->setStyleSheet("");
+    else
+        amount->setStyleSheet(GUIUtil::getThemedStyleQString(GUIUtil::ThemedStyle::TS_INVALID));
+}
+
+bool AssetAmountField::eventFilter(QObject *object, QEvent *event)
+{
+    if (event->type() == QEvent::FocusIn)
+    {
+        // Clear invalid flag on focus
+        setValid(true);
+    }
+    return QWidget::eventFilter(object, event);
+}
+
+CAmount AssetAmountField::value(bool *valid_out) const
+{
+    return amount->value(valid_out) * BitcoinUnits::factorAsset(8 - assetUnit);
+}
+
+void AssetAmountField::setValue(const CAmount& value)
+{
+    amount->setValue(value);
+}
+
+void AssetAmountField::setReadOnly(bool fReadOnly)
+{
+    amount->setReadOnly(fReadOnly);
+}
+
+void AssetAmountField::setSingleStep(const CAmount& step)
+{
+    amount->setSingleStep(step);
+}
+
+void AssetAmountField::setUnit(int unit)
+{
+    assetUnit = unit;
+    amount->setAssetUnit(assetUnit);
+}
+
