@@ -38,7 +38,7 @@ static bool CheckService(const uint256& proTxHash, const ProTx& proTx, CValidati
         return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr-port");
     }
 
-    if (AreAssetsDeployed() && sporkManager.GetSporkValue(SPORK_22_ENABLE_IPV6) >= chainActive.Tip()){ //enable ipv6 after assets deployment
+    if (AreAssetsDeployed() && sporkManager.GetSporkValue(SPORK_22_ENABLE_IPV6) >= chainActive.Tip()->nHeight){ //enable ipv6 after assets deployment
         if (!proTx.addr.IsIPv4() && !proTx.addr.IsIPv6()) {
             return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
         }
