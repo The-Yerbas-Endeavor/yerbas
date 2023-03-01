@@ -563,6 +563,15 @@ public:
             pc += nSize;
         }
 
+        // If we see an op yerbas asset, we consider all data after it has data, and not op codes
+        // Move the pc to the end of the script
+        if (opcode == OP_YERB_ASSET) {
+            unsigned int nSize = end() - pc;
+            if (pvchRet)
+                pvchRet->assign(pc, pc + nSize);
+            pc += nSize;
+        }
+
         opcodeRet = (opcodetype)opcode;
         return true;
     }

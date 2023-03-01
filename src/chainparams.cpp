@@ -654,7 +654,7 @@ public:
 
 		consensus.nCollaterals = SmartnodeCollaterals(
 			{
-				{20000, 2000 * COIN}, {40000, 4000 * COIN}, {INT_MAX, 6000 * COIN}
+				{INT_MAX, 4000 * COIN}
 			},
 			{
 				{INT_MAX, 20}
@@ -1029,7 +1029,7 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 		lastCheckHeight = height;
 		if(totalMnCount < 5) {
 			consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
-			if(strcmp(Params().NetworkIDString().c_str(),"testnet") == 0) {
+			if(strcmp(Params().NetworkIDString().c_str(),"test") == 0) {
 				consensus.llmqs[Consensus::LLMQ_400_60] = llmq5_60;
 				consensus.llmqs[Consensus::LLMQ_400_85] = llmq5_85;
 			} else {
@@ -1049,21 +1049,29 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
 			consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
 			consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
 		}
-        if(((height > 6759) && (height < 8320)) || ((height > 15908) && (height < 16401)) || (height > 22771 && height < 37650) || (height > 37650 && lowLLMQParams)){
-            consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
-		} 		
-	}else{
-        if((lastCheckHeight < height)){
-            lastCheckHeight = height;
-            if((height == 6759) || (height == 15908)|| (height == 22771)){
+        if(strcmp(Params().NetworkIDString().c_str(),"main") == 0) {//mainnet setings
+            if(((height > 6759) && (height < 8320)) || ((height > 15908) && (height < 16401)) || (height > 22771 && height < 37650) || (height > 37650 && lowLLMQParams)){
                 consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
-		    }  
-            if(height == 8319 || height == 16401 || height == 37650){
-                if(totalMnCount < 100) {
-                    consensus.llmqs[Consensus::LLMQ_50_60] = llmq10_60;
-                } else if(totalMnCount < 600) {
-			        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
-		        }
+            }
+        }else{
+            if(lowLLMQParams){
+                consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
+            }
+        } 		
+	}else{
+        if(strcmp(Params().NetworkIDString().c_str(),"main") == 0) { //mainnet setings
+            if((lastCheckHeight < height)){
+                lastCheckHeight = height;
+                if((height == 6759) || (height == 15908)|| (height == 22771)){
+                    consensus.llmqs[Consensus::LLMQ_50_60] = llmq200_2;
+                }  
+                if(height == 8319 || height == 16401 || height == 37650){
+                    if(totalMnCount < 100) {
+                        consensus.llmqs[Consensus::LLMQ_50_60] = llmq10_60;
+                    } else if(totalMnCount < 600) {
+                        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+                    }
+                }
             }
         }
     }

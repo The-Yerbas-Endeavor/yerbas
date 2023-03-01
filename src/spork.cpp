@@ -26,7 +26,7 @@ std::vector<CSporkDef> sporkDefs = {
     MAKE_SPORK_DEF(SPORK_17_QUORUM_DKG_ENABLED,            4070908800ULL), // OFF
     MAKE_SPORK_DEF(SPORK_19_CHAINLOCKS_ENABLED,            4070908800ULL), // OFF
     MAKE_SPORK_DEF(SPORK_21_LOW_LLMQ_PARAMS,               4070908800ULL), // OFF
-    MAKE_SPORK_DEF(SPORK_22_SPECIAL_TX_FEE,                4070908800ULL), // OFF mean chain would take any fee for special tx as valid
+    MAKE_SPORK_DEF(SPORK_22_ENABLE_IPV6,                   0000000001ULL), // OFF 
 };
 
 CSporkManager sporkManager;

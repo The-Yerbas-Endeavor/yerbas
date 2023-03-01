@@ -969,13 +969,8 @@ void OverviewPage::showAssets()
 {
     if (AreAssetsDeployed()) {
         ui->assetFrame->show();
-        ui->assetBalanceLabel->show();
-        ui->labelAssetStatus->show();
-
     } else {
         ui->assetFrame->hide();
-        ui->assetBalanceLabel->hide();
-        ui->labelAssetStatus->hide();
     }
 }
 
