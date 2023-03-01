@@ -17,6 +17,7 @@
 #include "streams.h"
 #include "univalue.h"
 #include "validation.h"
+#include "spork.h"
 
 template <typename ProTx>
 static bool CheckService(const uint256& proTxHash, const ProTx& proTx, CValidationState& state)
