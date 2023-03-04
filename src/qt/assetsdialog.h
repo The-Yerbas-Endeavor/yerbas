@@ -106,10 +106,10 @@ private Q_SLOTS:
     void updateMinFeeLabel();
     void updateSmartFeeLabel();
 
-    /** RVN START */
+    /** YERB START */
     void assetControlUpdateSendCoinsDialog();
     void focusAsset(const QModelIndex& index);
-    /** RVN END */
+    /** YERB END */
 
     Q_SIGNALS:
             // Fired when a message should be reported to the user

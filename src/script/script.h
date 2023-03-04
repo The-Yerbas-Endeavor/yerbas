@@ -648,7 +648,7 @@ public:
 
     bool IsPayToScriptHash() const;
 
-    /* RTM ASSETS START */
+    /* YERB ASSETS START */
     enum class txnouttype;
     bool IsAssetScript(int& nType, bool& fIsOwner, int& nStartingIndex) const;
     bool IsAssetScript(int& nType, bool& fIsOwner) const;
@@ -662,7 +662,7 @@ public:
     bool IsNullAssetTxDataScript() const;
     bool IsNullAssetVerifierTxDataScript() const;
     bool IsNullGlobalRestrictionAssetTxDataScript() const;
-    /* RTM ASSETS END */
+    /* YERB ASSETS END */
 
     /** Used for obsolete pay-to-pubkey addresses indexing. */
     bool IsPayToPublicKey() const;

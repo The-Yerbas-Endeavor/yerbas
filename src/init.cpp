@@ -315,7 +315,7 @@ void PrepareShutdown()
         delete pblocktree;
         pblocktree = nullptr;
 
-        /** RVN START */
+        /** YERB START */
         delete passets;
         passets = nullptr;
 
@@ -370,7 +370,7 @@ void PrepareShutdown()
         delete pDistributeSnapshotDb;
         pDistributeSnapshotDb = nullptr;
 
-        /** RVN END */
+        /** YERB END */
         llmq::DestroyLLMQSystem();
         delete deterministicMNManager;
         deterministicMNManager = nullptr;
@@ -1859,7 +1859,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 llmq::InitLLMQSystem(*evoDb, &scheduler, false, fReset || fReindexChainState);
 
                 
-                /** RVN START */
+                /** YERB START */
                 {
                     // Basic assets
                     delete passets;
@@ -1939,7 +1939,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                         LogPrintf("Messaging is enabled\n");
                     }
                 }
-                /** RVN END */
+                /** YERB END */
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);

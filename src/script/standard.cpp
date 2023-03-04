@@ -30,12 +30,12 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_MULTISIG: return "multisig";
     case TX_NULL_DATA: return "nulldata";
 
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     case TX_NEW_ASSET: return ASSET_NEW_STRING;
     case TX_TRANSFER_ASSET: return ASSET_TRANSFER_STRING;
     case TX_REISSUE_ASSET: return ASSET_REISSUE_STRING;
     case TX_RESTRICTED_ASSET_DATA: return "nullassetdata";
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
     }
     return nullptr;
 }
@@ -71,7 +71,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
         return true;
     }
 
-    /** RVN START */
+    /** YERB START */
     int nType = 0;
     bool fIsOwner = false;
     if (scriptPubKey.IsAssetScript(nType, fIsOwner)) {
@@ -80,7 +80,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
         vSolutionsRet.push_back(hashBytes);
         return true;
     }
-    /** RVN END */
+    /** YERB END */
 
     // Provably prunable, data-carrying output
     //
@@ -215,7 +215,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
     {
         addressRet = CScriptID(uint160(vSolutions[0]));
         return true;
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     } else if (whichType == TX_NEW_ASSET || whichType == TX_REISSUE_ASSET || whichType == TX_TRANSFER_ASSET) {
         addressRet = CKeyID(uint160(vSolutions[0]));
         return true;
@@ -225,7 +225,7 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
             return true;
         }
     } 
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
     // Multisig txns have more than one address...
     return false;
 }

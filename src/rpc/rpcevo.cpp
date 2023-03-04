@@ -45,11 +45,17 @@ extern UniValue signrawtransaction(const JSONRPCRequest& request);
 extern UniValue sendrawtransaction(const JSONRPCRequest& request);
 #endif//ENABLE_WALLET
 
-static std::string get_current_dir() {
-   char buff[FILENAME_MAX]; //create string buffer to hold path
-   GetCurrentDir( buff, FILENAME_MAX );
-   string current_working_dir(buff);
-   return current_working_dir;
+std::string get_current_dir()
+{
+  char buff[FILENAME_MAX];
+  char* r = getcwd(buff, FILENAME_MAX);
+  (void*)r;
+  std::string current_dir(buff);
+//  current_dir += '/';
+#ifdef WIN32
+	std::replace(current_dir.begin(), current_dir.end(), '\\', '/');
+#endif
+	return current_dir;
 }
 
 static const std::string LOWER_CASE = "abcdefghijklmnopqrstuvwxyz";

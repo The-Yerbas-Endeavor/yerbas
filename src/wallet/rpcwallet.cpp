@@ -1498,7 +1498,7 @@ void ListTransactions(CWallet * const pwallet, const CWalletTx& wtx, const std::
         }
     }
     
-    /** RVN START */
+    /** YERB START */
     if (AreAssetsDeployed()) {
         if (listAssetsReceived.size() > 0 && wtx.GetDepthInMainChain() >= nMinDepth) {
             for (const CAssetOutputEntry &data : listAssetsReceived){
@@ -1548,7 +1548,7 @@ void ListTransactions(CWallet * const pwallet, const CWalletTx& wtx, const std::
             }
         }
     }
-    /** RVN END */
+    /** YERB END */
 }
 
 void ListTransactions(CWallet* const pwallet, const CWalletTx& wtx, const std::string& strAccount, int nMinDepth, bool fLong, UniValue& ret, const isminefilter& filter)

@@ -1439,7 +1439,7 @@ void BitcoinGUI::checkAssets()
     // Check that status of RIP2 and activate the assets icon if it is active
     if(AreAssetsDeployed()) {
         TransferAssetsAction->setDisabled(false);
-        TransferAssetsAction->setToolTip(tr("Transfer assets to RVN addresses"));
+        TransferAssetsAction->setToolTip(tr("Transfer assets to YERB addresses"));
         CreateAssetsAction->setDisabled(false);
         CreateAssetsAction->setToolTip(tr("Create new assets"));
         ManageAssetsAction->setDisabled(false);

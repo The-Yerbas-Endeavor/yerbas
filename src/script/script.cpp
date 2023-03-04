@@ -156,7 +156,7 @@ const char* GetOpName(opcodetype opcode)
     }
 }
 
-/** RVN START */
+/** YERB START */
 bool CScript::IsAssetScript() const
 {
     int nType = 0;
@@ -176,12 +176,12 @@ bool CScript::IsAssetScript(int& nType, bool& fIsOwner, int& nStartingIndex) con
     if (this->size() > 31) {
         if ((*this)[25] == OP_YERB_ASSET) { // OP_YERB_ASSET is always in the 25 index of the script if it exists
             int index = -1;
-            if ((*this)[27] == YERB_R) { // Check to see if RVN starts at 27 ( this->size() < 105)
+            if ((*this)[27] == YERB_R) { // Check to see if YERB starts at 27 ( this->size() < 105)
                 if ((*this)[28] == YERB_V)
                     if ((*this)[29] == YERB_N)
                         index = 30;
             } else {
-                if ((*this)[28] == YERB_R) // Check to see if RVN starts at 28 ( this->size() >= 105)
+                if ((*this)[28] == YERB_R) // Check to see if YERB starts at 28 ( this->size() >= 105)
                     if ((*this)[29] == YERB_V)
                         if ((*this)[30] == YERB_N)
                             index = 31;

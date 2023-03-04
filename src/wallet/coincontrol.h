@@ -46,10 +46,10 @@ public:
     //! Controls which types of coins are allowed to be used (default: ALL_COINS)
     CoinType nCoinType;
 
-    /** RVN START */
+    /** YERB START */
     //! Name of the asset that is selected, used when sending assets with coincontrol
     std::string strAssetSelected;
-    /** RVN END */
+    /** YERB END */
 
     CCoinControl()
     {

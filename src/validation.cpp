@@ -226,7 +226,7 @@ CCoinsViewDB *pcoinsdbview = nullptr;
 CCoinsViewCache *pcoinsTip = nullptr;
 CBlockTreeDB *pblocktree = nullptr;
 
-/* RTM ASSETS START */
+/* YERB ASSETS START */
 CAssetsDB *passetsdb = nullptr;
 CAssetsCache *passets = nullptr;
 CLRUCache<std::string, CDatabasedAssetData> *passetsCache = nullptr;
@@ -245,7 +245,7 @@ CLRUCache<std::string, int8_t> *passetsQualifierCache = nullptr;
 CLRUCache<std::string, int8_t> *passetsRestrictionCache = nullptr;
 CLRUCache<std::string, int8_t> *passetsGlobalRestrictionCache = nullptr;
 CRestrictedDB *prestricteddb = nullptr;
-/* RTM ASSETS END*/
+/* YERB ASSETS END*/
 
 enum FlushStateMode {
     FLUSH_STATE_NONE,
@@ -688,7 +688,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), FormatStateMessage(state));
         }
 
-        /** RTM START START */
+        /** YERB START START */
             if (!isAssetsactive) {
                 for (auto out : tx.vout)
                     if (out.scriptPubKey.IsAssetScript())
@@ -700,7 +700,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
                                  FormatStateMessage(state));
                 }
             }
-        /** RTM ASSETS END */
+        /** YERB ASSETS END */
 
         // Check for non-standard pay-to-script-hash in inputs
         if (fRequireStandard && !AreInputsStandard(tx, view))
@@ -1312,7 +1312,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
         }
     }
     // add outputs
-    AddCoins(inputs, tx, nHeight, blockHash, false, assetCache, undoAssetData); /** RVN START */ /* Pass assetCache into function */ /** RVN END */
+    AddCoins(inputs, tx, nHeight, blockHash, false, assetCache, undoAssetData); /** YERB START */ /* Pass assetCache into function */ /** YERB END */
 }
 
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
@@ -1644,7 +1644,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                     addressIndex.push_back(std::make_pair(CAddressIndexKey(1, hashBytes, pindex->nHeight, i, hash, k, false), out.nValue));
                     addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, hashBytes, hash, k), CAddressUnspentValue()));
                 } else {
-                  /** RTM ASSETS START */
+                  /** YERB ASSETS START */
                     if (isAssetsactive) {
                         std::string assetName;
                         CAmount assetAmount;
@@ -1667,7 +1667,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                             continue;
                         }
                     }
-                    /** RTM ASSETS END */
+                    /** YERB ASSETS END */
                 }
             }
 
@@ -1684,7 +1684,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                 if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
                     fClean = false; // transaction output mismatch
                 }
-                /** RTM ASSETS START */
+                /** YERB ASSETS START */
                 if (isAssetsactive) {
                     if (assetsCache) {
                         if (IsScriptTransferAsset(tx.vout[o].scriptPubKey))
@@ -1705,7 +1705,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                 }
             }
         }
-        /** RVN START */
+        /** YERB START */
         if (isAssetsactive) {
             if (assetsCache) {
                 if (tx.IsNewAsset()) {
@@ -1920,7 +1920,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                 }  
             }
         }
-        /** RVN END */
+        /** YERB END */
 
         // restore inputs
         if (i > 0) { // not coinbases
@@ -1970,7 +1970,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                         addressIndex.push_back(std::make_pair(CAddressIndexKey(1, hashBytes, pindex->nHeight, i, hash, j, false), prevout.nValue));
                         addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, hashBytes, hash, j), CAddressUnspentValue()));
                     } else  {
-                        /** RTM ASSETS START */
+                        /** YERB ASSETS START */
                         if (isAssetsactive) {
                             std::string assetName;
                             CAmount assetAmount;
@@ -1994,7 +1994,7 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                                 continue;
                             }
                         }
-                        /** RTM ASSETS END */
+                        /** YERB ASSETS END */
                     }
                 }
 
@@ -2314,7 +2314,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                 return state.DoS(100, error("%s: accumulated specialTxFees in the block out of range.", __func__),
                                  REJECT_INVALID, "bad-txns-accumulated-specialTxFees-outofrange");
             }
-             /** RTM START START */
+             /** YERB START START */
             if (!isAssetsactive) {
                 for (auto out : tx.vout)
                     if (out.scriptPubKey.IsAssetScript())
@@ -2326,7 +2326,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                  FormatStateMessage(state));
                 }
             }
-            /** RTM ASSETS END */
+            /** YERB ASSETS END */
 
             // Check that transaction is BIP68 final
             // BIP68 lock checks (as opposed to nLockTime checks) must
@@ -2363,7 +2363,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                         hashBytes = Hash160(prevout.scriptPubKey.begin()+1, prevout.scriptPubKey.end()-1);
                         addressType = 1;
                     } else {
-                        /** RVN START */
+                        /** YERB START */
                         if (AreAssetsDeployed()) {
                             hashBytes.SetNull();
                             addressType = 0;
@@ -2372,21 +2372,21 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                                 isAsset = true;
                             }
                         } else {
-                            /** RVN END */
+                            /** YERB END */
                             hashBytes.SetNull();
                             addressType = 0;
                         }
                     }
 
                     if (fAddressIndex && addressType > 0) {
-                        /** RVN START */
+                        /** YERB START */
                         if (isAsset) {
                             // record spending activity
                             addressIndex.push_back(std::make_pair(CAddressIndexKey(addressType, hashBytes, assetName, pindex->nHeight, i, txhash, j, true), assetAmount * -1));
 
                             // remove address from unspent index
                             addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(addressType, hashBytes, assetName, input.prevout.hash, input.prevout.n), CAddressUnspentValue()));
-                        /** RVN END */
+                        /** YERB END */
                         } else {
                             // record spending activity
                             addressIndex.push_back(std::make_pair(CAddressIndexKey(addressType, hashBytes, pindex->nHeight, i, txhash, j, true), prevout.nValue * -1));
@@ -2454,7 +2454,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                     addressIndex.push_back(std::make_pair(CAddressIndexKey(1, hashBytes, pindex->nHeight, i, txhash, k, false), out.nValue));
                     addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(1, hashBytes, txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
                 } else {
-                    /** RVN START */
+                    /** YERB START */
                     if (AreAssetsDeployed()) {
                         std::string assetName;
                         CAmount assetAmount;
@@ -2475,7 +2475,7 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
                     } else {
                         continue;
                     }
-                    /** RVN END */
+                    /** YERB END */
                 }
 
             }
@@ -2486,11 +2486,11 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
             blockundo.vtxundo.push_back(CTxUndo());
         }
 
-        /** RVN START */
+        /** YERB START */
         // Create the basic empty string pair for the undoblock
         std::pair<std::string, CBlockAssetUndo> undoPair = std::make_pair("", CBlockAssetUndo());
         std::pair<std::string, CBlockAssetUndo>* undoAssetData = &undoPair;
-        /** RVN END */
+        /** YERB END */
 
         UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight, block.GetHash(), assetsCache, undoAssetData);
 
@@ -2797,7 +2797,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
             if (!evoDb->CommitRootTransaction()) {
                 return AbortNode(state, "Failed to commit EvoDB");
             }
-            /** RVN START */
+            /** YERB START */
             // Flush the assetstate
             if (AreAssetsDeployed()) {
                 // Flush the assetstate
@@ -2825,7 +2825,7 @@ bool static FlushStateToDisk(const CChainParams& chainparams, CValidationState &
                         return AbortNode(state, "Failed to Flush the message channel database");
                 }
             }
-            /** RVN END */
+            /** YERB END */
 
             nLastFlush = nNow;
         }
@@ -3143,7 +3143,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
 
     connectTrace.BlockConnected(pindexNew, std::move(pthisBlock));
 
-        /** RVN START */
+        /** YERB START */
 
     //  Determine if the new block height has any pending snapshot requests,
     //      and if so, capture a snapshot of the relevant target assets.
@@ -3170,7 +3170,7 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
         CheckRewardDistributions(vpwallets[0]);
     }
 #endif
-    /** RVN END */
+    /** YERB END */
     return true;
 }
 
@@ -4186,9 +4186,9 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
 
     // begin tx and let it rollback
     auto dbTx = evoDb->BeginTransaction();
-    /** RTM ASSETS START */
+    /** YERB ASSETS START */
     CAssetsCache assetCache = *GetCurrentAssetCache();
-    /** RTM ASSETS END */
+    /** YERB ASSETS END */
     // NOTE: CheckBlockHeader is called by CheckBlock
     if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev, GetAdjustedTime()))
         return error("%s: Consensus::ContextualCheckBlockHeader: %s", __func__, FormatStateMessage(state));

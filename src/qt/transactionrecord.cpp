@@ -51,10 +51,10 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             const CTxOut& txout = wtx.tx->vout[i];
             isminetype mine = wallet->IsMine(txout);
 
-            /** RVN START */
+            /** YERB START */
             if (txout.scriptPubKey.IsAssetScript() || txout.scriptPubKey.IsNullAssetTxDataScript() || txout.scriptPubKey.IsNullGlobalRestrictionAssetTxDataScript())
                 continue;
-            /** RVN END */
+            /** YERB END */
 
             if(mine)
             {
@@ -109,10 +109,10 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
         int nToMe = 0;
         for (const CTxOut& txout : wtx.tx->vout) {
 
-            /** RVN START */
+            /** YERB START */
             if (txout.scriptPubKey.IsAssetScript() || txout.scriptPubKey.IsNullAssetTxDataScript() || txout.scriptPubKey.IsNullGlobalRestrictionAssetTxDataScript())
                 continue;
-            /** RVN END */
+            /** YERB END */
             
             if(wallet->IsMine(txout)) {
                 fAllToMeDenom = fAllToMeDenom && CPrivateSend::IsDenominatedAmount(txout.nValue);
@@ -209,10 +209,10 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             {
                 const CTxOut& txout = wtx.tx->vout[nOut];
 
-                /** RVN START */
+                /** YERB START */
                 if (txout.scriptPubKey.IsAssetScript())
                     continue;
-                /** RVN END */
+                /** YERB END */
 
                 TransactionRecord sub(hash, nTime);
                 sub.idx = nOut;
@@ -269,7 +269,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
         }
     }
 
-     /** RVN START */
+     /** YERB START */
     if (AreAssetsDeployed()) {
         CAmount nFee;
         std::string strSentAccount;
@@ -370,7 +370,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
             }
         }
     }
-    /** RVN END */
+    /** YERB END */
 
     return parts;
 }
