@@ -443,16 +443,16 @@ public:
         consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
         consensus.nMinerConfirmationWindow = 2016; // nPowTargetTimespan / nPowTargetSpacing
         consensus.smartnodePaymentFixedBlock = 6800;
-        consensus.nAssetsForkBlock = 9999999;
+        consensus.nAssetsForkBlock = 229420;
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = 1230767999; // December 31, 2008
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000b3cb1ca181c"); // 0
+        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000f647ae6fbe9"); // 0
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x15280a0f159f2739a3e6658bbc68534cefa79b14f5a250e1e4f724b5b3985998"); // 0
+        consensus.defaultAssumeValid = uint256S("0xc99ce3a58ba3828a1a09469d0afedb91e8238e6cb4fd2bc3970c9ff56bbbb528"); // 0
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -477,13 +477,6 @@ public:
         vSeeds.emplace_back("weednode03.yerbas.org", true);
         vSeeds.emplace_back("weednode420.yerbas.org", true);
         vSeeds.emplace_back("weednode05.yerbas.org", true);
-        vSeeds.emplace_back("149.28.180.9", true);
-        vSeeds.emplace_back("144.202.98.65", true);
-        vSeeds.emplace_back("45.32.140.6", true);
-        vSeeds.emplace_back("108.61.180.20", true);
-
-
-
 
 
         // Yerbas addresses start with 'y'
@@ -546,13 +539,14 @@ public:
              {16460, uint256S("0x6cb79413f86770f856556ce641e15beb45656915db9ce4511cc9d4853b532fe5")},
              {42069, uint256S("0x729ee24deac4d1df060191debdf52079a70987dc2001e058002641a1412d3782")},
              {108069, uint256S("0x15280a0f159f2739a3e6658bbc68534cefa79b14f5a250e1e4f724b5b3985998")},
+             {209639, uint256S("0xc99ce3a58ba3828a1a09469d0afedb91e8238e6cb4fd2bc3970c9ff56bbbb528")},
              
           }
 	};
 
         chainTxData = ChainTxData{
-          1665511832,   // * UNIX timestamp of last known number of transactions (Block 0)
-              183661,   // * total number of transactions between genesis and that timestamp
+          1677962806,   // * UNIX timestamp of last known number of transactions (Block 0)
+              337325,   // * total number of transactions between genesis and that timestamp
                         //   (the tx=... number in the SetBestChain debug.log lines)
                  0.01    // * estimated number of transactions per second after that timestamp
         };
