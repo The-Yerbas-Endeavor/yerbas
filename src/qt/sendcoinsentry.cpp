@@ -42,9 +42,7 @@ SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *par
       
     // normal yerbas address field
     GUIUtil::setupAddressWidget(ui->payTo, this);
-    // just a label for displaying yerbas address(es)
-    ui->payTo_is->setFont(GUIUtil::fixedPitchFont());
-
+    
     // Connect signals
     connect(ui->payAmount, SIGNAL(valueChanged()), this, SIGNAL(payAmountChanged()));
     connect(ui->checkboxSubtractFeeFromAmount, SIGNAL(toggled(bool)), this, SIGNAL(subtractFeeFromAmountChanged()));

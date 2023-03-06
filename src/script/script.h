@@ -9,6 +9,7 @@
 #include "crypto/common.h"
 #include "prevector.h"
 #include "serialize.h"
+#include "amount.h"
 
 #include <assert.h>
 #include <climits>
@@ -181,6 +182,7 @@ enum opcodetype
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
 
+    OP_YERB_ASSET = 0xc0,
 
     // template matching params
     OP_SMALLINTEGER = 0xfa,
@@ -561,6 +563,15 @@ public:
             pc += nSize;
         }
 
+        // If we see an op yerbas asset, we consider all data after it has data, and not op codes
+        // Move the pc to the end of the script
+        if (opcode == OP_YERB_ASSET) {
+            unsigned int nSize = end() - pc;
+            if (pvchRet)
+                pvchRet->assign(pc, pc + nSize);
+            pc += nSize;
+        }
+
         opcodeRet = (opcodetype)opcode;
         return true;
     }
@@ -637,6 +648,22 @@ public:
 
     bool IsPayToScriptHash() const;
 
+    /* YERB ASSETS START */
+    enum class txnouttype;
+    bool IsAssetScript(int& nType, bool& fIsOwner, int& nStartingIndex) const;
+    bool IsAssetScript(int& nType, bool& fIsOwner) const;
+    bool IsAssetScript() const;
+    bool IsNewAsset() const;
+    bool IsOwnerAsset() const;
+    bool IsReissueAsset() const;
+    bool IsTransferAsset() const;
+    bool IsAsset() const;
+    bool IsNullAsset() const; // Checks all three of the NULL Asset Tx types
+    bool IsNullAssetTxDataScript() const;
+    bool IsNullAssetVerifierTxDataScript() const;
+    bool IsNullGlobalRestrictionAssetTxDataScript() const;
+    /* YERB ASSETS END */
+
     /** Used for obsolete pay-to-pubkey addresses indexing. */
     bool IsPayToPublicKey() const;
 
@@ -649,11 +676,8 @@ public:
      * regardless of the initial stack. This allows outputs to be pruned
      * instantly when entering the UTXO set.
      */
-    bool IsUnspendable() const
-    {
-        return (size() > 0 && *begin() == OP_RETURN) || (size() > MAX_SCRIPT_SIZE);
-    }
-
+    bool IsUnspendable() const;
+   
     void clear()
     {
         // The default prevector::clear() does not release memory
@@ -670,5 +694,16 @@ public:
     CReserveScript() {}
     virtual ~CReserveScript() {}
 };
+
+//! These are needed because script.h and script.cpp do not have access to asset.h and asset.cpp functions. This is
+//! because the make file compiles them at different times. This is becauses script files are compiled with other
+//! consensus files, and asset files are compiled with core files
+bool GetAssetAmountFromScript(const CScript& script, CAmount& nAmount);
+bool AmountFromNewAssetScript(const CScript& scriptPubKey, CAmount& nAmount);
+bool AmountFromTransferScript(const CScript& scriptPubKey, CAmount& nAmount);
+bool AmountFromReissueScript(const CScript& scriptPubKey, CAmount& nAmount);
+bool ScriptNewAsset(const CScript& scriptPubKey, int& nStartingIndex);
+bool ScriptTransferAsset(const CScript& scriptPubKey, int& nStartingIndex);
+bool ScriptReissueAsset(const CScript& scriptPubKey, int& nStartingIndex);
 
 #endif // BITCOIN_SCRIPT_SCRIPT_H

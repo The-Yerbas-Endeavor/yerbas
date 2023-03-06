@@ -54,6 +54,7 @@
 #include <QTextDocument> // for Qt::mightBeRichText
 #include <QThread>
 #include <QMouseEvent>
+#include <QPainter>
 
 #if QT_VERSION < 0x050000
 #include <QUrl>
@@ -1072,6 +1073,43 @@ void ClickableLabel::mouseReleaseEvent(QMouseEvent *event)
 void ClickableProgressBar::mouseReleaseEvent(QMouseEvent *event)
 {
     Q_EMIT clicked(event->pos());
+}
+
+void concatenate(QPainter* painter, QString& catString, int static_width, int left_side, int right_size)
+{
+    // Starting length of the name
+    int start_name_length = catString.size();
+
+    // Get the length of the dots
+    //#ifndef QTversionPreFiveEleven
+    //	int dots_width = painter->fontMetrics().horizontalAdvance("...");
+    //#else
+    	int dots_width = painter->fontMetrics().width("...");
+    //#endif
+
+    // Add the dots width to the amount width
+    static_width += dots_width;
+
+    // Start concatenation loop, end loop if name is at three characters
+    while (catString.size() > 3)
+    {
+        // Get the text width of the current name
+        //#ifndef QTversionPreFiveEleven
+        //	int text_width = painter->fontMetrics().horizontalAdvance(catString);
+        //#else
+        	int text_width = painter->fontMetrics().width(catString);
+       // #endif
+        // Check to see if the text width is going to overlap the amount width if it doesn't break the loop
+        if (left_side + text_width < right_size - static_width)
+            break;
+
+        // substring the name minus the last character of it and continue the loop
+        catString = catString.left(catString.size() - 1);
+    }
+
+    // Add the ... if the name was concatenated
+    if (catString.size() != start_name_length)
+        catString.append("...");
 }
 
 } // namespace GUIUtil

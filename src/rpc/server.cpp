@@ -114,15 +114,15 @@ void RPCTypeCheckObj(const UniValue& o,
     }
 }
 
-CAmount AmountFromValue(const UniValue& value)
+CAmount AmountFromValue(const UniValue& value, bool p_isYERB)
 {
     if (!value.isNum() && !value.isStr())
         throw JSONRPCError(RPC_TYPE_ERROR, "Amount is not a number or string");
     CAmount amount;
     if (!ParseFixedPoint(value.getValStr(), 8, &amount))
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
-    if (!MoneyRange(amount))
-        throw JSONRPCError(RPC_TYPE_ERROR, "Amount out of range");
+        throw JSONRPCError(RPC_TYPE_ERROR, strprintf("Invalid amount (3): %s", value.getValStr()));
+    if (p_isYERB && !MoneyRange(amount))
+        throw JSONRPCError(RPC_TYPE_ERROR, strprintf("Amount out of range: %s", amount));
     return amount;
 }
 
@@ -615,3 +615,18 @@ void RPCRunLater(const std::string& name, std::function<void(void)> func, int64_
 }
 
 CRPCTable tableRPC;
+
+void CheckIPFSTxidMessage(const std::string &message, int64_t expireTime)
+{
+    size_t msglen = message.length();
+    if (msglen != 46) {
+            throw JSONRPCError(RPC_INVALID_PARAMS, std::string("Invalid IPFS hash (must be 46 characters)"));
+    }
+
+    if (message.substr(0, 2) != "Qm") {
+        throw JSONRPCError(RPC_INVALID_PARAMS, std::string("Invalid IPFS/Txid hash"));
+    }
+    
+    if (expireTime < 0)
+        throw JSONRPCError(RPC_INVALID_PARAMS, std::string("Expire time must be a positive number"));
+}

@@ -23,6 +23,7 @@ class CDeterministicMNList;
 class CDeterministicMNListDiff;
 class uint256;
 class CScheduler;
+class CMessage;
 
 namespace llmq {
     class CChainLockSig;
@@ -80,6 +81,8 @@ protected:
     friend void ::RegisterValidationInterface(CValidationInterface*);
     friend void ::UnregisterValidationInterface(CValidationInterface*);
     friend void ::UnregisterAllValidationInterfaces();
+
+    virtual void NewAssetMessage(const CMessage &message) {};
 };
 
 struct MainSignalsInstance;
@@ -117,6 +120,7 @@ public:
     void BlockChecked(const CBlock&, const CValidationState&);
     void NewPoWValidBlock(const CBlockIndex *, const std::shared_ptr<const CBlock>&);
     void BlockFound(const uint256 &);
+    void NewAssetMessage(const CMessage&);
 };
 
 CMainSignals& GetMainSignals();

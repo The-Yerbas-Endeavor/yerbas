@@ -214,6 +214,11 @@ bool CActiveSmartnodeManager::IsValidNetAddr(CService addrIn)
 {
     // TODO: regtest is fine with any addresses for now,
     // should probably be a bit smarter if one day we start to implement tests for this
+    if (AreAssetsDeployed()){
     return Params().NetworkIDString() == CBaseChainParams::REGTEST ||
-           (addrIn.IsIPv4() && IsReachable(addrIn) && addrIn.IsRoutable());
+           ((addrIn.IsIPv4() || addrIn.IsIPv6())  && IsReachable(addrIn) && addrIn.IsRoutable());
+    } else {
+        return Params().NetworkIDString() == CBaseChainParams::REGTEST ||
+           (addrIn.IsIPv4()  && IsReachable(addrIn) && addrIn.IsRoutable());   
+    }
 }

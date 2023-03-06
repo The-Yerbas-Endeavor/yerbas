@@ -9,6 +9,11 @@
 #include "random.h"
 
 #include <assert.h>
+#include <assets/assets.h>
+#include <wallet/wallet.h>
+#include <chainparams.h>
+#include <validation.h>
+#include <base58.h>
 
 bool CCoinsView::GetCoin(const COutPoint &outpoint, Coin &coin) const { return false; }
 uint256 CCoinsView::GetBestBlock() const { return uint256(); }
@@ -87,21 +92,237 @@ void CCoinsViewCache::AddCoin(const COutPoint &outpoint, Coin&& coin, bool possi
     cachedCoinsUsage += it->second.coin.DynamicMemoryUsage();
 }
 
-void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, bool check) {
+void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint256 blockHash, bool check, CAssetsCache* assetsCache, std::pair<std::string, CBlockAssetUndo>* undoAssetData) {
     bool fCoinbase = tx.IsCoinBase();
     const uint256& txid = tx.GetHash();
+    /** YERB ASSETS START */
+    if (Params().IsAssetsActive(chainActive.Tip())) {
+        if (assetsCache) {  
+            if (tx.IsNewAsset()) { // This works are all new root assets, sub asset, and restricted assets
+                CNewAsset asset;
+                std::string strAddress;
+                AssetFromTransaction(tx, asset, strAddress);
+                std::string ownerName;
+                std::string ownerAddress;
+                OwnerFromTransaction(tx, ownerName, ownerAddress);
+
+                // Add the new asset to cache
+                if (!assetsCache->AddNewAsset(asset, strAddress, nHeight, blockHash))
+                    error("%s : Failed at adding a new asset to our cache. asset: %s", __func__,
+                        asset.strName);
+
+                // Add the owner asset to cache
+                if (!assetsCache->AddOwnerAsset(ownerName, ownerAddress))
+                    error("%s : Failed at adding a new asset to our cache. asset: %s", __func__,
+                        asset.strName);
+
+            } else if (tx.IsReissueAsset()) {
+                CReissueAsset reissue;
+                std::string strAddress;
+                ReissueAssetFromTransaction(tx, reissue, strAddress);
+
+                int reissueIndex = tx.vout.size() - 1;
+
+                // Get the asset before we change it
+                CNewAsset asset;
+                if (!assetsCache->GetAssetMetaDataIfExists(reissue.strName, asset))
+                    error("%s: Failed to get the original asset that is getting reissued. Asset Name : %s",
+                        __func__, reissue.strName);
+
+                if (!assetsCache->AddReissueAsset(reissue, strAddress, COutPoint(txid, reissueIndex)))
+                    error("%s: Failed to reissue an asset. Asset Name : %s", __func__, reissue.strName);
+
+                // Check to see if we are reissuing a restricted asset
+                bool fFoundRestrictedAsset = false;
+                AssetType type;
+                IsAssetNameValid(asset.strName, type);
+                
+                // Set the old IPFSHash for the blockundo
+                bool fIPFSChanged = !reissue.strIPFSHash.empty();
+                bool fUnitsChanged = reissue.nUnits != -1;
+
+                // If any of the following items were changed by reissuing, we need to database the old values so it can be undone correctly
+                if (fIPFSChanged || fUnitsChanged) {
+                    undoAssetData->first = reissue.strName; // Asset Name
+                    undoAssetData->second = CBlockAssetUndo {fIPFSChanged, fUnitsChanged, asset.strIPFSHash, asset.units}; // ipfschanged, unitchanged, Old Assets IPFSHash, old units
+                }
+            } else if (tx.IsNewUniqueAsset()) {
+                for (int n = 0; n < (int)tx.vout.size(); n++) {
+                    auto out = tx.vout[n];
+
+                    CNewAsset asset;
+                    std::string strAddress;
+
+                    if (IsScriptNewUniqueAsset(out.scriptPubKey)) {
+                        AssetFromScript(out.scriptPubKey, asset, strAddress);
+
+                        // Add the new asset to cache
+                        if (!assetsCache->AddNewAsset(asset, strAddress, nHeight, blockHash))
+                            error("%s : Failed at adding a new asset to our cache. asset: %s", __func__,
+                                asset.strName);
+                    }
+                }
+            } else if (tx.IsNewMsgChannelAsset()) {
+                CNewAsset asset;
+                std::string strAddress;
+                MsgChannelAssetFromTransaction(tx, asset, strAddress);
+
+                // Add the new asset to cache
+                if (!assetsCache->AddNewAsset(asset, strAddress, nHeight, blockHash))
+                    error("%s : Failed at adding a new asset to our cache. asset: %s", __func__,
+                          asset.strName);
+            } else if (tx.IsNewQualifierAsset()) {
+                CNewAsset asset;
+                std::string strAddress;
+                QualifierAssetFromTransaction(tx, asset, strAddress);
+
+                // Add the new asset to cache
+                if (!assetsCache->AddNewAsset(asset, strAddress, nHeight, blockHash))
+                    error("%s : Failed at adding a new qualifier asset to our cache. asset: %s", __func__,
+                          asset.strName);
+            }  else if (tx.IsNewRestrictedAsset()) {
+                CNewAsset asset;
+                std::string strAddress;
+                RestrictedAssetFromTransaction(tx, asset, strAddress);
+
+                // Add the new asset to cache
+                if (!assetsCache->AddNewAsset(asset, strAddress, nHeight, blockHash))
+                    error("%s : Failed at adding a new restricted asset to our cache. asset: %s", __func__,
+                          asset.strName);
+
+                // Find the restricted verifier string and cache it
+                CNullAssetTxVerifierString verifier;
+                // Search through all outputs until you find a restricted verifier change.
+                for (auto index: tx.vout) {
+                    if (index.scriptPubKey.IsNullAssetVerifierTxDataScript()) {
+                        CNullAssetTxVerifierString verifier;
+                        if (!AssetNullVerifierDataFromScript(index.scriptPubKey, verifier))
+                            error("%s: Failed to get asset null data and add it to the coins CTxOut: %s", __func__,
+                                  index.ToString());
+
+                        // Add the verifier to the cache
+                        if (!assetsCache->AddRestrictedVerifier(asset.strName, verifier.verifier_string))
+                            error("%s : Failed at adding a restricted verifier to our cache: asset: %s, verifier : %s",
+                                  asset.strName, verifier.verifier_string);
+
+                        break;
+                    }
+                }
+            }    
+        }
+    }
+    /** YERB ASSETS END */
+
     for (size_t i = 0; i < tx.vout.size(); ++i) {
         bool overwrite = check ? cache.HaveCoin(COutPoint(txid, i)) : fCoinbase;
         // Always set the possible_overwrite flag to AddCoin for coinbase txn, in order to correctly
         // deal with the pre-BIP30 occurrences of duplicate coinbase transactions.
         cache.AddCoin(COutPoint(txid, i), Coin(tx.vout[i], nHeight, fCoinbase), overwrite);
+    
+        /** YERB ASSETS START */
+        if (Params().IsAssetsActive(chainActive.Tip())) {
+            if (assetsCache) {
+                CAssetOutputEntry assetData;
+                if (GetAssetData(tx.vout[i].scriptPubKey, assetData)) {
+
+                    // If this is a transfer asset, and the amount is greater than zero
+                    // We want to make sure it is added to the asset addresses database if (fAssetIndex == true)
+                    if (assetData.type == TX_TRANSFER_ASSET && assetData.nAmount > 0) {
+                        // Create the objects needed from the assetData
+                        CAssetTransfer assetTransfer(assetData.assetName, assetData.nAmount, assetData.message, assetData.expireTime);
+                        std::string address = EncodeDestination(assetData.destination);
+
+                        // Add the transfer asset data to the asset cache
+                        if (!assetsCache->AddTransferAsset(assetTransfer, address, COutPoint(txid, i), tx.vout[i]))
+                            LogPrintf("%s : ERROR - Failed to add transfer asset CTxOut: %s\n", __func__,
+                                      tx.vout[i].ToString());
+
+                        /** Subscribe to new message channels if they are sent to a new address, or they are the owner token or message channel */
+#ifdef ENABLE_WALLET
+                        if (fMessaging && pMessageSubscribedChannelsCache) {
+                            LOCK(cs_messaging);
+                            if (vpwallets.size() && vpwallets[0]->IsMine(tx.vout[i]) == ISMINE_SPENDABLE) {
+                                AssetType aType;
+                                IsAssetNameValid(assetTransfer.strName, aType);
+
+                                if (aType == AssetType::ROOT || aType == AssetType::SUB) {
+                                    if (!IsChannelSubscribed(GetParentName(assetTransfer.strName) + OWNER_TAG)) {
+                                        if (!IsAddressSeen(address)) {
+                                            AddChannel(GetParentName(assetTransfer.strName) + OWNER_TAG);
+                                            AddAddressSeen(address);
+                                        }
+                                    }
+                                } else if (aType == AssetType::OWNER || aType == AssetType::MSGCHANNEL) {
+                                    AddChannel(assetTransfer.strName);
+                                    AddAddressSeen(address);
+                                }
+                            }
+                        }
+#endif
+                    } else if (assetData.type == TX_NEW_ASSET) {
+                        /** Subscribe to new message channels if they are assets you created, or are new msgchannels of channels already being watched */
+#ifdef ENABLE_WALLET
+                        if (fMessaging && pMessageSubscribedChannelsCache) {
+                            LOCK(cs_messaging);
+                            if (vpwallets.size()) {
+                                AssetType aType;
+                                IsAssetNameValid(assetData.assetName, aType);
+                                if (vpwallets[0]->IsMine(tx.vout[i]) == ISMINE_SPENDABLE) {
+                                    if (aType == AssetType::ROOT || aType == AssetType::SUB) {
+                                        AddChannel(assetData.assetName + OWNER_TAG);
+                                        AddAddressSeen(EncodeDestination(assetData.destination));
+                                    } else if (aType == AssetType::OWNER || aType == AssetType::MSGCHANNEL) {
+                                        AddChannel(assetData.assetName);
+                                        AddAddressSeen(EncodeDestination(assetData.destination));
+                                    }
+                                } else {
+                                    if (aType == AssetType::MSGCHANNEL) {
+                                        if (IsChannelSubscribed(GetParentName(assetData.assetName) + OWNER_TAG)) {
+                                            AddChannel(assetData.assetName);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+#endif
+                    }
+                }
+
+                CScript script = tx.vout[i].scriptPubKey;
+                if (script.IsNullAsset()) {
+                    if (script.IsNullAssetTxDataScript()) {
+                        CNullAssetTxData data;
+                        std::string address;
+                        AssetNullDataFromScript(script, data, address);
+
+                        AssetType type;
+                        IsAssetNameValid(data.asset_name, type);
+
+                        if (type == AssetType::RESTRICTED) {
+                            assetsCache->AddRestrictedAddress(data.asset_name, address, data.flag ? RestrictedType::FREEZE_ADDRESS : RestrictedType::UNFREEZE_ADDRESS);
+                        } else if (type == AssetType::QUALIFIER || type == AssetType::SUB_QUALIFIER) {
+                            assetsCache->AddQualifierAddress(data.asset_name, address, data.flag ? QualifierType::ADD_QUALIFIER : QualifierType::REMOVE_QUALIFIER);
+                        }
+                    } else if (script.IsNullGlobalRestrictionAssetTxDataScript()) {
+                        CNullAssetTxData data;
+                        GlobalAssetNullDataFromScript(script, data);
+
+                        assetsCache->AddGlobalRestricted(data.asset_name, data.flag ? RestrictedType::GLOBAL_FREEZE : RestrictedType::GLOBAL_UNFREEZE);
+                    }
+                }
+            }
+        }
+        /** YERB ASSETS END */
     }
 }
 
-bool CCoinsViewCache::SpendCoin(const COutPoint &outpoint, Coin* moveout) {
+bool CCoinsViewCache::SpendCoin(const COutPoint &outpoint, Coin* moveout, CAssetsCache* assetsCache) {
     CCoinsMap::iterator it = FetchCoin(outpoint);
     if (it == cacheCoins.end()) return false;
     cachedCoinsUsage -= it->second.coin.DynamicMemoryUsage();
+    /** YERB START */
+    Coin tempCoin = it->second.coin;
+    /** YERB END */
     if (moveout) {
         *moveout = std::move(it->second.coin);
     }
@@ -111,6 +332,15 @@ bool CCoinsViewCache::SpendCoin(const COutPoint &outpoint, Coin* moveout) {
         it->second.flags |= CCoinsCacheEntry::DIRTY;
         it->second.coin.Clear();
     }
+    /** YERB START */
+    if (AreAssetsDeployed()) {
+        if (assetsCache) {
+            if (!assetsCache->TrySpendCoin(outpoint, tempCoin.out)) {
+                return error("%s : Failed to try and spend the asset. COutPoint : %s", __func__, outpoint.ToString());
+            }
+        }
+    }
+    /** YERB END */
     return true;
 }
 

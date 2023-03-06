@@ -34,6 +34,7 @@
 #include <boost/signals2/signal.hpp>
 
 class CBlockIndex;
+struct ConnectedBlockAssetData;
 
 /** Fake height value used in Coin to signify they are only in the memory pool (since 0.8) */
 static const uint32_t MEMPOOL_HEIGHT = 0x7FFFFFFF;
@@ -73,6 +74,7 @@ private:
     CTransactionRef tx;
     CAmount nFee;              //!< Cached to avoid expensive parent-transaction lookups
     size_t nTxSize;            //!< ... and avoid recomputing tx size
+    CAmount specialTxFee;
     size_t nUsageSize;         //!< ... and total memory usage
     int64_t nTime;             //!< Local time when entering the mempool
     unsigned int entryHeight;  //!< Chain height when entering the mempool
@@ -95,7 +97,7 @@ private:
     unsigned int nSigOpCountWithAncestors;
 
 public:
-    CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee,
+    CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee, const CAmount& _specialTxFee,
                     int64_t _nTime, unsigned int _entryHeight,
                     bool spendsCoinbase,
                     unsigned int nSigOps, LockPoints lp);
@@ -105,6 +107,7 @@ public:
     const CTransaction& GetTx() const { return *this->tx; }
     CTransactionRef GetSharedTx() const { return this->tx; }
     const CAmount& GetFee() const { return nFee; }
+    const CAmount& GetSpecialTxFee() const { return specialTxFee; }
     size_t GetTxSize() const { return nTxSize; }
     int64_t GetTime() const { return nTime; }
     unsigned int GetHeight() const { return entryHeight; }
@@ -473,6 +476,11 @@ public:
     mutable CCriticalSection cs;
     indexed_transaction_set mapTx;
 
+    /* YERB ASSETS START */
+    std::map<std::string, uint256> mapAssetToHash;
+    std::map<uint256, std::string> mapHashToAsset;
+    /* YERB ASSETS END */
+
     typedef indexed_transaction_set::nth_index<0>::type::iterator txiter;
     std::vector<std::pair<uint256, txiter> > vTxHashes; //!< All tx hashes/entries in mapTx, in random order
 
@@ -561,6 +569,7 @@ public:
     void removeProTxSpentCollateralConflicts(const CTransaction &tx);
     void removeProTxKeyChangedConflicts(const CTransaction &tx, const uint256& proTxHash, const uint256& newKeyHash);
     void removeProTxConflicts(const CTransaction &tx);
+    void removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight, ConnectedBlockAssetData& connectedBlockData );  
     void removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight);
 
     void clear();
@@ -817,6 +826,11 @@ struct DisconnectedBlockTransactions {
         cachedInnerUsage = 0;
         queuedTx.clear();
     }
+};
+
+struct ConnectedBlockAssetData
+{
+    std::set<CAssetCacheNewAsset> newAssetsToAdd;
 };
 
 #endif // BITCOIN_TXMEMPOOL_H

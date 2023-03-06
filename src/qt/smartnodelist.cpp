@@ -91,6 +91,7 @@ SmartnodeList::SmartnodeList(const PlatformStyle* platformStyle, QWidget* parent
     ui->tableWidgetSmartnodesDIP3->setColumnHidden(12, true);
 
     ui->tableWidgetSmartnodesDIP3->setContextMenuPolicy(Qt::CustomContextMenu);
+    ui->tableWidgetSmartnodesDIP3->setSelectionBehavior(QAbstractItemView::SelectRows);
 
     QAction* copyProTxHashAction = new QAction(tr("Copy ProTx Hash"), this);
     QAction* copyCollateralOutpointAction = new QAction(tr("Copy Collateral Outpoint"), this);

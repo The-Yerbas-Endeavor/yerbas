@@ -35,6 +35,7 @@
 #endif
 
 #include "chainparams.h"
+#include "validation.h"
 #include "init.h"
 #include "ui_interface.h"
 #include "util.h"
@@ -103,6 +104,13 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
     quitAction(0),
     sendCoinsAction(0),
     sendCoinsMenuAction(0),
+    
+    //assets
+    TransferAssetsAction(0),
+    CreateAssetsAction(0),
+    ManageAssetsAction(0),
+    RestrictedAssetsAction(0),
+
     usedSendingAddressesAction(0),
     usedReceivingAddressesAction(0),
     signMessageAction(0),
@@ -377,6 +385,27 @@ void BitcoinGUI::createActions()
         connect(smartnodeAction, SIGNAL(triggered()), this, SLOT(gotoSmartnodePage()));
     }
 
+    TransferAssetsAction = new QAction(tr("&Transfer Assets"), this);
+    TransferAssetsAction->setStatusTip(tr("Transfer assets to YERB addresses"));
+    TransferAssetsAction->setCheckable(true);
+    tabGroup->addAction(TransferAssetsAction);
+
+    CreateAssetsAction = new QAction(tr("&Create assets"), this);
+    CreateAssetsAction->setStatusTip(tr("Create new main/sub/unique assets"));
+    CreateAssetsAction->setCheckable(true);
+    tabGroup->addAction(CreateAssetsAction);
+
+    ManageAssetsAction = new QAction(tr("&Manage Assets"),this);
+    ManageAssetsAction->setStatusTip(tr("Manage assets you are the administrator of"));
+    ManageAssetsAction->setCheckable(true);
+    tabGroup->addAction(ManageAssetsAction);
+
+    RestrictedAssetsAction = new QAction(tr("&Restricted Assets"),this);
+    RestrictedAssetsAction->setStatusTip(tr("Manage restricted assets"));
+    RestrictedAssetsAction->setCheckable(true);
+    tabGroup->addAction(RestrictedAssetsAction);
+
+
     // These showNormalIfMinimized are needed because Send Coins and Receive Coins
     // can be triggered from the tray menu, and need to show the GUI to be useful.
     connect(overviewAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
@@ -391,6 +420,12 @@ void BitcoinGUI::createActions()
     connect(receiveCoinsMenuAction, SIGNAL(triggered()), this, SLOT(gotoReceiveCoinsPage()));
     connect(historyAction, SIGNAL(triggered()), this, SLOT(showNormalIfMinimized()));
     connect(historyAction, SIGNAL(triggered()), this, SLOT(gotoHistoryPage()));
+    //assets
+    connect(TransferAssetsAction, SIGNAL(triggered()), this, SLOT(gotoAssetsPage()));
+    connect(CreateAssetsAction, SIGNAL(triggered()), this, SLOT(gotoCreateAssetsPage()));
+    connect(ManageAssetsAction, SIGNAL(triggered()), this, SLOT(gotoManageAssetsPage()));
+    connect(RestrictedAssetsAction, SIGNAL(triggered()), this, SLOT(gotoRestrictedAssetsPage()));
+    
 #endif // ENABLE_WALLET
 
     quitAction = new QAction(QIcon(":/icons/quit"), tr("E&xit"), this);
@@ -586,6 +621,10 @@ void BitcoinGUI::createToolBars()
         }
         toolbar->setMovable(false); // remove unused icon in upper left corner
         overviewAction->setChecked(true);
+        toolbar->addAction(TransferAssetsAction);
+        toolbar->addAction(CreateAssetsAction);
+        toolbar->addAction(ManageAssetsAction);
+        toolbar->addAction(RestrictedAssetsAction);
 
         // Add Yerbas logo on the right side
         QWidget* spacer = new QWidget();
@@ -600,7 +639,11 @@ void BitcoinGUI::createToolBars()
         /** Create additional container for toolbar and walletFrame and make it the central widget.
             This is a workaround mostly for toolbar styling on Mac OS but should work fine for every other OSes too.
         */
-        QVBoxLayout *layout = new QVBoxLayout;
+        toolbar->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
+        toolbar->setOrientation(Qt::Vertical);
+        toolbar->setMinimumSize(180, 0);
+
+        QHBoxLayout *layout = new QHBoxLayout;
         layout->addWidget(toolbar);
         layout->addWidget(walletFrame);
         layout->setSpacing(0);
@@ -930,6 +973,30 @@ void BitcoinGUI::gotoSendCoinsPage(QString addr)
     sendCoinsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
 }
+
+void BitcoinGUI::gotoAssetsPage()
+{
+    TransferAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoAssetsPage();
+}
+
+void BitcoinGUI::gotoCreateAssetsPage()
+{
+    CreateAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoCreateAssetsPage();
+}
+
+void BitcoinGUI::gotoManageAssetsPage()
+{
+    ManageAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoManageAssetsPage();
+};
+
+void BitcoinGUI::gotoRestrictedAssetsPage()
+{
+    RestrictedAssetsAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoRestrictedAssetsPage();
+};
 
 void BitcoinGUI::gotoSignMessageTab(QString addr)
 {
@@ -1273,10 +1340,10 @@ void BitcoinGUI::showEvent(QShowEvent *event)
 }
 
 #ifdef ENABLE_WALLET
-void BitcoinGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label)
+void BitcoinGUI::incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& assetName)
 {
     IncomingTransactionMessage itx = {
-            date, unit, amount, type, address, label
+            date, unit, amount, type, address, label, assetName
     };
     incomingTransactions.emplace_back(itx);
 
@@ -1331,19 +1398,32 @@ void BitcoinGUI::showIncomingTransactions()
 
         QString msg;
         if (sentCount > 0) {
-            msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, sentAmount, true));
+            if (txs.back().assetName == "YERB")
+                msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, sentAmount, true));
+            else
+                msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithCustomName(txs.back().assetName, sentAmount, MAX_ASSET_UNITS, true));
+            
+            //msg += tr("Sent Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, sentAmount, true));
         }
         if (receivedCount > 0) {
-            msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, receivedAmount, true));
+            if (txs.back().assetName == "YERB")
+                msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, receivedAmount, true));
+            else
+                msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithCustomName(txs.back().assetName, receivedAmount, MAX_ASSET_UNITS, true));
+            
+            //msg += tr("Received Amount: %1\n").arg(BitcoinUnits::formatWithUnit(unit, receivedAmount, true));
         }
 
         message(title, msg, CClientUIInterface::MSG_INFORMATION);
     } else {
         for (auto& itx : txs) {
             // On new transaction, make an info balloon
-            QString msg = tr("Date: %1\n").arg(itx.date) +
-                          tr("Amount: %1\n").arg(BitcoinUnits::formatWithUnit(itx.unit, itx.amount, true)) +
-                          tr("Type: %1\n").arg(itx.type);
+            QString msg = tr("Date: %1\n").arg(itx.date);
+            if (itx.assetName == "YERB")
+                msg += tr("Amount: %1\n").arg(BitcoinUnits::formatWithUnit(itx.unit, itx.amount, true));
+            else
+                msg += tr("Amount: %1\n").arg(BitcoinUnits::formatWithCustomName(itx.assetName, itx.amount, MAX_ASSET_UNITS, true));
+            msg += tr("Type: %1\n").arg(itx.type);
             if (!itx.label.isEmpty())
                 msg += tr("Label: %1\n").arg(itx.label);
             else if (!itx.address.isEmpty())
@@ -1351,6 +1431,29 @@ void BitcoinGUI::showIncomingTransactions()
             message((itx.amount)<0 ? tr("Sent transaction") : tr("Incoming transaction"),
                     msg, CClientUIInterface::MSG_INFORMATION);
         }
+    }
+}
+
+void BitcoinGUI::checkAssets()
+{
+    // Check that status of RIP2 and activate the assets icon if it is active
+    if(AreAssetsDeployed()) {
+        TransferAssetsAction->setDisabled(false);
+        TransferAssetsAction->setToolTip(tr("Transfer assets to YERB addresses"));
+        CreateAssetsAction->setDisabled(false);
+        CreateAssetsAction->setToolTip(tr("Create new assets"));
+        ManageAssetsAction->setDisabled(false);
+        RestrictedAssetsAction->setDisabled(false);
+        RestrictedAssetsAction->setToolTip(tr("Manage restricted assets"));
+        }
+    else {
+        TransferAssetsAction->setDisabled(true);
+        TransferAssetsAction->setToolTip(tr("Assets not yet active"));
+        CreateAssetsAction->setDisabled(true);
+        CreateAssetsAction->setToolTip(tr("Assets not yet active"));
+        ManageAssetsAction->setDisabled(true);
+        RestrictedAssetsAction->setDisabled(true);
+        RestrictedAssetsAction->setToolTip(tr("Restricted Assets not yet active"));
     }
 }
 #endif // ENABLE_WALLET

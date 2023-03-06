@@ -46,6 +46,9 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validationinterface.h"
+#include "assets/assets.h"
+#include "assets/assetdb.h"
+#include "assets/snapshotrequestdb.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
@@ -311,6 +314,63 @@ void PrepareShutdown()
         pcoinsdbview = nullptr;
         delete pblocktree;
         pblocktree = nullptr;
+
+        /** YERB START */
+        delete passets;
+        passets = nullptr;
+
+        delete passetsdb;
+        passetsdb = nullptr;
+
+        delete passetsCache;
+        passetsCache = nullptr;
+
+        delete pMessagesCache;
+        pMessagesCache = nullptr;
+
+        delete pMessageSubscribedChannelsCache;
+        pMessageSubscribedChannelsCache = nullptr;
+
+        delete pMessagesSeenAddressCache;
+        pMessagesSeenAddressCache = nullptr;
+
+        delete pmessagechanneldb;
+        pmessagechanneldb = nullptr;
+
+        delete pmessagedb;
+        pmessagedb = nullptr;
+
+        delete pmyrestricteddb;
+        pmyrestricteddb = nullptr;
+
+        delete passetsVerifierCache;
+        passetsVerifierCache = nullptr;
+
+        delete passetsQualifierCache;
+        passetsQualifierCache = nullptr;
+
+        delete passetsRestrictionCache;
+        passetsRestrictionCache = nullptr;
+
+        delete passetsGlobalRestrictionCache;
+        passetsGlobalRestrictionCache = nullptr;
+
+        delete prestricteddb;
+        prestricteddb = nullptr;
+
+        delete pmessagechanneldb;
+        pmessagechanneldb = nullptr;
+
+        delete pSnapshotRequestDb;
+        pSnapshotRequestDb = nullptr;
+
+        delete pAssetSnapshotDb;
+        pAssetSnapshotDb = nullptr;
+
+        delete pDistributeSnapshotDb;
+        pDistributeSnapshotDb = nullptr;
+
+        /** YERB END */
         llmq::DestroyLLMQSystem();
         delete deterministicMNManager;
         deterministicMNManager = nullptr;
@@ -1788,6 +1848,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 delete pcoinsdbview;
                 delete pcoinscatcher;
                 delete pblocktree;
+
                 llmq::DestroyLLMQSystem();
                 delete deterministicMNManager;
                 delete evoDb;
@@ -1796,6 +1857,89 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 deterministicMNManager = new CDeterministicMNManager(*evoDb);
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReset);
                 llmq::InitLLMQSystem(*evoDb, &scheduler, false, fReset || fReindexChainState);
+
+                
+                /** YERB START */
+                {
+                    // Basic assets
+                    delete passets;
+                    delete passetsdb;
+                    delete passetsCache;
+
+                    // Messaging assets
+                    delete pmessagedb;
+                    delete pmessagechanneldb;
+                    delete pMessagesCache;
+                    delete pMessagesSeenAddressCache;
+                    delete pMessageSubscribedChannelsCache;
+
+                    // My restricted assets
+                    delete pmyrestricteddb;
+
+                    // Restricted assets
+                    delete prestricteddb;
+                    delete passetsVerifierCache;
+                    delete passetsQualifierCache;
+                    delete passetsRestrictionCache;
+                    delete passetsGlobalRestrictionCache;
+
+                    //  Rewards
+                    delete pSnapshotRequestDb;
+                    delete pAssetSnapshotDb;
+                    delete pDistributeSnapshotDb;
+
+                    // Basic assets
+                    passetsdb = new CAssetsDB(nBlockTreeDBCache, false, fReset);
+                    passets = new CAssetsCache();
+                    passetsCache = new CLRUCache<std::string, CDatabasedAssetData>(MAX_CACHE_ASSETS_SIZE);
+
+                    // Messaging assets
+                    pMessagesCache = new CLRUCache<std::string, CMessage>(1000);
+                    pMessageSubscribedChannelsCache = new CLRUCache<std::string, int>(1000);
+                    pMessagesSeenAddressCache = new CLRUCache<std::string, int>(1000);
+                    pmessagedb = new CMessageDB(nBlockTreeDBCache, false, false);
+                    pmessagechanneldb = new CMessageChannelDB(nBlockTreeDBCache, false, false);
+
+                    // My restricted assets
+                    pmyrestricteddb = new CMyRestrictedDB(nBlockTreeDBCache, false, false);
+
+                    // Restricted assets
+                    prestricteddb = new CRestrictedDB(nBlockTreeDBCache, false, fReset);
+                    passetsVerifierCache = new CLRUCache<std::string, CNullAssetTxVerifierString>(
+                            MAX_CACHE_ASSETS_SIZE);
+                    passetsQualifierCache = new CLRUCache<std::string, int8_t>(MAX_CACHE_ASSETS_SIZE);
+                    passetsRestrictionCache = new CLRUCache<std::string, int8_t>(MAX_CACHE_ASSETS_SIZE);
+                    passetsGlobalRestrictionCache = new CLRUCache<std::string, int8_t>(MAX_CACHE_ASSETS_SIZE);
+
+                    // Rewards
+                    pSnapshotRequestDb = new CSnapshotRequestDB(nBlockTreeDBCache, false, false);
+                    pAssetSnapshotDb = new CAssetSnapshotDB(nBlockTreeDBCache, false, false);
+                    pDistributeSnapshotDb = new CDistributeSnapshotRequestDB(nBlockTreeDBCache, false, false);
+
+                    // Read for fAssetIndex to make sure that we only load asset address balances if it if true
+                    pblocktree->ReadFlag("assetindex", fAssetIndex);
+                    // Need to load assets before we verify the database
+                    if (!passetsdb->LoadAssets()) {
+                        strLoadError = _("Failed to load Assets Database");
+                        break;
+                    }
+
+                    if (!passetsdb->ReadReissuedMempoolState())
+                        LogPrintf(
+                                "Database failed to load last Reissued Mempool State. Will have to start from empty state");
+
+                    LogPrintf("Successfully loaded assets from database.\nCache of assets size: %d\n",
+                              passetsCache->Size());
+
+                    // Check for changed -disablemessaging state
+                    if (gArgs.GetArg("-disablemessaging", false)) {
+                        LogPrintf("Messaging is disabled\n");
+                        fMessaging = false;
+                    } else {
+                        LogPrintf("Messaging is enabled\n");
+                    }
+                }
+                /** YERB END */
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);

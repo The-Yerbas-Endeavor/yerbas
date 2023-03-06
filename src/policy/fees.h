@@ -14,6 +14,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <array>
 
 class CAutoFile;
 class CFeeRate;
@@ -271,5 +272,9 @@ private:
     /** Calculation of highest target that reasonable estimate can be provided for */
     unsigned int MaxUsableEstimate() const;
 };
+
+static const std::array<int, 9> confTargets = { {2, 4, 6, 12, 24, 48, 144, 504, 1008} };
+int getConfTargetForIndex(int index);
+int getIndexForConfTarget(int target);
 
 #endif /*BITCOIN_POLICYESTIMATOR_H */

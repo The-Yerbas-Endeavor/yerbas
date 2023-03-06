@@ -126,6 +126,11 @@ private:
     QAction *openAction;
     QAction *showHelpMessageAction;
     QAction *showPrivateSendHelpAction;
+    //assets
+    QAction *TransferAssetsAction;
+    QAction *CreateAssetsAction;
+    QAction *ManageAssetsAction;
+    QAction *RestrictedAssetsAction;
 
     QSystemTrayIcon *trayIcon;
     QMenu *trayIconMenu;
@@ -152,6 +157,7 @@ private:
         QString type;
         QString address;
         QString label;
+        QString assetName;
     };
     std::list<IncomingTransactionMessage> incomingTransactions;
     QTimer* incomingTransactionsTimer;
@@ -223,8 +229,11 @@ public Q_SLOTS:
     bool handlePaymentRequest(const SendCoinsRecipient& recipient);
 
     /** Show incoming transaction notification for new transactions. */
-    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label);
+    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address, const QString& label, const QString& assetName);
     void showIncomingTransactions();
+
+    /** Show the assets button if assets are active */
+    void checkAssets();
 #endif // ENABLE_WALLET
 
 private Q_SLOTS:
@@ -239,6 +248,12 @@ private Q_SLOTS:
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
+    /** Switch to Transfer Assets page */
+    void gotoAssetsPage();
+    /** Switch to Create Assets page */
+    void gotoCreateAssetsPage();
+    void gotoManageAssetsPage();
+    void gotoRestrictedAssetsPage();
 
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");
