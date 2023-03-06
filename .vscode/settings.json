@@ -4,6 +4,18 @@
         "*.ipp": "cpp",
         "c_keccak.h": "c",
         "hash-ops.h": "c",
-        "unordered_map": "cpp"
+        "unordered_map": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp",
+        "list": "cpp",
+        "queue": "cpp",
+        "regex": "cpp",
+        "vector": "cpp",
+        "xhash": "cpp",
+        "xlocinfo": "cpp",
+        "xstring": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp"
     }
 }
