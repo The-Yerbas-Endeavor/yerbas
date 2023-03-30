@@ -22,6 +22,7 @@
 int64_t GetTime();
 int64_t GetTimeMillis();
 int64_t GetTimeMicros();
+int64_t GetMockableTimeMicros();
 int64_t GetSystemTimeInSeconds(); // Like GetTime(), but not mockable
 void SetMockTime(int64_t nMockTimeIn);
 int64_t GetMockTime();
