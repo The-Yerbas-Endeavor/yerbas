@@ -2082,7 +2082,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
 
         // Randomize entries before processing, to prevent an attacker to
         // determine which entries will make it through the rate limit
-///        std::shuffle(vAddr.begin(), vAddr.end(), FastRandomContext());
+        Shuffle(vAddr.begin(), vAddr.end(), FastRandomContext());
 
         for (CAddress& addr : vAddr)
         {
@@ -2260,6 +2260,8 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
                 }
             }
 
+            // Track requests for our stuff
+            GetMainSignals().Inventory(inv.hash);
         }
         return true;
     }
