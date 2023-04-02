@@ -27,6 +27,12 @@ int64_t GetTime()
     return now;
 }
 
+int64_t GetMockableTimeMicros()
+{
+    if (nMockTime) return nMockTime * 1000000;
+    return GetTimeMicros();
+}
+
 void SetMockTime(int64_t nMockTimeIn)
 {
     nMockTime.store(nMockTimeIn, std::memory_order_relaxed);
