@@ -68,10 +68,11 @@ jobs:
         run: |
           brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
           pip3 install ds_store mac_alias
-      - name: build depends
+      - name: Build Depends
         run: |
-          echo "building with $(nproc) threads"
-          make -C depends -j8
+          echo "building with 8 threads"
+          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          make -C depends -j8 HOST=x86_64-apple-darwin20.6.0
       - name: configure
         run: |
           ./autogen.sh
@@ -130,7 +131,9 @@ jobs:
       - name: build depends
         run: |
           echo "building with $(nproc) threads"
-          make -C depends -j$(nproc)
+          gcc --version
+          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          make -C depends -j$(nproc)  HOST=x86_64-pc-linux-gnu
       - name: configure
         run: |
           ./autogen.sh
@@ -182,13 +185,15 @@ jobs:
           sudo apt-get install -y g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64
           sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
           sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
-      - name: build depends
+      - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
+          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
           make -C depends -j$(nproc) HOST=x86_64-w64-mingw32
-      - name: configure
+      - name: Configure
         run: |
           ./autogen.sh
+          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
           ./configure --prefix=`pwd`/depends/x86_64-w64-mingw32
       - name: build binary
         run: |
@@ -287,9 +292,10 @@ jobs:
           sudo apt-get update -y
           sudo apt-get upgrade -y
           sudo apt-get install curl build-essential libtool g++-aarch64-linux-gnu autotools-dev automake pkg-config python3 bsdmainutils cmake
-      - name: build depends
+      - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
+          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
           make -C depends -j$(nproc) HOST=aarch64-linux-gnu
       - name: configure
         run: |
