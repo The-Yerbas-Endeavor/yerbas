@@ -239,10 +239,11 @@ jobs:
           sudo apt-get update -y
           sudo apt-get upgrade -y
           sudo apt-get install curl build-essential libtool g++-arm-linux-gnueabihf autotools-dev automake pkg-config python3 bsdmainutils cmake
-      - name: build depends
+      - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
-          make -C depends -j$(nproc) HOST=arm-linux-gnueabihf
+          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          make -C depends -j$(nproc) HOST=aarch64-linux-gnu
       - name: configure
         run: |
           ./autogen.sh
