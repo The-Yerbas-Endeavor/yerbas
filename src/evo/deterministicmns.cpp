@@ -122,7 +122,7 @@ bool CDeterministicMNList::IsMNPoSeBanned(const uint256& proTxHash) const
 bool CDeterministicMNList::IsMNValid(const CDeterministicMNCPtr& dmn, int height) const
 {
 	SmartnodeCollaterals collaterals = Params().GetConsensus().nCollaterals;
-    return !IsMNPoSeBanned(dmn) && collaterals.isPayableCollateral(height, dmn->pdmnState->nCollateralAmount);
+    return !IsMNPoSeBanned(dmn) && collaterals.isPayableCollateral(nHeight, dmn->pdmnState->nCollateralAmount);
 }
 
 bool CDeterministicMNList::IsMNValid(const CDeterministicMNCPtr& dmn) const
