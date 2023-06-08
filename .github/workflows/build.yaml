@@ -233,7 +233,7 @@ jobs:
           report_paths: 'unit_test_results.xml'
 
   build-win:
-    name: window build
+    name: Window 64 build
     needs: checking-build-version
     runs-on: ubuntu-20.04
     steps:
