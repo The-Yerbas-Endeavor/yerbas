@@ -335,7 +335,7 @@ jobs:
           path: ${{ env.COMPRESS_DIR }}
   build-ubuntu22:
     name: Ubuntu 22 Build
-    needs: get-version
+    needs: checking-build-version
     runs-on: ubuntu-22.04
 
     steps:
@@ -431,7 +431,7 @@ jobs:
 
   test-ubuntu22:
     name: Ubuntu 22 Tests
-    needs: [ get-version, build-ubuntu22 ]
+    needs: [ checking-build-version, build-ubuntu22 ]
     runs-on: ubuntu-22.04
 
     steps:
