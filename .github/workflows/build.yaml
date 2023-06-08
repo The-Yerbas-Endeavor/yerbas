@@ -145,40 +145,51 @@ jobs:
           detailed_summary: ${{ steps.Tests.conclusion == 'failure'}}
           include_passed: false
           report_paths: 'unit_test_results.xml'
-  build-ubuntu20:
-    name: Ubuntu20 build
-    needs: checking-build-version
+
+    build-ubuntu20:
+    name: Ubuntu 20 Build
+    needs: get-version
     runs-on: ubuntu-20.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Getting Version
-        uses: actions/download-artifact@v3
+
       - name: Install Required Packages
         run: |
           sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
-      - name: build depends
+          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake -y
+      - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
           gcc --version
           export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
           make -C depends -j$(nproc)  HOST=x86_64-pc-linux-gnu
-      - name: configure
+      - name: Configure
         run: |
           ./autogen.sh
           ./configure --prefix=`pwd`/depends/x86_64-pc-linux-gnu
-      - name: build binary
+      - name: Build Binaries
         run: |
           make -j$(nproc)
-          mkdir -p $BUILD_DIR
-          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} $BUILD_DIR/
-          strip $BUILD_DIR/*
-      - name: generate checksum and compress
+          mkdir -p ${BUILD_DIR} ${BUILD_DIR}_not_strip ${TEST_DIR}
+          cp src/{yerbas-cli,yerbasd,qt/yerbas-qt} ${BUILD_DIR}/
+          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} ${BUILD_DIR}_not_strip/
+          mv src/test/test_yerbas ${TEST_DIR}
+          strip ${BUILD_DIR}/*
+      - name: Build Debug Binaries
         run: |
-          echo "buildng $BUILD_VERSION version"
-          cd $BUILD_DIR
+          make clean
+          make distclean
+          ./autogen.sh
+          ./configure --prefix=`pwd`/depends/x86_64-pc-linux-gnu --disable-tests --enable-debug
+          make -j$(nproc)
+          mkdir -p ${BUILD_DIR}_debug
+          mv src/{yerbas-cli,yerbasd,qt/yerbas-qt} ${BUILD_DIR}_debug/
+      - name: Generate Checksum and Compress
+        run: |
+          mkdir -p ${COMPRESS_DIR}
+          cd ${BUILD_DIR}
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
           shasum * >> checksums.txt
@@ -187,19 +198,49 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           sha256sum * >> checksums.txt
           cat checksums.txt
+          tar -cvzf ../${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz *
+          cd ../${BUILD_DIR}_debug
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
+          cat checksums.txt
+          tar -cvzf ../${COIN_NAME}-ubuntu20-debug-${{ needs.get-version.outputs.version }}.tar.gz *
+          cd ../${BUILD_DIR}_not_strip
+          echo "sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          shasum * >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          echo "openssl-sha256:" >> checksums.txt
+          echo "------------------------------------" >> checksums.txt
+          sha256sum * >> checksums.txt
+          cat checksums.txt
+          tar -cvzf ../${COIN_NAME}-ubuntu20-not_strip-${{ needs.get-version.outputs.version }}.tar.gz *
           cd ..
-          tar -cvzf ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz $BUILD_DIR/*
-          mkdir -p ${COMPRESS_DIR}
-          mv ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz ${COMPRESS_DIR}/
-          shasum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
-          sha256sum ${COMPRESS_DIR}/${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz >> ${COMPRESS_DIR}/checksums.txt
+          mv *.tar.gz ${COMPRESS_DIR}/
+          cd ${COMPRESS_DIR}
+          echo "sha256: `shasum ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "sha256: `shasum ${COIN_NAME}-ubuntu20-debug-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-ubuntu20-debug-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "sha256: `shasum ${COIN_NAME}-ubuntu20-not_strip-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          echo "openssl-sha256: `sha256sum ${COIN_NAME}-ubuntu20-not_strip-${{ needs.get-version.outputs.version }}.tar.gz`" >> checksums.txt
+          cd ..
           cat ${COMPRESS_DIR}/checksums.txt
-      - name: Upload Artifact
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.COIN_NAME }}-ubuntu20-${{ env.BUILD_VERSION }}
+          name: ${{ env.COIN_NAME }}-ubuntu20-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-ubuntu20-test-${{ needs.get-version.outputs.version }}
+          path: ${{ env.TEST_DIR }}
   test-ubuntu20:
     name: Ubuntu 20 Tests
     needs: [ checking-build-version, build-ubuntu20 ]
