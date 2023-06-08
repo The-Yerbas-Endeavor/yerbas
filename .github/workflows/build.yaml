@@ -290,7 +290,7 @@ jobs:
           name: ${{ env.COIN_NAME }}-win-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
 
-  test-win64:
+  test-win:
     name: Win64 Tests
     needs: [ checking-build-version, build-win64 ]
     runs-on: windows-latest
