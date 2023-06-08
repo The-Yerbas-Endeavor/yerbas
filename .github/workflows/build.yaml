@@ -486,7 +486,7 @@ jobs:
       - name: Install Required Packages
         run: |
           sudo apt-get update -y
-          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake -y
+          sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake libcurl4-openssl-dev -y
       - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
