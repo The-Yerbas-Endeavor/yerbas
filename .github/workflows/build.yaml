@@ -114,6 +114,37 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-dmg-${{ env.BUILD_VERSION }}
           path: Yerbas-Qt.dmg
+  test-macos:
+    name: macOS Tests
+    needs: [ get-version, build-macos ]
+    runs-on: macos-11
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
+
+      - name: Run Unit Tests
+        id: Tests
+        run: |
+          chmod +x test_yerbas
+          ./test_yerbas --log_format=JUNIT > unit_test_results.xml
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
+          path: unit_test_results.xml
+
+      - name: Publish Unit Test Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          check_name: "macOS 11"
+          detailed_summary: ${{ steps.Tests.conclusion == 'failure'}}
+          include_passed: false
+          report_paths: 'unit_test_results.xml'
   build-ubuntu20:
     name: Ubuntu20 build
     needs: checking-build-version
@@ -225,6 +256,44 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-win-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
+
+  test-win64:
+    name: Win64 Tests
+    needs: [ get-version, build-win64 ]
+    runs-on: windows-latest
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
+
+      - name: Check Artifacts
+        run: |
+          pwd
+          dir
+      - name: Run Unit Tests B
+        id: Tests
+        run: |
+          pwd
+          dir
+          .\test_yerbas.exe --log_format=JUNIT > unit_test_results.xml
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
+          path: unit_test_results.xml
+
+      - name: Publish Unit Test Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          check_name: "Win64"
+          detailed_summary: ${{ steps.Tests.conclusion == 'failure'}}
+          include_passed: false
+          report_paths: 'unit_test_results.xml'
+
 #  build-arm-32:
 #    name: arm 32 bit build
 #    needs: checking-build-version
@@ -333,11 +402,50 @@ jobs:
         with:
           name: ${{ env.COIN_NAME }}-arm64-${{ env.BUILD_VERSION }}
           path: ${{ env.COMPRESS_DIR }}
+
+  test-arm-64:
+    name: ARM 64-bit Tests
+    needs: [ get-version, build-arm-64 ]
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
+
+      - name: Run Unit Tests
+        id: Tests
+        uses: nandofw/arm-runner-action@v2.5.2
+        with:
+          base_image: raspios_lite_arm64:latest
+          cpu: cortex-a7
+          copy_artifact_dest: ${{ github.workspace }}
+          copy_artifact_path: unit_test_results.xml
+          copy_artifacts_on_fail: yes
+          commands: |
+             chmod +x test_yerbas
+             ./test_yerbas --log_format=JUNIT > unit_test_results.xml
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
+          path: unit_test_results.xml
+
+      - name: Publish Unit Test Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          check_name: "ARM 64-bit"
+          detailed_summary: ${{ steps.Tests.conclusion == 'failure'}}
+          include_passed: false
+          report_paths: 'unit_test_results.xml'
+
   build-ubuntu22:
     name: Ubuntu 22 Build
     needs: checking-build-version
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
