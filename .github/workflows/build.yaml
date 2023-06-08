@@ -243,7 +243,7 @@ jobs:
         run: |
           echo "building with $(nproc) threads"
           export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
-          make -C depends -j$(nproc) HOST=aarch64-linux-gnu
+          make -C depends -j$(nproc) HOST=aarch32-linux-gnu
       - name: configure
         run: |
           ./autogen.sh
