@@ -292,7 +292,7 @@ jobs:
 
   test-win:
     name: Win64 Tests
-    needs: [ checking-build-version, build-win64 ]
+    needs: [ checking-build-version, build-win ]
     runs-on: windows-latest
 
     steps:
