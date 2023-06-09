@@ -150,7 +150,6 @@ jobs:
     name: Ubuntu 20 Build
     needs: get-version
     runs-on: ubuntu-20.04
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
