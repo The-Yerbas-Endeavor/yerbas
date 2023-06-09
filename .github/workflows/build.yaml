@@ -146,10 +146,11 @@ jobs:
           include_passed: false
           report_paths: 'unit_test_results.xml'
 
-    build-ubuntu20:
-    name: Ubuntu20 Build
+  build-ubuntu20:
+    name: Ubuntu 20 Build
     needs: get-version
     runs-on: ubuntu-20.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
