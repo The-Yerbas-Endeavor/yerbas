@@ -3,7 +3,7 @@
 @@ -41,6 +41,7 @@
  #define QBYTEARRAYMATCHER_H
  
- #include <QByteArray.h>
+ #include <QtCore/qbytearray.h>
 +#include <limits>
  
  QT_BEGIN_NAMESPACE
