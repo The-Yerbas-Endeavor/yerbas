@@ -2,14 +2,12 @@ name: Yerbas Build
 on:
   push:
     branches:
-      - master
-      - develop
-      - 'ft/*'
-      - 'bug/*'
-      - 'release/*'
+      - main
+      - v3.1.2*
+      - dev
   pull_request:
     branches:
-      - develop
+      - dev
   workflow_dispatch:
 
 env:
