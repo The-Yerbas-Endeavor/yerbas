@@ -13,7 +13,7 @@
 
 #undef ERROR // chia BLS uses relic, which defines ERROR, which in turn causes win32/win64 builds to print many warnings
 // #include <chiabls/bls.hpp>
-#include <chiabls/privatekey.hpp>
+// #include <chiabls/privatekey.hpp>
 #include <chiabls/publickey.hpp>
 #include <chiabls/signature.hpp>
 #include <bls-dash/bls.hpp>
