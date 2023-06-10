@@ -483,18 +483,3 @@ typedef std::shared_ptr<BLSSignatureVector> BLSSignatureVectorPtr;
 bool BLSInit();
 
 #endif // YERBAS_CRYPTO_BLS_H
-Footer
-© 2023 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
-yerbas/bls.h at master · The-Yerbas-Endeavor/yerbas · GitHub
