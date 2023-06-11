@@ -9,11 +9,13 @@
     pull_request:
       branches:
         - dev
+
   env:
     COIN_NAME: yerbas
     BUILD_DIR: yerbas-build
     COMPRESS_DIR: yerbas-compress
-    TEST_LOG_ARTIFACT_DIR: test-logs
+    TEST_DIR: yerbas-test
+
   jobs:
     get-version:
       name: Get Version
