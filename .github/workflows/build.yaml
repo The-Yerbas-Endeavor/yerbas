@@ -744,8 +744,8 @@ jobs:
         run: |
           make -j$(nproc)
           mkdir -p ${BUILD_DIR} ${BUILD_DIR}_not_strip ${TEST_DIR}
-          cp src/{yerbas-cli.exe,yerbas-tx.exe,yerbasd.exe,qt/yerbas-qt.exe} ${BUILD_DIR}/
-          mv src/{yerbas-cli.exe,yerbas-tx.exe,yerbasd.exe,qt/yerbas-qt.exe} ${BUILD_DIR}_not_strip/
+          cp src/{yerbas-cli.exe,yerbasd.exe,qt/yerbas-qt.exe} ${BUILD_DIR}/
+          mv src/{yerbas-cli.exe,yerbasd.exe,qt/yerbas-qt.exe} ${BUILD_DIR}_not_strip/
           mv src/test/test_yerbas.exe ${TEST_DIR}
           strip ${BUILD_DIR}/*
 
