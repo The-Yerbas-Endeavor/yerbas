@@ -320,9 +320,9 @@ jobs:
           name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
 
-  test-win:
-    name: Win Tests
-    needs: [ get-version, build-win ]
+  test-win64:
+    name: Win64 Tests
+    needs: [ get-version, build-win64 ]
     runs-on: windows-latest
 
     steps:
