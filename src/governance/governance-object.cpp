@@ -307,18 +307,16 @@ void CGovernanceObject::SetSmartnodeOutpoint(const COutPoint& outpoint)
 bool CGovernanceObject::Sign(const CBLSSecretKey& key)
 {
     CBLSSignature sig = key.Sign(GetSignatureHash());
-    if (!key.IsValid()) {
+    if (!sig.IsValid()) {
         return false;
     }
-    sig.GetBuf(vchSig);
+    vchSig = sig.ToByteVector();
     return true;
 }
 
 bool CGovernanceObject::CheckSignature(const CBLSPublicKey& pubKey) const
 {
-    CBLSSignature sig;
-    sig.SetBuf(vchSig);
-    if (!sig.VerifyInsecure(pubKey, GetSignatureHash())) {
+    if (!CBLSSignature(vchSig).VerifyInsecure(pubKey, GetSignatureHash())) {
         LogPrintf("CGovernanceObject::CheckSignature -- VerifyInsecure() failed\n");
         return false;
     }
