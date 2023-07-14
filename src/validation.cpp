@@ -1136,9 +1136,9 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
 CAmount GetSmartnodePayment(int nHeight, CAmount blockValue, CAmount specialTxFees)
 { 
     size_t mnCount = chainActive.Tip() == nullptr ? 0 : deterministicMNManager->GetListForBlock(chainActive.Tip()).GetAllMNsCount();
-	if(mnCount >= 150 || (mnCount >= 10 && Params().NetworkIDString() != CBaseChainParams::MAIN)) {
+	if(mnCount >= 10) {
 		int percentage = Params().GetConsensus().nCollaterals.getRewardPercentage(nHeight);
-		CAmount specialFeeReward = specialTxFees * Params().GetConsensus().nSpecialRewardShare.smartnode; 
+		CAmount specialFeeReward = specialTxFees * Params().GetConsensus().nAssetsRewardShare.smartnode; 
         return blockValue * percentage / 100 + specialFeeReward;
 	} else {
 		return 0;
