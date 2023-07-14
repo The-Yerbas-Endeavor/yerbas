@@ -557,12 +557,14 @@ bool CDeterministicMNManager::ProcessBlock(const CBlock& block, const CBlockInde
             LogPrintf("CDeterministicMNManager::%s -- Wrote snapshot. nHeight=%d, mapCurMNs.allMNsCount=%d\n",
                 __func__, nHeight, newList.GetAllMNsCount());
         }
+    
         diff.nHeight = pindex->nHeight;
         mnListDiffsCache.emplace(pindex->GetBlockHash(), diff);
-    } catch (const std::exception& e) {
-        LogPrintf("CDeterministicMNManager::%s -- internal error: %s\n", __func__, e.what());
-        return _state.DoS(100, false, REJECT_INVALID, "failed-dmn-block");
-    }
+    } 
+///        catch (const std::exception& e) {
+///        LogPrintf("CDeterministicMNManager::%s -- internal error: %s\n", __func__, e.what());
+///        return _state.DoS(100, false, REJECT_INVALID, "failed-dmn-block");
+///    }
 
     // Don't hold cs while calling signals
     if (diff.HasChanges()) {
@@ -765,7 +767,7 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
             auto newState = std::make_shared<CDeterministicMNState>(*dmn->pdmnState);
             newState->addr = proTx.addr;
             newState->scriptOperatorPayout = proTx.scriptOperatorPayout;
-
+std::list<const CBlockIndex*> listDiffIndexes;
             if (newState->nPoSeBanHeight != -1) {
                 // only revive when all keys are set
                 if (newState->pubKeyOperator.Get().IsValid() && !newState->keyIDVoting.IsNull() && !newState->keyIDOwner.IsNull()) {
@@ -942,8 +944,6 @@ CDeterministicMNList CDeterministicMNManager::GetListForBlock(const CBlockIndex*
         // no snapshot found yet, check diffs
         auto itDiffs = mnListDiffsCache.find(pindex->GetBlockHash());
         if (itDiffs != mnListDiffsCache.end()) {
-            diff.nHeight = pindex->nHeight;
-            mnListDiffsCache.emplace(pindex->GetBlockHash(), std::move(diff));
             listDiffIndexes.emplace_front(pindex);
             pindex = pindex->pprev;
             continue;
