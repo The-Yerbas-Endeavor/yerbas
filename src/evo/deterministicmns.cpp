@@ -122,7 +122,7 @@ bool CDeterministicMNList::IsMNPoSeBanned(const uint256& proTxHash) const
 bool CDeterministicMNList::IsMNValid(const CDeterministicMNCPtr& dmn, int height) const
 {
 	SmartnodeCollaterals collaterals = Params().GetConsensus().nCollaterals;
-    return !IsMNPoSeBanned(dmn) && collaterals.isPayableCollateral(nHeight, dmn->pdmnState->nCollateralAmount);
+    return !IsMNPoSeBanned(dmn) && collaterals.isPayableCollateral(height, dmn->pdmnState->nCollateralAmount);
 }
 
 bool CDeterministicMNList::IsMNValid(const CDeterministicMNCPtr& dmn) const
@@ -533,7 +533,7 @@ bool CDeterministicMNManager::ProcessBlock(const CBlock& block, const CBlockInde
 
     int nHeight = pindex->nHeight;
 
-    {
+    try {
         LOCK(cs);
         if (!BuildNewListFromBlock(block, pindex->pprev, _state, newList, true)) {
             return false;
@@ -560,11 +560,10 @@ bool CDeterministicMNManager::ProcessBlock(const CBlock& block, const CBlockInde
     
         diff.nHeight = pindex->nHeight;
         mnListDiffsCache.emplace(pindex->GetBlockHash(), diff);
-    } 
-///        catch (const std::exception& e) {
-///        LogPrintf("CDeterministicMNManager::%s -- internal error: %s\n", __func__, e.what());
-///        return _state.DoS(100, false, REJECT_INVALID, "failed-dmn-block");
-///    }
+    } catch (const std::exception& e) {
+        LogPrintf("CDeterministicMNManager::%s -- internal error: %s\n", __func__, e.what());
+        return _state.DoS(100, false, REJECT_INVALID, "failed-dmn-block");
+    }
 
     // Don't hold cs while calling signals
     if (diff.HasChanges()) {
@@ -767,7 +766,7 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
             auto newState = std::make_shared<CDeterministicMNState>(*dmn->pdmnState);
             newState->addr = proTx.addr;
             newState->scriptOperatorPayout = proTx.scriptOperatorPayout;
-std::list<const CBlockIndex*> listDiffIndexes;
+
             if (newState->nPoSeBanHeight != -1) {
                 // only revive when all keys are set
                 if (newState->pubKeyOperator.Get().IsValid() && !newState->keyIDVoting.IsNull() && !newState->keyIDOwner.IsNull()) {
