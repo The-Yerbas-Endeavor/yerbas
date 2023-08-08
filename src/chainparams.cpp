@@ -449,10 +449,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = 1230767999; // December 31, 2008
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000000f647ae6fbe9"); // 0
+        consensus.nMinimumChainWork = uint256S("0x000000000000000000000000000000000000000000000000000013fe8a5d962d"); // 0
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0xc99ce3a58ba3828a1a09469d0afedb91e8238e6cb4fd2bc3970c9ff56bbbb528"); // 0
+        consensus.defaultAssumeValid = uint256S("0x5e36ff7864c6ef90a165d28b702884fa1c91be4ffea3111d9fbc3724fa6f410f"); // 0
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -540,6 +540,7 @@ public:
              {42069, uint256S("0x729ee24deac4d1df060191debdf52079a70987dc2001e058002641a1412d3782")},
              {108069, uint256S("0x15280a0f159f2739a3e6658bbc68534cefa79b14f5a250e1e4f724b5b3985998")},
              {209639, uint256S("0xc99ce3a58ba3828a1a09469d0afedb91e8238e6cb4fd2bc3970c9ff56bbbb528")},
+             {310420, uint256S("0x5e36ff7864c6ef90a165d28b702884fa1c91be4ffea3111d9fbc3724fa6f410f")},
              
           }
 	};
@@ -877,8 +878,8 @@ public:
 
         genesis = CreateGenesisBlock(1417713337, 1096447, 0x207fffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x000008ca1832a4baf228eb1553c03d3a2c8e02399550dd6ea8d65cec3ef23d2e"));
-        assert(genesis.hashMerkleRoot == uint256S("0xe0028eb9648db56b1ac77cf090b99048a8007e2bb64b68f092c03c7f56a662c7"));
+//        assert(consensus.hashGenesisBlock == uint256S("0xe3a4fabed29dfc45e9aebe696453545ee2e198bae150e4c115fcc80ef3298554"));
+//        assert(genesis.hashMerkleRoot == uint256S("0xbfe15871764bf35d6391308fc2dab8846f177ba563d256b1764271987ec99bc0"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
@@ -906,7 +907,7 @@ public:
 
         checkpointData = (CCheckpointData) {
             {
-                {0, uint256S("0x000008ca1832a4baf228eb1553c03d3a2c8e02399550dd6ea8d65cec3ef23d2e")},
+                
             }
         };
 

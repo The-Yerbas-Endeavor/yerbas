@@ -48,7 +48,7 @@ BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAG
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 
-BLS_LIBS=-lchiabls -lgmp
+BLS_LIBS=-lbls-dash -lgmp
 
 LIBBITCOIN_SERVER=libyerbas_server.a
 LIBBITCOIN_COMMON=libyerbas_common.a

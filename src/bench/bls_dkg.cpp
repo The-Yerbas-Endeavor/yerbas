@@ -32,8 +32,10 @@ struct DKG
         ids.resize(quorumSize);
 
         for (int i = 0; i < quorumSize; i++) {
-            members[i].id.SetInt(i + 1);
-            ids[i] = members[i].id;
+            uint256 id;
+            WriteLE64(id.begin(), i + 1);
+            members.push_back({id, {}, {}});
+            ids.emplace_back(id);
         }
 
         for (int i = 0; i < quorumSize; i++) {

@@ -1135,10 +1135,7 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
 
 CAmount GetSmartnodePayment(int nHeight, CAmount blockValue, CAmount specialTxFees)
 { 
-	size_t mnCount = 0;
-    if (chainActive.Tip() != nullptr){ //fix empty list when -checklevel = 4
-          mnCount = deterministicMNManager->GetListForBlock(chainActive[nHeight - 1]).GetAllMNsCount();      
-    }
+    size_t mnCount = chainActive.Tip() == nullptr ? 0 : deterministicMNManager->GetListForBlock(chainActive.Tip()).GetAllMNsCount();
 	if(mnCount >= 10) {
 		int percentage = Params().GetConsensus().nCollaterals.getRewardPercentage(nHeight);
 		CAmount specialFeeReward = specialTxFees * Params().GetConsensus().nAssetsRewardShare.smartnode; 
@@ -3120,8 +3117,8 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
         dbTx->Commit();
 
         /** YERBAS ASSETS START */
-        bool assetFlushed = assetCache.Flush();
-        assert(assetFlushed);
+///        bool assetFlushed = assetCache.Flush();
+///        assert(assetFlushed);
         /** YERBAS ASSETS END */
     }
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
