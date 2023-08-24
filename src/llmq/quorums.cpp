@@ -82,15 +82,22 @@ bool CQuorum::IsValidMember(const uint256& proTxHash) const
 
 CBLSPublicKey CQuorum::GetPubKeyShare(size_t memberIdx) const
 {
-    if (quorumVvec == nullptr || memberIdx >= members.size() || !qc.validMembers[memberIdx]) {
+///    LOCK(cs);
+    if (!HasVerificationVector() || memberIdx >= members.size() || !qc.validMembers[memberIdx]) {
         return CBLSPublicKey();
     }
     auto& m = members[memberIdx];
-    return blsCache.BuildPubKeyShare(m->proTxHash, quorumVvec, CBLSId::FromHash(m->proTxHash));
+    return blsCache.BuildPubKeyShare(m->proTxHash, quorumVvec, CBLSId(m->proTxHash));
+}
+
+bool CQuorum::HasVerificationVector() const {
+///    LOCK(cs);
+    return quorumVvec != nullptr;
 }
 
 CBLSSecretKey CQuorum::GetSkShare() const
 {
+///    LOCK(cs);
     return skShare;
 }
 

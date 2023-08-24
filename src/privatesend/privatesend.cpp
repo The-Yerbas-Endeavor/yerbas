@@ -53,18 +53,14 @@ bool CPrivateSendQueue::Sign()
     if (!sig.IsValid()) {
         return false;
     }
-    sig.GetBuf(vchSig);
+    vchSig = sig.ToByteVector();
 
     return true;
 }
 
 bool CPrivateSendQueue::CheckSignature(const CBLSPublicKey& blsPubKey) const
 {
-    uint256 hash = GetSignatureHash();
-
-    CBLSSignature sig;
-    sig.SetBuf(vchSig);
-    if (!sig.IsValid() || !sig.VerifyInsecure(blsPubKey, hash)) {
+    if (!CBLSSignature(vchSig).VerifyInsecure(blsPubKey, GetSignatureHash())) {
         LogPrint(BCLog::PRIVATESEND, "CPrivateSendQueue::CheckSignature -- VerifyInsecure() failed\n");
         return false;
     }
@@ -103,18 +99,14 @@ bool CPrivateSendBroadcastTx::Sign()
     if (!sig.IsValid()) {
         return false;
     }
-    sig.GetBuf(vchSig);
+    vchSig = sig.ToByteVector();
 
     return true;
 }
 
 bool CPrivateSendBroadcastTx::CheckSignature(const CBLSPublicKey& blsPubKey) const
 {
-    uint256 hash = GetSignatureHash();
-
-    CBLSSignature sig;
-    sig.SetBuf(vchSig);
-    if (!sig.IsValid() || !sig.VerifyInsecure(blsPubKey, hash)) {
+    if (!CBLSSignature(vchSig).VerifyInsecure(blsPubKey, GetSignatureHash())) {
         LogPrint(BCLog::PRIVATESEND, "CPrivateSendBroadcastTx::CheckSignature -- VerifyInsecure() failed\n");
         return false;
     }

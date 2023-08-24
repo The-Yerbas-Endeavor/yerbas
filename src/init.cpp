@@ -2172,7 +2172,7 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (!strMasterNodeBLSPrivKey.empty()) {
         auto binKey = ParseHex(strMasterNodeBLSPrivKey);
         CBLSSecretKey keyOperator;
-        keyOperator.SetBuf(binKey);
+///        keyOperator.SetBuf(binKey);
         if (!keyOperator.IsValid()) {
             return InitError(_("Invalid smartnodeblsprivkey. Please see documentation."));
         }
