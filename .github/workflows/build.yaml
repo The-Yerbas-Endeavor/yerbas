@@ -1,5 +1,4 @@
----
-  name: Yerbas Build
+name: Yerbas Build
 on:
   push:
     branches:
