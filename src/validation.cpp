@@ -3121,7 +3121,6 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
 
         /** YERBAS ASSETS START */
         bool assetFlushed = assetCache.Flush();
-        assert(assetFlushed);
         /** YERBAS ASSETS END */
     }
     int64_t nTime4 = GetTimeMicros(); nTimeFlush += nTime4 - nTime3;
