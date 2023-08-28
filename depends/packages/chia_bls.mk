@@ -3,7 +3,7 @@ $(package)_version=bls-signatures-20181101
 # It's actually from https://github.com/Chia-Network/bls-signatures, but we have so many patches atm that it's forked
 $(package)_download_path=https://github.com/The-Yerbas-Endeavor/bls-signatures/releases/download/v20181101/
 $(package)_file_name=$($(package)_version).tar.gz
-$(package)_sha256_hash=165f8b0e0a2b9061f37f52b89c0a60579dffcc2ed4a3bb5fd1d91f02f6683448
+$(package)_sha256_hash=b3776ec5e32c26397480b43fb0d35e153976118e116ec79056d09c11d61ebb39
 $(package)_dependencies=gmp
 #$(package)_patches=...TODO (when we switch back to https://github.com/Chia-Network/bls-signatures)
 
