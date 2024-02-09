@@ -62,14 +62,13 @@ jobs:
       id: docker_build
       uses: docker/build-push-action@v3
       with:
-        context: ./contrib/containers/deploy
-        file: ./contrib/containers/deploy/Dockerfile.GitHubActions.Release
-        push: true
+        context: ./docker
+        file: ./docker/Dockerfile.GitHubActions
         tags: ${{ steps.docker_meta.outputs.tags }}
         labels: ${{ steps.docker_meta.outputs.labels }}
         build-args: TAG=${{ steps.get_tag.outputs.build_tag }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new
         platforms: linux/amd64,linux/arm64,,linux/arm/v7
 
     - name: Image digest
