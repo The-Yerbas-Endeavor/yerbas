@@ -1,5 +1,5 @@
 FROM ubuntu:bionic
-LABEL maintainer="Yerbas Developers <yerbas.core@gmail.com>"
+LABEL maintainer="Yerbas Developers <yerbascore@gmail.com>"
 LABEL description="Dockerised YerbasCore"
 
 ARG USER_ID
