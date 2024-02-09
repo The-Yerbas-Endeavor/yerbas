@@ -26,7 +26,7 @@ RUN mach=$(uname -i) \
       && case $mach in armv7l) arch="arm-linux-gnueabihf"; ;; aarch64) arch="aarch64-linux-gnu"; ;; x86_64) arch="ubuntu22"; ;;  *) echo "ERROR: Machine type $mach not supported."; ;; esac \
       && wget https://github.com/The-Yerbas-Endeavor/yerbas/releases/download/v.3.1.3.19/yerbas-$arch-v3.1.3.19.tar.gz -P /tmp \
       && tar -xvf /tmp/yerbas-$arch-v3.1.3.19.tar.gz -C /tmp/ \
-      && cp /tmp/yerbas-$arch-v3.1.3.19/bin/*  /usr/local/bin \
+      && cp /tmp/*/bin/*  /usr/local/bin \
       && rm -rf /tmp/yerbas-* \
       && chmod a+x /usr/local/bin/*
 
