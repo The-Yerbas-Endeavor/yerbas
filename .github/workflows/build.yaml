@@ -44,7 +44,7 @@ jobs:
         id: selected-version
         shell: bash
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]] || [[ "$GITHUB_REF" == *dev ]] || [[ "$GITHUB_REF" == *v3.1.2* ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]] || [[ "$GITHUB_REF" == *dev ]] || [[ "$GITHUB_REF" == *v3.1.3* ]]; then
               version=${{ steps.versions.outputs.snapshot-version }}
           elif [[ "$GITHUB_EVENT_NAME" != "pull_request" ]] && [[ "$GITHUB_REF" == *"release/"* ]]; then
               version=${{ steps.versions.outputs.candidate-version }}
