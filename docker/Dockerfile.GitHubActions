@@ -27,6 +27,7 @@ COPY dashcore-binaries/${TAG}/dashcore* /home/dash
 
 RUN mach=$(uname -m) \
       && case $mach in aarch64) arch="aarch64-linux-gnu"; ;; x86_64) arch="x86_64-linux-gnu"; ;;  *) echo "ERROR: Machine type $mach not supported."; ;; esac \
+      && wget https://github.com/dashpay/dash/releases/download/v${TAG}/dashcore-${TAG}-$arch.tar.gz -P /tmp \
       && cd /home/dash \
       && tar xvzf dashcore*$arch.tar.gz \
       && echo $(ls -1 /home/dash) \
