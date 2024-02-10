@@ -32,7 +32,7 @@ jobs:
           echo "checking out $GITHUB_REF triggered by $GITHUB_EVENT_NAME"
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Read versions
         id: versions
@@ -57,7 +57,7 @@ jobs:
           echo "BUILD_VERSION=$version" > version.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: version
           path: version.txt
@@ -72,7 +72,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Required Packages
         run: |
@@ -155,13 +155,13 @@ jobs:
           cat ${COMPRESS_DIR}/checksums.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-ubuntu20-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-ubuntu20-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -174,7 +174,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Required Packages
         run: |
@@ -258,26 +258,25 @@ jobs:
           cat ${COMPRESS_DIR}/checksums.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
-
-
-  build-macos:
-    name: macOS 11 Build
+          
+  build-macos-12:
+    name: macOS 12 Build
     needs: get-version
-    runs-on: macos-11
+    runs-on: macos-12
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Required Packages
         run: |
@@ -339,13 +338,13 @@ jobs:
           cd ..
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-macos-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -361,11 +360,11 @@ jobs:
           cd ..
 
       - name: Upload dmg file
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-dmg-${{ needs.get-version.outputs.version }}
           path: macos-dmg
-
+          
   build-arm-64:
     name: ARM 64-bit Build
     needs: get-version
@@ -373,7 +372,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Required Packages
         run: |
@@ -442,13 +441,13 @@ jobs:
           cat ${COMPRESS_DIR}/checksums.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-arm64-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -460,7 +459,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Required Packages
         run: |
@@ -525,13 +524,13 @@ jobs:
           cd ..
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-win-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -547,8 +546,7 @@ jobs:
           cd ..
 
       - name: Upload Win64 installation file
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-win-installation-${{ needs.get-version.outputs.version }}
           path: win64-installation
-
