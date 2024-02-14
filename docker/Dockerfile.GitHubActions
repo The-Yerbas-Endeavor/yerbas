@@ -25,8 +25,8 @@ RUN apt-get update && \
 RUN mach=$(uname -i) \
       && case $mach in armv7l) arch="arm-linux-gnueabihf"; ;; aarch64) arch="arm64"; ;; x86_64) arch="ubuntu22"; ;;  *) echo "ERROR: Machine type $mach not supported."; ;; esac \
       && wget https://github.com/The-Yerbas-Endeavor/yerbas/releases/download/v${TAG}/yerbas-$arch-.tar.gz -P /tmp \
-      && tar -xvf /tmp/yerbas-build/yerbas-$arch-.tar.gz -C /tmp/ \
-      && cp /tmp/*  /usr/local/bin \
+      && tar -xvf /tmp/yerbas-$arch-.tar.gz -C /tmp/ \
+      && cp /tmp/yerbas-build/*  /usr/local/bin \
       && rm -rf /tmp/yerbas-* \
       && chmod a+x /usr/local/bin/*
 
