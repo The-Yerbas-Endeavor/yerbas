@@ -123,6 +123,7 @@ jobs:
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
+          cd ${BUILD_DIR}
           cd ../${BUILD_DIR}_debug
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -227,6 +228,7 @@ jobs:
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-ubuntu22-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
+          cd ${BUILD_DIR}
           cd ../${BUILD_DIR}_debug
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -319,6 +321,7 @@ jobs:
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
+          cd ${BUILD_DIR}
           cd ../${BUILD_DIR}_not_strip
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -424,6 +427,7 @@ jobs:
           cat checksums.txt
           cd ..
           tar -cvzf ${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
+          cd ${BUILD_DIR}
           cd ../${BUILD_DIR}_debug
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -507,6 +511,7 @@ jobs:
           cat checksums.txt
           cd ..
           zip -r ${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip ${BUILD_DIR}/
+          cd ${BUILD_DIR}
           cd ../${BUILD_DIR}_not_strip
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
