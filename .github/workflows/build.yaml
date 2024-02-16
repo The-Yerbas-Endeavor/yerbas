@@ -572,7 +572,7 @@ jobs:
           copy_artifacts_on_fail: yes
           commands: |
             chmod +x test_yerbas
-            ./test_yerbas --log_format=JUNIT > unit_test_results.xml
+            ./test_yerbas --log_format=JUNIT > unit_test_results1.xml
 
       - name: Upload Test Artifacts
         uses: actions/upload-artifact@v4
@@ -717,7 +717,7 @@ jobs:
         if: always()
         with:
           name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
-          path: unit_test_results.xml
+          path: unit_test_results1.xml
 
       - name: Publish Unit Test Report
         uses: mikepenz/action-junit-report@v4
