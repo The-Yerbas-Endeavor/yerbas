@@ -500,7 +500,7 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           sha256sum * >> checksums.txt
           cat checksums.txt
-          zip -r ../${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip ~/${BUILD_DIR}/
+          zip -r ../${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip ./${BUILD_DIR}/
           cd ../${BUILD_DIR}_not_strip
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
