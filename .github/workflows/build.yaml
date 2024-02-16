@@ -45,7 +45,7 @@ jobs:
         id: selected-version
         shell: bash
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]] || [[ "$GITHUB_REF" == *dev ]] || [[ "$GITHUB_REF" == *v3.1.3* ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]] || [[ "$GITHUB_REF" == *dev ]]|| [[ "$GITHUB_REF" == *3.1* ]]; then
               version=${{ steps.versions.outputs.snapshot-version }}
           elif [[ "$GITHUB_EVENT_NAME" != "pull_request" ]] && [[ "$GITHUB_REF" == *"release/"* ]]; then
               version=${{ steps.versions.outputs.candidate-version }}
@@ -121,9 +121,7 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           sha256sum * >> checksums.txt
           cat checksums.txt
-          cd ..
-          tar -cvzf ${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
-          cd ${BUILD_DIR}
+          tar -cvzf ../${COIN_NAME}-ubuntu20-${{ needs.get-version.outputs.version }}.tar.gz ../${BUILD_DIR}/*
           cd ../${BUILD_DIR}_debug
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -226,9 +224,7 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           sha256sum * >> checksums.txt
           cat checksums.txt
-          cd ..
-          tar -cvzf ${COIN_NAME}-ubuntu22-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
-          cd ${BUILD_DIR}
+          tar -cvzf ../${COIN_NAME}-ubuntu22-${{ needs.get-version.outputs.version }}.tar.gz ../${BUILD_DIR}/*
           cd ../${BUILD_DIR}_debug
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -319,9 +315,7 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           openssl sha256 * >> checksums.txt
           cat checksums.txt
-          cd ..
-          tar -cvzf ${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
-          cd ${BUILD_DIR}
+          tar -cvzf ../${COIN_NAME}-macos-${{ needs.get-version.outputs.version }}.tar.gz ../${BUILD_DIR}/*
           cd ../${BUILD_DIR}_not_strip
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -425,9 +419,7 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           sha256sum * >> checksums.txt
           cat checksums.txt
-          cd ..
-          tar -cvzf ${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz ${BUILD_DIR}/*
-          cd ${BUILD_DIR}
+          tar -cvzf ../${COIN_NAME}-arm64-${{ needs.get-version.outputs.version }}.tar.gz ../${BUILD_DIR}/*
           cd ../${BUILD_DIR}_debug
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
@@ -509,9 +501,7 @@ jobs:
           echo "------------------------------------" >> checksums.txt
           sha256sum * >> checksums.txt
           cat checksums.txt
-          cd ..
-          zip -r ${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip ${BUILD_DIR}/
-          cd ${BUILD_DIR}
+          zip -r ../${COIN_NAME}-win-${{ needs.get-version.outputs.version }}.zip ../${BUILD_DIR}/
           cd ../${BUILD_DIR}_not_strip
           echo "sha256:" >> checksums.txt
           echo "------------------------------------" >> checksums.txt
