@@ -17,7 +17,7 @@ fi
 SAPLING_SPEND_NAME='sapling-spend.params'
 SAPLING_OUTPUT_NAME='sapling-output.params'
 SAPLING_SPROUT_GROTH16_NAME='sprout-groth16.params'
-DOWNLOAD_URL="https://github.com/The-Yerbas-Endeavor/yerbas/releases/tag/1.2.15.3"
+DOWNLOAD_URL="https://github.com/The-Yerbas-Endeavor/yerbas/releases/tag/v3.1.3.19"
 #IPFS_HASH="/ipfs/QmXRHVGLQBiKwvNq7c2vPxAKz1zRVmMYbmt7G5TQss7tY7"
 
 SHA256CMD="$(command -v sha256sum || echo shasum)"
