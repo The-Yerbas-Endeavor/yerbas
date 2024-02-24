@@ -187,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ${{ env.COIN_NAME }}-ubuntu20-test-${{ needs.get-version.outputs.version }}
+          name: ${{ env.COIN_NAME }}-ubuntu20-test-up-${{ needs.get-version.outputs.version }}
           path: unit_test_results.xml
 
       - name: Publish Unit Test Report
