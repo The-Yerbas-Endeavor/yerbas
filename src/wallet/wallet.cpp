@@ -1836,7 +1836,7 @@ CAmount CWallet::HasMyAssets(const CTransaction& tx) const
             return true;
     }
 
-    return false;
+     return (GetDebit(tx, ISMINE_ALL) > 0);
 }
 
 CAmount CWallet::GetDebit(const CTransaction& tx, const isminefilter& filter) const
