@@ -438,7 +438,7 @@ jobs:
           name: ${{ env.COIN_NAME }}-ubuntu24-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
 
-  test-ubuntu22:
+  test-ubuntu24:
     name: Ubuntu 24 Tests
     needs: [get-version, build-ubuntu24]
     runs-on: ubuntu-24.04
