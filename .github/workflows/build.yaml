@@ -57,7 +57,7 @@ jobs:
           echo "BUILD_VERSION=$version" > version.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: version
           path: version.txt
@@ -155,13 +155,13 @@ jobs:
           cat ${COMPRESS_DIR}/checksums.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-ubuntu20-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-ubuntu20-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -172,7 +172,7 @@ jobs:
       runs-on: ubuntu-20.04
       steps:
         - name: Download Artifacts
-          uses: actions/download-artifact@v4
+          uses: actions/download-artifact@v3
           with:
             name: ${{ env.COIN_NAME }}-ubuntu20-test-${{ needs.get-version.outputs.version }}
 
@@ -183,7 +183,7 @@ jobs:
             ./test_yerbas --log_format=JUNIT > unit_test_results.xml
 
         - name: Upload Test Artifacts
-          uses: actions/upload-artifact@v4
+          uses: actions/upload-artifact@v3
           if: always()
           with:
             name: ${{ env.COIN_NAME }}-ubuntu20-test-${{ needs.get-version.outputs.version }}
@@ -289,13 +289,13 @@ jobs:
           cat ${COMPRESS_DIR}/checksums.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -307,7 +307,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
 
@@ -318,7 +318,7 @@ jobs:
           ./test_yerbas --log_format=JUNIT > unit_test_results.xml
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         if: always()
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
@@ -424,13 +424,13 @@ jobs:
                   cat ${COMPRESS_DIR}/checksums.txt
         
               - name: Upload Artifacts
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-ubuntu24-${{ needs.get-version.outputs.version }}
                   path: ${{ env.COMPRESS_DIR }}
         
               - name: Upload Test Artifacts
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-ubuntu24-test-${{ needs.get-version.outputs.version }}
                   path: ${{ env.TEST_DIR }}
@@ -442,7 +442,7 @@ jobs:
         
             steps:
               - name: Download Artifacts
-                uses: actions/download-artifact@v4
+                uses: actions/download-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-ubuntu24-test-${{ needs.get-version.outputs.version }}
         
@@ -453,7 +453,7 @@ jobs:
                   ./test_yerbas --log_format=JUNIT > unit_test_results.xml
         
               - name: Upload Test Artifacts
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 if: always()
                 with:
                   name: ${{ env.COIN_NAME }}-ubuntu24-test-${{ needs.get-version.outputs.version }}
@@ -537,13 +537,13 @@ jobs:
           cd ..
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-macos-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -559,7 +559,7 @@ jobs:
           cd ..
 
       - name: Upload dmg file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-dmg-${{ needs.get-version.outputs.version }}
           path: macos-dmg
@@ -666,13 +666,13 @@ jobs:
                   cd ..
         
               - name: Upload Artifacts
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-macos-${{ needs.get-version.outputs.version }}
                   path: ${{ env.COMPRESS_DIR }}
         
               - name: Upload Test Artifacts
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
                   path: ${{ env.TEST_DIR }}
@@ -688,7 +688,7 @@ jobs:
                   cd ..
         
               - name: Upload dmg file
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-dmg-${{ needs.get-version.outputs.version }}
                   path: macos-dmg
@@ -700,7 +700,7 @@ jobs:
         
             steps:
               - name: Download Artifacts
-                uses: actions/download-artifact@v4
+                uses: actions/download-artifact@v3
                 with:
                   name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
         
@@ -711,7 +711,7 @@ jobs:
                   ./test_yerbas --log_format=JUNIT > unit_test_results.xml
         
               - name: Upload Test Artifacts
-                uses: actions/upload-artifact@v4
+                uses: actions/upload-artifact@v3
                 if: always()
                 with:
                   name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
@@ -802,13 +802,13 @@ jobs:
           cat ${COMPRESS_DIR}/checksums.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-arm64-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -925,13 +925,13 @@ jobs:
           cd ..
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-win-${{ needs.get-version.outputs.version }}
           path: ${{ env.COMPRESS_DIR }}
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
@@ -947,7 +947,7 @@ jobs:
           cd ..
 
       - name: Upload Win64 installation file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ env.COIN_NAME }}-win-installation-${{ needs.get-version.outputs.version }}
           path: win64-installation
