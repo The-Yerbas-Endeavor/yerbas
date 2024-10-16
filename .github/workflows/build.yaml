@@ -693,7 +693,7 @@ jobs:
                   name: ${{ env.COIN_NAME }}-dmg-${{ needs.get-version.outputs.version }}
                   path: macos-dmg
 
-  test-macos:
+  test-macos-15:
             name: macOS Tests
             needs: [get-version, build-macos-15]
             runs-on: macos-15
