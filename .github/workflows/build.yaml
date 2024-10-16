@@ -693,7 +693,7 @@ build-macos-15:
                   name: ${{ env.COIN_NAME }}-dmg-${{ needs.get-version.outputs.version }}
                   path: macos-dmg
 
-test-macos:
+  test-macos:
             name: macOS Tests
             needs: [get-version, build-macos-15]
             runs-on: macos-15
@@ -726,7 +726,7 @@ test-macos:
                   include_passed: false
                   report_paths: "unit_test_results.xml"
                   
-build-arm-64:
+  build-arm-64:
     name: ARM 64-bit Build
     needs: get-version
     runs-on: ubuntu-20.04
@@ -813,7 +813,7 @@ build-arm-64:
           name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
 
-test-arm-64:
+  test-arm-64:
     name: ARM 64-bit Tests
     needs: [get-version, build-arm-64]
     runs-on: ubuntu-20.04
@@ -853,7 +853,7 @@ test-arm-64:
           include_passed: false
           report_paths: "unit_test_results.xml"
 
-build-win64:
+  build-win64:
     name: Win64 Build
     needs: get-version
     runs-on: ubuntu-22.04
@@ -952,7 +952,7 @@ build-win64:
           name: ${{ env.COIN_NAME }}-win-installation-${{ needs.get-version.outputs.version }}
           path: win64-installation
 
-test-win64:
+  test-win64:
     name: Win64 Tests
     needs: [get-version, build-win64]
     runs-on: windows-latest
