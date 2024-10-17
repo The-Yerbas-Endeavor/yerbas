@@ -26,6 +26,7 @@ from .messages import (
     FromHex,
     hash256,
     msg_islock,
+    msg_isdlock,
     ser_compact_size,
     ser_string,
 )
