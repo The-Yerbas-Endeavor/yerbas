@@ -680,27 +680,6 @@ yerbas_cli_LDADD = \
 yerbas_cli_LDADD += $(BACKTRACE_LIB) $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS) $(BLS_LIBS)
 #
 
-# yerbas-tx binary #
-yerbas_tx_SOURCES = yerbas-tx.cpp
-yerbas_tx_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-yerbas_tx_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-yerbas_tx_LDFLAGS = $(LDFLAGS_WRAP_EXCEPTIONS) $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) $(PTHREAD_FLAGS)
-
-if TARGET_WINDOWS
-yerbas_tx_SOURCES += yerbas-tx-res.rc
-endif
-
-yerbas_tx_LDADD = \
-  $(LIBUNIVALUE) \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CONSENSUS) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBSECP256K1)
-
-yerbas_tx_LDADD += $(BACKTRACE_LIB) $(BOOST_LIBS) $(CRYPTO_LIBS) $(BLS_LIBS)
-#
-
 # yerbasconsensus library #
 if BUILD_BITCOIN_LIBS
 include_HEADERS = script/yerbasconsensus.h
