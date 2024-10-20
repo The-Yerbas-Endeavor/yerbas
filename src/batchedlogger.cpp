@@ -6,7 +6,7 @@
 #include "batchedlogger.h"
 #include "util.h"
 
-CBatchedLogger::CBatchedLogger(uint64_t _category, const std::string& _header) :
+CBatchedLogger::CBatchedLogger(BCLog::LogFlags _category, const std::string& _header) :
     accept(LogAcceptCategory(_category)), header(_header)
 {
 }
