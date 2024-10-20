@@ -150,7 +150,7 @@ const CLogCategoryDesc LogCategories[] =
                 {BCLog::ALL,         "1"},
                 {BCLog::ALL,         "all"},
 
-                //Start Raptoreum
+                //Start Yerbas
                 {BCLog::CHAINLOCKS,  "chainlocks"},
                 {BCLog::GOBJECT,     "gobject"},
                 {BCLog::INSTANTSEND, "instantsend"},
@@ -191,7 +191,7 @@ std::vector <LogCategory> BCLog::Logger::LogCategoriesList() const {
     std::vector <LogCategory> ret;
     for (const CLogCategoryDesc &category_desc: categories) {
         if (category_desc.flag != BCLog::NONE && category_desc.flag != BCLog::ALL &&
-            category_desc.flag != BCLog::RTM)
+            category_desc.flag != BCLog::YERB)
             continue;
         LogCategory catActive;
         catActive.category = category_desc.category;
@@ -238,7 +238,7 @@ BCLog::Logger::LogPrintStr(const std::string &str, const std::string &logging_fu
     }
 
     if (m_log_threadnames && m_started_new_line) {
-        // 16 chars total, "rtm-" is 4 of them and another 1 is a NUL terminator
+        // 16 chars total, "yerb-" is 4 of them and another 1 is a NUL terminator
         str_prefixed.insert(0, "[" + strprintf("%11s", util::ThreadGetInternalName()) + "] ");
     }
 
