@@ -16,6 +16,8 @@ CBatchedLogger::~CBatchedLogger() {
 
 void CBatchedLogger::Flush() {
     if (!accept || msg.empty()) {
+
+        
         return;
     }
     LogPrint(BCLog::QUORUMS, "Service at: %s:\n%s", header, msg);
