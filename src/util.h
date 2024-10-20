@@ -140,6 +140,7 @@ namespace BCLog {
         MNSYNC      = ((uint64_t)1 << 40),
         PRIVATESEND = ((uint64_t)1 << 41),
         SPORK       = ((uint64_t)1 << 42),
+        QUORUMS     = ((uint64_t) 1 << 44),
         //End Yerbas
 
         ALL         = ~(uint64_t)0,
