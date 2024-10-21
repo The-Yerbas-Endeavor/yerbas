@@ -7,6 +7,7 @@
 #define YERBAS_BATCHEDLOGGER_H
 
 #include "tinyformat.h"
+#include "util.h"
 
 class CBatchedLogger
 {

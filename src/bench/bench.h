@@ -9,6 +9,7 @@
 #include <limits>
 #include <map>
 #include <string>
+#include "util.h"
 
 #include <boost/preprocessor/cat.hpp>
 #include <boost/preprocessor/stringize.hpp>
