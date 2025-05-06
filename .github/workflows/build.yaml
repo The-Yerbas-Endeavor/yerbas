@@ -336,7 +336,7 @@ jobs:
           detailed_summary: ${{ steps.Tests.conclusion == 'failure'}}
           include_passed: false
           report_paths: "unit_test_results.xml"
-          
+
   build-macos-13:
     name: macOS 13 Build
     needs: get-version
@@ -435,7 +435,7 @@ jobs:
 
   test-macos:
     name: macOS Tests
-    needs: [get-version, build-macos-12]
+    needs: [get-version, build-macos-13]
     runs-on: macos-13
 
     steps:
