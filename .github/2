@@ -176,7 +176,7 @@ jobs:
         
             steps:
               - name: Download Artifacts
-                uses: actions/download-artifact@v3
+                uses: actions/download-artifact@v4
                 with:
                   name: ${{ env.COIN_NAME }}-ubuntu24-test-${{ needs.get-version.outputs.version }}
         
@@ -187,7 +187,7 @@ jobs:
                   ./test_yerbas --log_format=JUNIT > unit_test_results.xml
         
               - name: Upload Test Artifacts
-                uses: actions/upload-artifact@v3
+                uses: actions/upload-artifact@v4
                 if: always()
                 with:
                   name: ${{ env.COIN_NAME }}-ubuntu24-test-${{ needs.get-version.outputs.version }}
@@ -311,7 +311,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
 
@@ -322,7 +322,7 @@ jobs:
           ./test_yerbas --log_format=JUNIT > unit_test_results.xml
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
@@ -440,7 +440,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
 
@@ -451,7 +451,7 @@ jobs:
           ./test_yerbas --log_format=JUNIT > unit_test_results.xml
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ env.COIN_NAME }}-macos-test-${{ needs.get-version.outputs.version }}
@@ -560,7 +560,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
 
@@ -578,7 +578,7 @@ jobs:
             ./test_yerbas --log_format=JUNIT > unit_test_results.xml
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ env.COIN_NAME }}-arm64-test-${{ needs.get-version.outputs.version }}
@@ -699,7 +699,7 @@ jobs:
 
     steps:
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
            name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
 
@@ -716,7 +716,7 @@ jobs:
           .\test_yerbas.exe --log_format=JUNIT > unit_test_results.xml
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ env.COIN_NAME }}-win-test-${{ needs.get-version.outputs.version }}
