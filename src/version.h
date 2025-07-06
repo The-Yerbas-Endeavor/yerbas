@@ -12,7 +12,7 @@
  */
 
 
-static const int PROTOCOL_VERSION = 70223;
+static const int PROTOCOL_VERSION = 70224;
 
 //! minimum proto version of masternode to accept in DKGs
 static const int OLD_MIN_SMARTNODE_PROTO_VERSION = 70221;
