@@ -567,7 +567,6 @@ jobs:
           brew install automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python
           pip3 install ds_store mac_alias
           pip3 install -U pip setuptools
-          python -m pip install requests --break-system-packages 
 
       - name: Build Depends
         run: |
