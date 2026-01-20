@@ -8,8 +8,8 @@ on:
       - 3.2*
       - 3.3*
       - 3.4*
-      - 5.0*
-      
+      - 4.*
+      - 5.*
       - dev
   pull_request:
     branches:
@@ -273,10 +273,10 @@ jobs:
           name: ${{ env.COIN_NAME }}-ubuntu22-test-${{ needs.get-version.outputs.version }}
           path: ${{ env.TEST_DIR }}
 
-  build-macos-13:
-    name: macOS 13 Build
+  build-macos-14:
+    name: macOS 14 Build
     needs: get-version
-    runs-on: macos-13
+    runs-on: macos-14
 
     steps:
       - name: Checkout
