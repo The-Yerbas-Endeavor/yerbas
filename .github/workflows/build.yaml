@@ -82,7 +82,7 @@ jobs:
         run: |
           echo "building with $(nproc) threads"
           gcc --version
-          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          export FALLBACK_DOWNLOAD_PATH=https://explorer.yerbas.org/depends/
           make -C depends -j$(nproc)  HOST=x86_64-pc-linux-gnu
 
       - name: Configure
@@ -184,7 +184,7 @@ jobs:
         run: |
           echo "building with $(nproc) threads"
           gcc --version
-          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          export FALLBACK_DOWNLOAD_PATH=https://explorer.yerbas.org/depends/
           make -C depends -j$(nproc)  HOST=x86_64-pc-linux-gnu
 
       - name: Configure
@@ -286,7 +286,7 @@ jobs:
       - name: Build Depends
         run: |
           echo "building with 8 threads"
-          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          export FALLBACK_DOWNLOAD_PATH=https://explorer.yerbas.org/depends/
           make -C depends -j8 HOST=x86_64-apple-darwin20.6.0
 
       - name: Configure
@@ -381,7 +381,7 @@ jobs:
       - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
-          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          export FALLBACK_DOWNLOAD_PATH=https://explorer.yerbas.org/depends/
           make -C depends -j$(nproc) HOST=aarch64-linux-gnu
 
       - name: Configure
@@ -471,13 +471,13 @@ jobs:
       - name: Build Depends
         run: |
           echo "building with $(nproc) threads"
-          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          export FALLBACK_DOWNLOAD_PATH=https://explorer.yerbas.org/depends/
           make -C depends -j$(nproc) HOST=x86_64-w64-mingw32
 
       - name: Configure
         run: |
           ./autogen.sh
-          export FALLBACK_DOWNLOAD_PATH=https://pool.nowput.org/depends/
+          export FALLBACK_DOWNLOAD_PATH=https://explorer.yerbas.org/depends/
           ./configure --prefix=`pwd`/depends/x86_64-w64-mingw32
 
       - name: Build Binaries
