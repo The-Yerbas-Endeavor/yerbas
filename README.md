@@ -1,13 +1,13 @@
-Welcome to Yerbas 
+Welcome to Yerbas
 ===========================
 
  
 Introduction
 ------------
 
-WARNING! Yerbas is a work in progress...Use at your own risk!
+WARNING! Yerbas is a work in progress. Use at your own risk!
 
-Yerbas is a community driven, developmental, grassroots, digital currency that enables instant payments to anyone, anywhere in the world. The Yerbas Coin uses peer-to-peer technology to operate with no central authority: managing transactions and issuing money are carried out collectively by the network. Yerbas is a code fork of Bitcoin/Dash/Ravencoin/Raptoreum and inherits current and optionally future features such as chain locks, oracles etc. The inspiration for the name Yerbas is derived from the Latin(herba) and Español(hierba) words for herb, grass, or weeds.
+Yerbas is a community-driven, grassroots digital currency that enables instant payments to anyone, anywhere in the world. Yerbas Coin uses peer-to-peer technology to operate with no central authority: managing transactions and issuing money are carried out collectively by the network. Yerbas is a code fork of Bitcoin, Dash, Ravencoin, and Raptoreum and inherits current (and optionally future) features such as ChainLocks and oracles. The inspiration for the name Yerbas is derived from the Latin (`herba`) and Español (`hierba`) words for herb, grass, or weeds.
 
 
 License
@@ -44,7 +44,7 @@ There are also [regression and integration tests](/test), written
 in Python, that are run automatically on the build server.
 These tests can be run (if the [test dependencies](/test) are installed) with: `test/functional/test_runner.py`
 
-The Travis CI system makes sure that every pull request is built for Windows, Linux, and OS X, and that unit/sanity tests are run automatically.
+Our GitHub Actions workflows make sure that every pull request is built for Windows, Linux, and macOS, and that unit/sanity tests are run automatically.
 
 ### Manual Quality Assurance (QA) Testing.
 
