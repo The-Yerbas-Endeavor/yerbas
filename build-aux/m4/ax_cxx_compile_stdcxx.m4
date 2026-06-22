@@ -10,8 +10,8 @@
 #
 #   Check for baseline language coverage in the compiler for the specified
 #   version of the C++ standard.  If necessary, add switches to CXX and
-#   CXXCPP to enable support.  VERSION may be '11' (for the C++11 standard)
-#   or '14' (for the C++14 standard).
+#   CXXCPP to enable support.  VERSION may be '11' (for the C++11 standard),
+#   '14' (for the C++14 standard), or '17' (for the C++17 standard).
 #
 #   The second argument, if specified, indicates whether you insist on an
 #   extended mode (e.g. -std=gnu++11) or a strict conformance mode (e.g.
@@ -47,7 +47,7 @@ dnl  (serial version number 13).
 AC_DEFUN([AX_CXX_COMPILE_STDCXX], [dnl
   m4_if([$1], [11], [],
         [$1], [14], [],
-        [$1], [17], [m4_fatal([support for C++17 not yet implemented in AX_CXX_COMPILE_STDCXX])],
+        [$1], [17], [],
         [m4_fatal([invalid first argument `$1' to AX_CXX_COMPILE_STDCXX])])dnl
   m4_if([$2], [], [],
         [$2], [ext], [],
@@ -155,7 +155,82 @@ m4_define([_AX_CXX_COMPILE_STDCXX_testbody_14],
 )
 
 
+dnl  Test body for checking C++17 support
+
+m4_define([_AX_CXX_COMPILE_STDCXX_testbody_17],
+  _AX_CXX_COMPILE_STDCXX_testbody_new_in_11
+  _AX_CXX_COMPILE_STDCXX_testbody_new_in_14
+  _AX_CXX_COMPILE_STDCXX_testbody_new_in_17
+)
+
+
 dnl  Tests for new features in C++11
+
+
+
+dnl  Tests for new features in C++17
+
+m4_define([_AX_CXX_COMPILE_STDCXX_testbody_new_in_17], [[
+
+#ifndef __cplusplus
+
+#error "This is not a C++ compiler"
+
+#elif __cplusplus < 201703L
+
+#error "This is not a C++17 compiler"
+
+#else
+
+#include <optional>
+#include <tuple>
+#include <type_traits>
+
+namespace cxx17
+{
+
+  namespace test_structured_bindings
+  {
+
+    int test()
+    {
+      auto [first, second] = std::tuple<int, int>{1, 2};
+      return first + second;
+    }
+
+  }
+
+  namespace test_optional
+  {
+
+    std::optional<int> get_value()
+    {
+      return 17;
+    }
+
+  }
+
+  namespace test_if_constexpr
+  {
+
+    template <typename T>
+    constexpr bool is_integral()
+    {
+      if constexpr (std::is_integral<T>::value)
+        return true;
+      else
+        return false;
+    }
+
+    static_assert(is_integral<int>(), "int should be integral");
+
+  }
+
+}
+
+#endif  // __cplusplus >= 201703L
+
+]])
 
 m4_define([_AX_CXX_COMPILE_STDCXX_testbody_new_in_11], [[
 
