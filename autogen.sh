@@ -5,12 +5,28 @@
 
 export LC_ALL=C
 set -e
-srcdir="$(dirname $0)"
+srcdir="$(dirname "$0")"
 cd "$srcdir"
-if [ -z ${LIBTOOLIZE} ] && GLIBTOOLIZE="`which glibtoolize 2>/dev/null`"; then
+
+require_tool() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "configuration failed, please install $2 and re-run autogen.sh" >&2
+    exit 1
+  fi
+}
+
+if [ -z "${LIBTOOLIZE}" ] && GLIBTOOLIZE="$(command -v glibtoolize 2>/dev/null)"; then
   LIBTOOLIZE="${GLIBTOOLIZE}"
   export LIBTOOLIZE
 fi
-which autoreconf >/dev/null || \
-  (echo "configuration failed, please install autoconf first" && exit 1)
+
+require_tool autoreconf autoconf
+require_tool aclocal automake
+
+if [ -n "${LIBTOOLIZE}" ]; then
+  require_tool "${LIBTOOLIZE}" libtool
+else
+  require_tool libtoolize libtool
+fi
+
 autoreconf --install --force --warnings=all
