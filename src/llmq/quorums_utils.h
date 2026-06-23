@@ -11,6 +11,7 @@
 
 #include "evo/deterministicmns.h"
 
+#include <algorithm>
 #include <vector>
 
 namespace llmq
@@ -48,7 +49,14 @@ public:
         if (rndNodes.empty()) {
             return;
         }
-        std::random_shuffle(rndNodes.begin(), rndNodes.end(), rnd);
+        // std::random_shuffle was removed in C++17. Keep the old behavior by
+		// using the existing FastRandomContext callback directly.
+		for (size_t i = 1; i < rndNodes.size(); ++i) {
+			size_t j = static_cast<size_t>(rnd(static_cast<int>(i + 1)));
+			if (j != i) {
+				std::swap(rndNodes[i], rndNodes[j]);
+			}
+		}
 
         size_t idx = 0;
         while (!rndNodes.empty() && cont()) {
