@@ -21,6 +21,7 @@
 #include "hash.h"
 #include "primitives/transaction.h"
 #include "netbase.h"
+#include "random.h"
 #include "scheduler.h"
 #include "ui_interface.h"
 #include "utilstrencodings.h"
@@ -55,6 +56,7 @@
 #include <miniupnpc/upnperrors.h>
 #endif
 
+#include <algorithm>
 #include <unordered_map>
 #include <math.h>
 
@@ -2163,7 +2165,16 @@ void CConnman::ThreadOpenSmartnodeConnections()
                 continue;
             }
 
-            std::random_shuffle(pending.begin(), pending.end());
+            // std::random_shuffle was removed in C++17. Keep the old behavior by
+            // using the existing FastRandomContext callback directly.
+            FastRandomContext insecure_rand;
+            for (size_t i = 1; i < pending.size(); ++i) {
+                size_t j = static_cast<size_t>(insecure_rand(static_cast<uint64_t>(i + 1)));
+                if (j != i) {
+                    std::swap(pending[i], pending[j]);
+                }
+            }
+
             addr = pending.front();
         }
 
