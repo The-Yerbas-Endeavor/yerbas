@@ -42,51 +42,20 @@ jobs:
       - name: Triggered By
         run: |
           echo "checking out $GITHUB_REF triggered by $GITHUB_EVENT_NAME"
-
       - name: Checkout
         uses: actions/checkout@v5
 
       - name: Generate Version Logic
         id: selected-version
-        shell: bash
         run: |
-          set -euo pipefail
-
-          RELEASE_VERSION=$(grep '^release-version=' build.properties | cut -d'=' -f2- || true)
-          CANDIDATE_VERSION=$(grep '^candidate-version=' build.properties | cut -d'=' -f2- || true)
-          SNAPSHOT_VERSION=$(grep '^snapshot-version=' build.properties | cut -d'=' -f2- || true)
-
-          VERSION=""
-
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            VERSION="${SNAPSHOT_VERSION:-$RELEASE_VERSION}"
-          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${RELEASE_VERSION:-${GITHUB_REF_NAME#v}}"
-          elif [[ "$GITHUB_REF_NAME" == "dev" || "$GITHUB_REF_NAME" == "Codex" || "$GITHUB_REF_NAME" == v3.1* || "$GITHUB_REF_NAME" == 3.1* ]]; then
-            VERSION="${SNAPSHOT_VERSION:-$RELEASE_VERSION}"
-          elif [[ "$GITHUB_REF" == refs/heads/release/* ]]; then
-            VERSION="${CANDIDATE_VERSION:-$RELEASE_VERSION}"
-          elif [[ "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" == "master" ]]; then
-            VERSION="$RELEASE_VERSION"
-          else
-            VERSION="${SNAPSHOT_VERSION:-$RELEASE_VERSION}"
-          fi
-
-          if [[ -z "$VERSION" ]]; then
-            echo "Could not determine build version from build.properties"
-            exit 1
-          fi
-
-          echo "version is: [$VERSION]"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          VERSION=$(grep '^release-version=' build.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "BUILD_VERSION=$VERSION" > version.txt
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
         with:
           name: version
           path: version.txt
-
 
   build-macos-12-x86:
     name: macOS 12 x86 Build
@@ -331,8 +300,7 @@ jobs:
 
       - name: Build Binaries
         shell: bash
-        run: |# To re-enable tests later, uncomment/add the test build and upload steps.
-
+        run: |
           set -euo pipefail
           make -j$(sysctl -n hw.ncpu)
 
