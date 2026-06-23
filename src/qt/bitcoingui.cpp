@@ -668,15 +668,10 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel)
             trayIcon->setContextMenu(trayIconMenu);
             createIconMenu(trayIconMenu);
 
-#ifndef Q_OS_MAC
-            // Show main window on tray icon click
-            // Note: ignore this on Mac - this is not the way tray should work there
-            connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
-                    this, SLOT(trayIconActivated(QSystemTrayIcon::ActivationReason)));
-#else
+#ifdef Q_OS_MAC
             // Note: On Mac, the dock icon is also used to provide menu functionality
             // similar to one for tray icon
-             MacDockIconHandler *dockIconHandler = MacDockIconHandler::instance();
+            MacDockIconHandler *dockIconHandler = MacDockIconHandler::instance();
             connect(dockIconHandler, SIGNAL(dockIconClicked()), this, SLOT(macosDockIconActivated()));
 
             dockIconMenu = new QMenu(this);
@@ -799,10 +794,15 @@ void BitcoinGUI::setWalletActionsEnabled(bool enabled)
 
 void BitcoinGUI::createTrayIcon(const NetworkStyle *networkStyle)
 {
-    trayIcon = new QSystemTrayIcon(this);
+    trayIcon = new QSystemTrayIcon(networkStyle->getTrayAndWindowIcon(), this);
     QString toolTip = tr("%1 client").arg(tr(PACKAGE_NAME)) + " " + networkStyle->getTitleAddText();
     trayIcon->setToolTip(toolTip);
-    trayIcon->setIcon(networkStyle->getTrayAndWindowIcon());
+
+#ifndef Q_OS_MAC
+    connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
+            this, SLOT(trayIconActivated(QSystemTrayIcon::ActivationReason)));
+#endif
+
     trayIcon->hide();
     notificator = new Notificator(QApplication::applicationName(), trayIcon, this);
 }
@@ -836,8 +836,9 @@ void BitcoinGUI::createIconMenu(QMenu *pmenu)
 #ifndef Q_OS_MAC
 void BitcoinGUI::trayIconActivated(QSystemTrayIcon::ActivationReason reason)
 {
-    if(reason == QSystemTrayIcon::Trigger)
-    {
+    if (reason == QSystemTrayIcon::Trigger ||
+        reason == QSystemTrayIcon::DoubleClick ||
+        reason == QSystemTrayIcon::MiddleClick) {
         // Click on system tray icon triggers show/hide of the main window
         toggleHidden();
     }
