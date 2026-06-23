@@ -4,6 +4,25 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#if defined(WIN32) || defined(_WIN32)
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#endif
+#define _WIN32_WINNT 0x0501
+#ifdef _WIN32_IE
+#undef _WIN32_IE
+#endif
+#define _WIN32_IE 0x0501
+#define WIN32_LEAN_AND_MEAN 1
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#include <shlobj.h>
+#include <shlwapi.h>
+#endif
+
 #include "guiutil.h"
 
 #include "bitcoinaddressvalidator.h"
@@ -19,24 +38,6 @@
 #include "script/script.h"
 #include "script/standard.h"
 #include "util.h"
-
-#ifdef WIN32
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0501
-#ifdef _WIN32_IE
-#undef _WIN32_IE
-#endif
-#define _WIN32_IE 0x0501
-#define WIN32_LEAN_AND_MEAN 1
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include "shellapi.h"
-#include "shlobj.h"
-#include "shlwapi.h"
-#endif
 
 #include <boost/scoped_array.hpp>
 

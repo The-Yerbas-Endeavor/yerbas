@@ -45,6 +45,8 @@
 
 #include <assert.h>
 
+#include <algorithm>
+
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
 
@@ -3161,7 +3163,10 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const int nConfMin
     std::vector<CInputCoin> vValue;
     CAmount nTotalLower = 0;
 
-    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    for (size_t i = vCoins.size(); i > 1; --i) {
+        size_t j = static_cast<size_t>(GetRandInt(static_cast<int>(i)));
+        std::iter_swap(vCoins.begin() + (i - 1), vCoins.begin() + j);
+    }
 
     int tryDenomStart = 0;
     CAmount nMinChange = MIN_CHANGE;
@@ -3450,7 +3455,11 @@ bool CWallet::SelectAssetsMinConf(const CAmount& nTargetValue, const int nConfMi
     std::map<COutPoint, CAmount> mapValueAmount;
     CAmount nTotalLower = 0;
 
-    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    for (size_t i = vCoins.size(); i > 1; --i) {
+        size_t j = static_cast<size_t>(GetRandInt(static_cast<int>(i)));
+        std::iter_swap(vCoins.begin() + (i - 1), vCoins.begin() + j);
+    }
+
     #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     for (const COutput &output : vCoins)
     {
@@ -3717,7 +3726,10 @@ bool CWallet::SelectPSInOutPairsByDenominations(int nDenom, CAmount nValueMin, C
     AvailableCoins(vCoins, true, &coin_control);
     LogPrint(BCLog::PRIVATESEND, "CWallet::%s -- vCoins.size(): %d\n", __func__, vCoins.size());
 
-    std::random_shuffle(vCoins.rbegin(), vCoins.rend(), GetRandInt);
+    for (size_t i = vCoins.size(); i > 1; --i) {
+        size_t j = static_cast<size_t>(GetRandInt(static_cast<int>(i)));
+        std::iter_swap(vCoins.rbegin() + (i - 1), vCoins.rbegin() + j);
+    }
 
     std::vector<CAmount> vecPrivateSendDenominations = CPrivateSend::GetStandardDenominations();
     for (const auto& out : vCoins) {
