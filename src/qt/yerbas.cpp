@@ -46,6 +46,7 @@
 #include <boost/thread.hpp>
 
 #include <QApplication>
+#include <QByteArray>
 #include <QDebug>
 #include <QLibraryInfo>
 #include <QLocale>
@@ -601,12 +602,36 @@ int main(int argc, char *argv[])
     Q_INIT_RESOURCE(yerbas);
     Q_INIT_RESOURCE(yerbas_locale);
 
+#ifdef Q_OS_LINUX
+    // Old Bitcoin/Dash-style Qt wallet layouts do not reflow cleanly when
+    // Linux reports high DPI or automatic Qt scaling. Normalize Linux to
+    // sane logical pixels by default. Users can opt back into system scaling
+    // by launching with YERBAS_QT_RESPECT_SYSTEM_SCALE=1.
+    if (qgetenv("YERBAS_QT_RESPECT_SYSTEM_SCALE") != "1") {
+        qputenv("QT_AUTO_SCREEN_SCALE_FACTOR", QByteArray("0"));
+        qputenv("QT_ENABLE_HIGHDPI_SCALING", QByteArray("0"));
+        qputenv("QT_SCALE_FACTOR", QByteArray("1"));
+        qputenv("QT_FONT_DPI", QByteArray("96"));
+        qputenv("QT_SCREEN_SCALE_FACTORS", QByteArray(""));
+    } else {
+#if QT_VERSION > 0x050100
+        // Generate high-dpi pixmaps
+        QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+
+#if QT_VERSION >= 0x050600
+        QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
+    }
+#else
 #if QT_VERSION > 0x050100
     // Generate high-dpi pixmaps
     QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
+
 #if QT_VERSION >= 0x050600
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
 #endif
 #ifdef Q_OS_MAC
     QApplication::setAttribute(Qt::AA_DontShowIconsInMenus);
