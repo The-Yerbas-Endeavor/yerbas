@@ -1,6 +1,7 @@
 // Copyright (c) 2011-2015 The Bitcoin Core developers
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2020 The Yerbas developers
+// Copyright (c) 2020-2026 The Yerbas developers
+// Credit to Ramen Wukong
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -46,8 +47,12 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCursor>
 #include <QDateTime>
+#include <QIcon>
 #include <QDesktopWidget>
+#include <QPixmap>
+#include <QTimer>
 #include <QDragEnterEvent>
 #include <QListWidget>
 #include <QMenuBar>
@@ -59,7 +64,6 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
-#include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 
@@ -716,6 +720,23 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel)
         
             // initialize the disable state of the tray icon with the current value in the model.
             setTrayIconVisible(optionsModel->getHideTrayIcon());
+
+#ifndef Q_OS_MAC
+            // Defer tray activation wiring until after initial tray visibility/layout settles
+            QTimer::singleShot(2000, this, [this]() {
+                if (trayIcon) {
+                    QPixmap trayPixmap(":/icons/yerbas");
+                    if (!trayPixmap.isNull()) {
+                        trayPixmap = trayPixmap.scaled(QSize(22, 22), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                        trayIcon->setIcon(QIcon(trayPixmap));
+                    }
+
+                    connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
+                            this, SLOT(trayIconActivated(QSystemTrayIcon::ActivationReason)),
+                            Qt::UniqueConnection);
+                }
+            });
+#endif
         }
     } else {
         // Disable possibility to show main window via action
@@ -794,15 +815,14 @@ void BitcoinGUI::setWalletActionsEnabled(bool enabled)
 
 void BitcoinGUI::createTrayIcon(const NetworkStyle *networkStyle)
 {
-    trayIcon = new QSystemTrayIcon(networkStyle->getTrayAndWindowIcon(), this);
+    QPixmap trayPixmap(":/icons/yerbas");
+    if (!trayPixmap.isNull()) {
+        trayPixmap = trayPixmap.scaled(QSize(22, 22), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+    trayIcon = new QSystemTrayIcon(QIcon(trayPixmap), this);
+
     QString toolTip = tr("%1 client").arg(tr(PACKAGE_NAME)) + " " + networkStyle->getTitleAddText();
     trayIcon->setToolTip(toolTip);
-
-#ifndef Q_OS_MAC
-    connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
-            this, SLOT(trayIconActivated(QSystemTrayIcon::ActivationReason)));
-#endif
-
     trayIcon->hide();
     notificator = new Notificator(QApplication::applicationName(), trayIcon, this);
 }
@@ -836,11 +856,24 @@ void BitcoinGUI::createIconMenu(QMenu *pmenu)
 #ifndef Q_OS_MAC
 void BitcoinGUI::trayIconActivated(QSystemTrayIcon::ActivationReason reason)
 {
+    if (reason == QSystemTrayIcon::Context) {
+        if (trayIconMenu) {
+            trayIconMenu->popup(QCursor::pos());
+        }
+        return;
+    }
+
     if (reason == QSystemTrayIcon::Trigger ||
         reason == QSystemTrayIcon::DoubleClick ||
         reason == QSystemTrayIcon::MiddleClick) {
-        // Click on system tray icon triggers show/hide of the main window
-        toggleHidden();
+        // Click on system tray icon toggles the main window
+        if (isVisible() && !isMinimized()) {
+            hide();
+        } else {
+            showNormal();
+            raise();
+            activateWindow();
+        }
     }
 }
 #else
