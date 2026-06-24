@@ -16,6 +16,8 @@
 
 #include "cxxtimer.hpp"
 
+#include <algorithm>
+
 namespace llmq
 {
 
@@ -797,7 +799,11 @@ void CSigSharesManager::CollectSigSharesToRequest(std::unordered_map<NodeId, std
         }
         shuffledNodeIds.emplace_back(p.first);
     }
-    std::random_shuffle(shuffledNodeIds.begin(), shuffledNodeIds.end(), rnd);
+
+    for (size_t i = shuffledNodeIds.size(); i > 1; --i) {
+        size_t j = rnd.randrange(i);
+        std::swap(shuffledNodeIds[i - 1], shuffledNodeIds[j]);
+    }
 
     for (auto& nodeId : shuffledNodeIds) {
         auto& nodeState = nodeStates[nodeId];

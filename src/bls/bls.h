@@ -1,5 +1,5 @@
 // Copyright (c) 2018-2019 The Dash Core developers
-// Copyright (c) 2020 The Yerbas developers
+// Copyright (c) 2020-2026 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -244,6 +244,9 @@ public:
     using CBLSWrapper::operator!=;
 
     CBLSSecretKey() {}
+
+    CBLSSecretKey(const CBLSSecretKey&) = default;
+    CBLSSecretKey& operator=(const CBLSSecretKey&) = default;
 
     void AggregateInsecure(const CBLSSecretKey& o);
     static CBLSSecretKey AggregateInsecure(const std::vector<CBLSSecretKey>& sks);

@@ -1,0 +1,11 @@
+--- a/qtbase/src/3rdparty/xcb/xcb-util/atoms.c
++++ b/qtbase/src/3rdparty/xcb/xcb-util/atoms.c
+@@ -7,6 +7,7 @@
+ #endif
+ 
+ #include <xcb/xcb.h>
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <stdarg.h>
+ #include "xcb_atom.h"
+
