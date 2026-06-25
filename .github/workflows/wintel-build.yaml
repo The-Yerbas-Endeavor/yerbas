@@ -42,15 +42,26 @@ jobs:
       - name: Triggered By
         run: |
           echo "checking out $GITHUB_REF triggered by $GITHUB_EVENT_NAME"
+
       - name: Checkout
         uses: actions/checkout@v5
 
       - name: Generate Version Logic
         id: selected-version
+        shell: bash
         run: |
+          set -euo pipefail
+
           VERSION=$(grep '^release-version=' build.properties | cut -d'=' -f2)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          if [ -z "$VERSION" ]; then
+            echo "release-version was not found in build.properties"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "BUILD_VERSION=$VERSION" > version.txt
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -160,12 +171,18 @@ jobs:
               *) suffix="release" ;;
             esac
 
+            if [ "$suffix" = "release" ]; then
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
+            else
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
+            fi
+
             rm -rf temp
-            mkdir -p "temp/${BUILD_DIR}"
+            mkdir -p "temp/${package_dir}"
 
-            cp "$dir"/* "temp/${BUILD_DIR}/"
+            cp "$dir"/* "temp/${package_dir}/"
 
-            pushd "temp/${BUILD_DIR}"
+            pushd "temp/${package_dir}"
             {
               echo "sha256:"
               echo "------------------------------------"
@@ -184,7 +201,7 @@ jobs:
             cat checksums.txt
             popd
 
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${BUILD_DIR}"
+            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
           done
 
           mv ./*.tar.gz "${COMPRESS_DIR}/"
@@ -312,12 +329,18 @@ jobs:
               *) suffix="release" ;;
             esac
 
+            if [ "$suffix" = "release" ]; then
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
+            else
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
+            fi
+
             rm -rf temp
-            mkdir -p "temp/${BUILD_DIR}"
+            mkdir -p "temp/${package_dir}"
 
-            cp "$dir"/* "temp/${BUILD_DIR}/"
+            cp "$dir"/* "temp/${package_dir}/"
 
-            pushd "temp/${BUILD_DIR}"
+            pushd "temp/${package_dir}"
             {
               echo "sha256:"
               echo "------------------------------------"
@@ -336,7 +359,7 @@ jobs:
             cat checksums.txt
             popd
 
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${BUILD_DIR}"
+            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
           done
 
           mv ./*.tar.gz "${COMPRESS_DIR}/"
@@ -379,7 +402,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
+          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake zip
           sudo apt-get install -y g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64 nsis
           sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
           sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
@@ -466,7 +489,18 @@ jobs:
               *) suffix="release" ;;
             esac
 
-            pushd "$dir"
+            if [ "$suffix" = "release" ]; then
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
+            else
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
+            fi
+
+            rm -rf temp
+            mkdir -p "temp/${package_dir}"
+
+            cp "$dir"/* "temp/${package_dir}/"
+
+            pushd "temp/${package_dir}"
             {
               echo "sha256:"
               echo "------------------------------------"
@@ -483,7 +517,10 @@ jobs:
               done
             } > checksums.txt
             cat checksums.txt
-            /usr/bin/zip -r -9 "../${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.zip" .
+            popd
+
+            pushd temp
+            /usr/bin/zip -r -9 "../${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.zip" "${package_dir}"
             popd
           done
 
@@ -619,12 +656,18 @@ jobs:
               *) suffix="release" ;;
             esac
 
+            if [ "$suffix" = "release" ]; then
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
+            else
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
+            fi
+
             rm -rf temp
-            mkdir -p "temp/${BUILD_DIR}"
+            mkdir -p "temp/${package_dir}"
 
-            cp "$dir"/* "temp/${BUILD_DIR}/"
+            cp "$dir"/* "temp/${package_dir}/"
 
-            pushd "temp/${BUILD_DIR}"
+            pushd "temp/${package_dir}"
             {
               echo "sha256:"
               echo "------------------------------------"
@@ -643,7 +686,7 @@ jobs:
             cat checksums.txt
             popd
 
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${BUILD_DIR}"
+            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
           done
 
           mv ./*.tar.gz "${COMPRESS_DIR}/"
@@ -771,12 +814,18 @@ jobs:
               *) suffix="release" ;;
             esac
 
+            if [ "$suffix" = "release" ]; then
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
+            else
+              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
+            fi
+
             rm -rf temp
-            mkdir -p "temp/${BUILD_DIR}"
+            mkdir -p "temp/${package_dir}"
 
-            cp "$dir"/* "temp/${BUILD_DIR}/"
+            cp "$dir"/* "temp/${package_dir}/"
 
-            pushd "temp/${BUILD_DIR}"
+            pushd "temp/${package_dir}"
             {
               echo "sha256:"
               echo "------------------------------------"
@@ -795,7 +844,7 @@ jobs:
             cat checksums.txt
             popd
 
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${BUILD_DIR}"
+            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
           done
 
           mv ./*.tar.gz "${COMPRESS_DIR}/"
