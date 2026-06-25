@@ -4907,6 +4907,7 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
     int64_t nStart = GetTimeMillis();
 
     int nLoaded = 0;
+    int64_t nLastProgressLog = nStart;
     try {
         unsigned int nMaxBlockSize = MaxBlockSize(true);
         // This takes over fileIn and calls fclose() on it in the CBufferedFile destructor
@@ -4962,14 +4963,25 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                     // process in case the block isn't known yet
                     if (mapBlockIndex.count(hash) == 0 || (mapBlockIndex[hash]->nStatus & BLOCK_HAVE_DATA) == 0) {
                         CValidationState state;
-                        if (AcceptBlock(pblock, state, chainparams, nullptr, true, dbp, nullptr))
+                        if (AcceptBlock(pblock, state, chainparams, nullptr, true, dbp, nullptr)) {
                             nLoaded++;
+
+                            int64_t nNow = GetTimeMillis();
+                            auto mi = mapBlockIndex.find(hash);
+                            int nHeight = mi != mapBlockIndex.end() && mi->second ? mi->second->nHeight : -1;
+
+                            if (nLoaded == 1 || nLoaded % 1000 == 0 || nNow - nLastProgressLog >= 60000) {
+                                LogPrintf("%s: Reindex progress: loaded=%d height=%d block=%s\n",
+                                          __func__, nLoaded, nHeight, hash.ToString());
+                                nLastProgressLog = nNow;
+                            }
+                        }
                         if (state.IsError())
                             break;
                     } else if (hash != chainparams.GetConsensus().hashGenesisBlock && mapBlockIndex[hash]->nHeight % 1000 == 0) {
                         LogPrint(BCLog::REINDEX, "Block Import: already had block %s at height %d\n", hash.ToString(), mapBlockIndex[hash]->nHeight);
                     }
-                }    
+                }
 
                 // Activate the genesis block so normal node progress can continue
                 if (hash == chainparams.GetConsensus().hashGenesisBlock) {
@@ -5000,7 +5012,19 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                             if (AcceptBlock(pblockrecursive, dummy, chainparams, nullptr, true, &it->second, nullptr))
                             {
                                 nLoaded++;
-                                queue.push_back(pblockrecursive->GetHash());
+                                uint256 childHash = pblockrecursive->GetHash();
+
+                                int64_t nNow = GetTimeMillis();
+                                auto mi = mapBlockIndex.find(childHash);
+                                int nHeight = mi != mapBlockIndex.end() && mi->second ? mi->second->nHeight : -1;
+
+                                if (nLoaded == 1 || nLoaded % 1000 == 0 || nNow - nLastProgressLog >= 60000) {
+                                    LogPrintf("%s: Reindex progress: loaded=%d height=%d block=%s\n",
+                                              __func__, nLoaded, nHeight, childHash.ToString());
+                                    nLastProgressLog = nNow;
+                                }
+
+                                queue.push_back(childHash);
                             }
                         }
                         range.first++;
