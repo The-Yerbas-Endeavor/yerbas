@@ -72,7 +72,7 @@ NetworkStyle::NetworkStyle(const QString &_appName, const int iconColorHueShift,
     // Make sure settings migrated properly
     GUIUtil::migrateQtSettings();
     // load pixmap
-    QPixmap appIconPixmap(":/icons/bitcoin");
+    QPixmap appIconPixmap(":/icons/yerbas");
     QPixmap splashImagePixmap(":/images/splash");
 
     if(iconColorHueShift != 0 && iconColorSaturationReduction != 0)
@@ -94,9 +94,19 @@ NetworkStyle::NetworkStyle(const QString &_appName, const int iconColorHueShift,
 #endif
     }
 
-    appIcon             = QIcon(appIconPixmap);
-    trayAndWindowIcon   = QIcon(appIconPixmap.scaled(QSize(256,256)));
-    splashImage         = splashImagePixmap;
+    appIcon = QIcon(appIconPixmap);
+
+    trayAndWindowIcon = QIcon();
+    const int iconSizes[] = {16, 24, 32, 48, 64, 128, 256};
+    for (int size : iconSizes) {
+        trayAndWindowIcon.addPixmap(appIconPixmap.scaled(
+            QSize(size, size),
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        ));
+    }
+
+    splashImage = splashImagePixmap;
 }
 
 const NetworkStyle *NetworkStyle::instantiate(const QString &networkId)

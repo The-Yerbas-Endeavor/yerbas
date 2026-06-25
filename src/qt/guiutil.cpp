@@ -834,6 +834,9 @@ bool SetStartOnSystemStartup(bool fAutoStart)
         else
             optionFile << strprintf("Name=Yerbas Core (%s)\n", chain);
         optionFile << "Exec=" << pszExePath << strprintf(" -min -testnet=%d -regtest=%d\n", gArgs.GetBoolArg("-testnet", false), gArgs.GetBoolArg("-regtest", false));
+        optionFile << "Icon=yerbas128\n";
+        optionFile << "StartupWMClass=Yerbas-Qt\n";
+        optionFile << "StartupNotify=true\n";
         optionFile << "Terminal=false\n";
         optionFile << "Hidden=false\n";
         optionFile.close();
