@@ -1099,35 +1099,35 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
         nSubsidy = 4.20; 
     } else if ((nPrevHeight > 1000000) && (nPrevHeight < 2000000)) {
         nSubsidy = 80; 
-    } else if ((nPrevHeight > 2000000) && (nPrevHeight < 3000000)) {
+    } else if ((nPrevHeight >= 2000000) && (nPrevHeight < 3000000)) {
         nSubsidy = 70;
-    } else if ((nPrevHeight > 3000000) && (nPrevHeight < 4000000)) {
+    } else if ((nPrevHeight >= 3000000) && (nPrevHeight < 4000000)) {
         nSubsidy = 50;
-    } else if ((nPrevHeight > 4000000) && (nPrevHeight < 5000000)) {
+    } else if ((nPrevHeight >= 4000000) && (nPrevHeight < 5000000)) {
         nSubsidy = 40;     
-    } else if ((nPrevHeight > 5000000) && (nPrevHeight < 6000000)) {
+    } else if ((nPrevHeight >= 5000000) && (nPrevHeight < 6000000)) {
         nSubsidy = 20;      
-    } else if ((nPrevHeight > 6000000) && (nPrevHeight < 7000000)) {
+    } else if ((nPrevHeight >= 6000000) && (nPrevHeight < 7000000)) {
         nSubsidy = 10;     
-    } else if ((nPrevHeight > 7000000) && (nPrevHeight < 8000000)) {
+    } else if ((nPrevHeight >= 7000000) && (nPrevHeight < 8000000)) {
         nSubsidy = 9;  
-    } else if ((nPrevHeight > 8000000) && (nPrevHeight < 9000000)) {
+    } else if ((nPrevHeight >= 8000000) && (nPrevHeight < 9000000)) {
         nSubsidy = 8;      
-    } else if ((nPrevHeight > 9000000) && (nPrevHeight < 10000000)) {
+    } else if ((nPrevHeight >= 9000000) && (nPrevHeight < 10000000)) {
         nSubsidy = 7;     
-    } else if ((nPrevHeight > 10000000) && (nPrevHeight < 11000000)) {
+    } else if ((nPrevHeight >= 10000000) && (nPrevHeight < 11000000)) {
         nSubsidy = 6;    
-    } else if ((nPrevHeight > 11000000) && (nPrevHeight < 12000000)) {
+    } else if ((nPrevHeight >= 11000000) && (nPrevHeight < 12000000)) {
         nSubsidy = 5;     
-    } else if ((nPrevHeight > 12000000) && (nPrevHeight < 13000000)) {
+    } else if ((nPrevHeight >= 12000000) && (nPrevHeight < 13000000)) {
         nSubsidy = 4.20;  
-    } else if ((nPrevHeight > 13000000) && (nPrevHeight < 14000000)) {
+    } else if ((nPrevHeight >= 13000000) && (nPrevHeight < 14000000)) {
         nSubsidy = 3;      
-    } else if ((nPrevHeight > 14000000) && (nPrevHeight < 15000000)) {
+    } else if ((nPrevHeight >= 14000000) && (nPrevHeight < 15000000)) {
         nSubsidy = 2;     
-    } else if ((nPrevHeight > 15000000) && (nPrevHeight < 16000000)) {
+    } else if ((nPrevHeight >= 15000000) && (nPrevHeight < 16000000)) {
         nSubsidy = 1; 
-    } else if (nPrevHeight > 16000000) {
+    } else if (nPrevHeight >= 16000000) {
         nSubsidy = .420;
     }
     return nSubsidy * COIN;
