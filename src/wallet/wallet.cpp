@@ -1832,13 +1832,13 @@ CAmount CWallet::HasMyAssets(const CTransaction& tx) const
 {
     for (const CTxIn& txin : tx.vin)
     {
-        CAssetOutputEntry assetData;
+        CAssetOutputEntry assetData{};
         GetDebit(txin, ISMINE_ALL, assetData);
         if (assetData.nAmount > 0)
-            return true;
+            return assetData.nAmount;
     }
 
-     return (GetDebit(tx, ISMINE_ALL) > 0);
+     return 0;
 }
 
 CAmount CWallet::GetDebit(const CTransaction& tx, const isminefilter& filter) const
