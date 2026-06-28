@@ -1135,7 +1135,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     {
         wtx.nTimeReceived = GetAdjustedTime();
         wtx.nOrderPos = IncOrderPosNext(&walletdb);
-        wtxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, (CAccountingEntry*)0)));
+        wtxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, nullptr)));
         wtx.nTimeSmart = ComputeTimeSmart(wtx);
         AddToSpends(hash);
 
@@ -1261,6 +1261,10 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
 
         bool fExisted = mapWallet.count(tx.GetHash()) != 0;
         if (fExisted && !fUpdate) return false;
+        if (fExisted) LogPrintf("%s: adding because existed\n", __func__);
+        if (IsMine(tx)) LogPrintf("%s: adding because IsMine\n", __func__);
+        if (IsFromMe(tx)) LogPrintf("%s: adding because IsFromMe\n", __func__);
+        if (HasMyAssets(tx)) LogPrintf("%s: adding because CAssetOutputEntry\n", __func__);
         if (fExisted || IsMine(tx) || IsFromMe(tx))
         {
             /* Check if any keys in the wallet keypool that were supposed to be unused
@@ -1550,9 +1554,8 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter, CAssetO
                 if (IsMine(prev.tx->vout[txin.prevout.n]) & filter) {
                     // if asset get that assets data from the scriptPubKey
                     if (prev.tx->vout[txin.prevout.n].scriptPubKey.IsAssetScript())
-                        GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData);
-
-                    return prev.tx->vout[txin.prevout.n].nValue;
+                        if (GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData))
+                            return prev.tx->vout[txin.prevout.n].nValue;
                 }
         }
     }
