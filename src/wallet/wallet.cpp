@@ -522,7 +522,7 @@ bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool fForMixingOnl
                 if(nWalletBackups == -2) {
                     TopUpKeyPool();
                     LogPrintf("Keypool replenished, re-initializing automatic backups.\n");
-                    nWalletBackups = gArgs.GetArg("-createwalletbackups", 10);
+                    nWalletBackups = gArgs.GetArg("-createwalletbackups", 3);
                 }
                 return true;
             }
@@ -6656,7 +6656,7 @@ bool CWallet::InitAutoBackup()
     std::string strWarning;
     std::string strError;
 
-    nWalletBackups = gArgs.GetArg("-createwalletbackups", 10);
+    nWalletBackups = gArgs.GetArg("-createwalletbackups", 3);
     nWalletBackups = std::max(0, std::min(10, nWalletBackups));
 
     std::string strWalletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
