@@ -652,6 +652,9 @@ int main(int argc, char *argv[])
     QApplication::setOrganizationName(QAPP_ORG_NAME);
     QApplication::setOrganizationDomain(QAPP_ORG_DOMAIN);
     QApplication::setApplicationName(QAPP_APP_NAME_DEFAULT);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
+QApplication::setDesktopFileName("yerbas-qt");
+#endif
     GUIUtil::SubstituteFonts(GetLangTerritory());
 
     /// 4. Initialization of translations, so that intro dialog is in user's language

@@ -69,6 +69,9 @@ NetworkStyle::NetworkStyle(const QString &_appName, const int iconColorHueShift,
 {
     // Allow for separate UI settings for testnets
     QApplication::setApplicationName(appName);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 7, 0)
+    QApplication::setDesktopFileName("yerbas-qt");
+#endif
     // Make sure settings migrated properly
     GUIUtil::migrateQtSettings();
     // load pixmap
