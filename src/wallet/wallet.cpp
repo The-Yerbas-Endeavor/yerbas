@@ -45,6 +45,8 @@
 
 #include <assert.h>
 
+#include <algorithm>
+
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
 
@@ -520,7 +522,7 @@ bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool fForMixingOnl
                 if(nWalletBackups == -2) {
                     TopUpKeyPool();
                     LogPrintf("Keypool replenished, re-initializing automatic backups.\n");
-                    nWalletBackups = gArgs.GetArg("-createwalletbackups", 10);
+                    nWalletBackups = gArgs.GetArg("-createwalletbackups", 3);
                 }
                 return true;
             }
@@ -1133,7 +1135,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
     {
         wtx.nTimeReceived = GetAdjustedTime();
         wtx.nOrderPos = IncOrderPosNext(&walletdb);
-        wtxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, (CAccountingEntry*)0)));
+        wtxOrdered.insert(std::make_pair(wtx.nOrderPos, TxPair(&wtx, nullptr)));
         wtx.nTimeSmart = ComputeTimeSmart(wtx);
         AddToSpends(hash);
 
@@ -1259,6 +1261,10 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const CBlockI
 
         bool fExisted = mapWallet.count(tx.GetHash()) != 0;
         if (fExisted && !fUpdate) return false;
+        if (fExisted) LogPrintf("%s: adding because existed\n", __func__);
+        if (IsMine(tx)) LogPrintf("%s: adding because IsMine\n", __func__);
+        if (IsFromMe(tx)) LogPrintf("%s: adding because IsFromMe\n", __func__);
+        if (HasMyAssets(tx)) LogPrintf("%s: adding because CAssetOutputEntry\n", __func__);
         if (fExisted || IsMine(tx) || IsFromMe(tx))
         {
             /* Check if any keys in the wallet keypool that were supposed to be unused
@@ -1548,9 +1554,8 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter, CAssetO
                 if (IsMine(prev.tx->vout[txin.prevout.n]) & filter) {
                     // if asset get that assets data from the scriptPubKey
                     if (prev.tx->vout[txin.prevout.n].scriptPubKey.IsAssetScript())
-                        GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData);
-
-                    return prev.tx->vout[txin.prevout.n].nValue;
+                        if (GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData))
+                            return prev.tx->vout[txin.prevout.n].nValue;
                 }
         }
     }
@@ -1830,13 +1835,13 @@ CAmount CWallet::HasMyAssets(const CTransaction& tx) const
 {
     for (const CTxIn& txin : tx.vin)
     {
-        CAssetOutputEntry assetData;
+        CAssetOutputEntry assetData{};
         GetDebit(txin, ISMINE_ALL, assetData);
         if (assetData.nAmount > 0)
-            return true;
+            return assetData.nAmount;
     }
 
-     return (GetDebit(tx, ISMINE_ALL) > 0);
+     return 0;
 }
 
 CAmount CWallet::GetDebit(const CTransaction& tx, const isminefilter& filter) const
@@ -3161,7 +3166,10 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const int nConfMin
     std::vector<CInputCoin> vValue;
     CAmount nTotalLower = 0;
 
-    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    for (size_t i = vCoins.size(); i > 1; --i) {
+        size_t j = static_cast<size_t>(GetRandInt(static_cast<int>(i)));
+        std::iter_swap(vCoins.begin() + (i - 1), vCoins.begin() + j);
+    }
 
     int tryDenomStart = 0;
     CAmount nMinChange = MIN_CHANGE;
@@ -3450,7 +3458,11 @@ bool CWallet::SelectAssetsMinConf(const CAmount& nTargetValue, const int nConfMi
     std::map<COutPoint, CAmount> mapValueAmount;
     CAmount nTotalLower = 0;
 
-    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    for (size_t i = vCoins.size(); i > 1; --i) {
+        size_t j = static_cast<size_t>(GetRandInt(static_cast<int>(i)));
+        std::iter_swap(vCoins.begin() + (i - 1), vCoins.begin() + j);
+    }
+
     #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     for (const COutput &output : vCoins)
     {
@@ -3717,7 +3729,10 @@ bool CWallet::SelectPSInOutPairsByDenominations(int nDenom, CAmount nValueMin, C
     AvailableCoins(vCoins, true, &coin_control);
     LogPrint(BCLog::PRIVATESEND, "CWallet::%s -- vCoins.size(): %d\n", __func__, vCoins.size());
 
-    std::random_shuffle(vCoins.rbegin(), vCoins.rend(), GetRandInt);
+    for (size_t i = vCoins.size(); i > 1; --i) {
+        size_t j = static_cast<size_t>(GetRandInt(static_cast<int>(i)));
+        std::iter_swap(vCoins.rbegin() + (i - 1), vCoins.rbegin() + j);
+    }
 
     std::vector<CAmount> vecPrivateSendDenominations = CPrivateSend::GetStandardDenominations();
     for (const auto& out : vCoins) {
@@ -6641,7 +6656,7 @@ bool CWallet::InitAutoBackup()
     std::string strWarning;
     std::string strError;
 
-    nWalletBackups = gArgs.GetArg("-createwalletbackups", 10);
+    nWalletBackups = gArgs.GetArg("-createwalletbackups", 3);
     nWalletBackups = std::max(0, std::min(10, nWalletBackups));
 
     std::string strWalletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);

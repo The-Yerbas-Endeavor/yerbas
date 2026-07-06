@@ -204,13 +204,13 @@ struct COutputEntry
 /** YERBAS ASSETS START */
 struct CAssetOutputEntry
 {
-    txnouttype type;
+    txnouttype type = TX_NONSTANDARD;
     std::string assetName;
     CTxDestination destination;
-    CAmount nAmount;
+    CAmount nAmount = 0;
     std::string message;
-    int64_t expireTime;
-    int vout;
+    int64_t expireTime = 0;
+    int vout = -1;
 };
 /** YERBAS ASSETS END */
 

@@ -21,6 +21,7 @@
 
 #include "llmq/quorums_instantsend.h"
 
+#include <algorithm>
 #include <univalue.h>
 
 CPrivateSendServer privateSendServer;
@@ -389,7 +390,10 @@ void CPrivateSendServer::ChargeFees(CConnman& connman)
     if ((int)vecOffendersCollaterals.size() >= nSessionMaxParticipants) return;
 
     //charge one of the offenders randomly
-    std::random_shuffle(vecOffendersCollaterals.begin(), vecOffendersCollaterals.end());
+    for (size_t i = vecOffendersCollaterals.size(); i > 1; --i) {
+        size_t j = GetRandInt(static_cast<int>(i));
+        std::swap(vecOffendersCollaterals[i - 1], vecOffendersCollaterals[j]);
+    }
 
     if (nState == POOL_STATE_ACCEPTING_ENTRIES || nState == POOL_STATE_SIGNING) {
         LogPrint(BCLog::PRIVATESEND, "CPrivateSendServer::ChargeFees -- found uncooperative node (didn't %s transaction), charging fees: %s",
