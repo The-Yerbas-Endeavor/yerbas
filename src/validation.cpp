@@ -1099,35 +1099,35 @@ CAmount GetBlockSubsidy(int nPrevBits, int nPrevHeight, const Consensus::Params&
         nSubsidy = 4.20; 
     } else if ((nPrevHeight > 1000000) && (nPrevHeight < 2000000)) {
         nSubsidy = 80; 
-    } else if ((nPrevHeight > 2000000) && (nPrevHeight < 3000000)) {
+    } else if ((nPrevHeight >= 2000000) && (nPrevHeight < 3000000)) {
         nSubsidy = 70;
-    } else if ((nPrevHeight > 3000000) && (nPrevHeight < 4000000)) {
+    } else if ((nPrevHeight >= 3000000) && (nPrevHeight < 4000000)) {
         nSubsidy = 50;
-    } else if ((nPrevHeight > 4000000) && (nPrevHeight < 5000000)) {
+    } else if ((nPrevHeight >= 4000000) && (nPrevHeight < 5000000)) {
         nSubsidy = 40;     
-    } else if ((nPrevHeight > 5000000) && (nPrevHeight < 6000000)) {
+    } else if ((nPrevHeight >= 5000000) && (nPrevHeight < 6000000)) {
         nSubsidy = 20;      
-    } else if ((nPrevHeight > 6000000) && (nPrevHeight < 7000000)) {
+    } else if ((nPrevHeight >= 6000000) && (nPrevHeight < 7000000)) {
         nSubsidy = 10;     
-    } else if ((nPrevHeight > 7000000) && (nPrevHeight < 8000000)) {
+    } else if ((nPrevHeight >= 7000000) && (nPrevHeight < 8000000)) {
         nSubsidy = 9;  
-    } else if ((nPrevHeight > 8000000) && (nPrevHeight < 9000000)) {
+    } else if ((nPrevHeight >= 8000000) && (nPrevHeight < 9000000)) {
         nSubsidy = 8;      
-    } else if ((nPrevHeight > 9000000) && (nPrevHeight < 10000000)) {
+    } else if ((nPrevHeight >= 9000000) && (nPrevHeight < 10000000)) {
         nSubsidy = 7;     
-    } else if ((nPrevHeight > 10000000) && (nPrevHeight < 11000000)) {
+    } else if ((nPrevHeight >= 10000000) && (nPrevHeight < 11000000)) {
         nSubsidy = 6;    
-    } else if ((nPrevHeight > 11000000) && (nPrevHeight < 12000000)) {
+    } else if ((nPrevHeight >= 11000000) && (nPrevHeight < 12000000)) {
         nSubsidy = 5;     
-    } else if ((nPrevHeight > 12000000) && (nPrevHeight < 13000000)) {
+    } else if ((nPrevHeight >= 12000000) && (nPrevHeight < 13000000)) {
         nSubsidy = 4.20;  
-    } else if ((nPrevHeight > 13000000) && (nPrevHeight < 14000000)) {
+    } else if ((nPrevHeight >= 13000000) && (nPrevHeight < 14000000)) {
         nSubsidy = 3;      
-    } else if ((nPrevHeight > 14000000) && (nPrevHeight < 15000000)) {
+    } else if ((nPrevHeight >= 14000000) && (nPrevHeight < 15000000)) {
         nSubsidy = 2;     
-    } else if ((nPrevHeight > 15000000) && (nPrevHeight < 16000000)) {
+    } else if ((nPrevHeight >= 15000000) && (nPrevHeight < 16000000)) {
         nSubsidy = 1; 
-    } else if (nPrevHeight > 16000000) {
+    } else if (nPrevHeight >= 16000000) {
         nSubsidy = .420;
     }
     return nSubsidy * COIN;
@@ -3895,7 +3895,7 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
         nLockTimeFlags |= LOCKTIME_MEDIAN_TIME_PAST;
     }
 
-    int64_t nLockTimeCutoff = (nLockTimeFlags & LOCKTIME_MEDIAN_TIME_PAST)
+    int64_t nLockTimeCutoff = ((nLockTimeFlags & LOCKTIME_MEDIAN_TIME_PAST) && pindexPrev)
                               ? pindexPrev->GetMedianTimePast()
                               : block.GetBlockTime();
 
@@ -4907,6 +4907,7 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
     int64_t nStart = GetTimeMillis();
 
     int nLoaded = 0;
+    int64_t nLastProgressLog = nStart;
     try {
         unsigned int nMaxBlockSize = MaxBlockSize(true);
         // This takes over fileIn and calls fclose() on it in the CBufferedFile destructor
@@ -4962,14 +4963,25 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                     // process in case the block isn't known yet
                     if (mapBlockIndex.count(hash) == 0 || (mapBlockIndex[hash]->nStatus & BLOCK_HAVE_DATA) == 0) {
                         CValidationState state;
-                        if (AcceptBlock(pblock, state, chainparams, nullptr, true, dbp, nullptr))
+                        if (AcceptBlock(pblock, state, chainparams, nullptr, true, dbp, nullptr)) {
                             nLoaded++;
+
+                            int64_t nNow = GetTimeMillis();
+                            auto mi = mapBlockIndex.find(hash);
+                            int nHeight = mi != mapBlockIndex.end() && mi->second ? mi->second->nHeight : -1;
+
+                            if (nLoaded == 1 || nLoaded % 1000 == 0 || nNow - nLastProgressLog >= 60000) {
+                                LogPrintf("%s: Reindex progress: loaded=%d height=%d block=%s\n",
+                                          __func__, nLoaded, nHeight, hash.ToString());
+                                nLastProgressLog = nNow;
+                            }
+                        }
                         if (state.IsError())
                             break;
                     } else if (hash != chainparams.GetConsensus().hashGenesisBlock && mapBlockIndex[hash]->nHeight % 1000 == 0) {
                         LogPrint(BCLog::REINDEX, "Block Import: already had block %s at height %d\n", hash.ToString(), mapBlockIndex[hash]->nHeight);
                     }
-                }    
+                }
 
                 // Activate the genesis block so normal node progress can continue
                 if (hash == chainparams.GetConsensus().hashGenesisBlock) {
@@ -5000,7 +5012,19 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                             if (AcceptBlock(pblockrecursive, dummy, chainparams, nullptr, true, &it->second, nullptr))
                             {
                                 nLoaded++;
-                                queue.push_back(pblockrecursive->GetHash());
+                                uint256 childHash = pblockrecursive->GetHash();
+
+                                int64_t nNow = GetTimeMillis();
+                                auto mi = mapBlockIndex.find(childHash);
+                                int nHeight = mi != mapBlockIndex.end() && mi->second ? mi->second->nHeight : -1;
+
+                                if (nLoaded == 1 || nLoaded % 1000 == 0 || nNow - nLastProgressLog >= 60000) {
+                                    LogPrintf("%s: Reindex progress: loaded=%d height=%d block=%s\n",
+                                              __func__, nLoaded, nHeight, childHash.ToString());
+                                    nLastProgressLog = nNow;
+                                }
+
+                                queue.push_back(childHash);
                             }
                         }
                         range.first++;

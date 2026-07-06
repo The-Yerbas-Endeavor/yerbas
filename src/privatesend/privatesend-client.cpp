@@ -19,6 +19,7 @@
 #include "validation.h"
 #include "wallet/coincontrol.h"
 
+#include <algorithm>
 #include <memory>
 #include <univalue.h>
 
@@ -1018,7 +1019,10 @@ CDeterministicMNCPtr CPrivateSendClientManager::GetRandomNotUsedSmartnode()
 
     FastRandomContext insecure_rand;
     // shuffle pointers
-    std::random_shuffle(vpSmartnodesShuffled.begin(), vpSmartnodesShuffled.end(), insecure_rand);
+    for (size_t i = vpSmartnodesShuffled.size(); i > 1; --i) {
+        size_t j = insecure_rand.randrange(i);
+        std::swap(vpSmartnodesShuffled[i - 1], vpSmartnodesShuffled[j]);
+    }
 
     std::set<COutPoint> excludeSet(vecSmartnodesUsed.begin(), vecSmartnodesUsed.end());
 

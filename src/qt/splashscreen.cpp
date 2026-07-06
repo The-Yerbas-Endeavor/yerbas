@@ -1,6 +1,7 @@
 // Copyright (c) 2011-2015 The Bitcoin Core developers
 // Copyright (c) 2014-2019 The Dash Core developers
-// Copyright (c) 2020 The Yerbas developers
+// Copyright (c) 2020-2026 The Yerbas developers
+// Props to Ramek Wukong
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -25,7 +26,12 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDesktopWidget>
+#include <QFontMetrics>
+#include <QKeyEvent>
 #include <QPainter>
+#include <QRect>
+#include <QSize>
+#include <QtGlobal>
 
 SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle *networkStyle) :
     QWidget(0, f), curAlignment(0)
@@ -38,61 +44,160 @@ SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle *networkStyle) 
     // no window decorations
     setWindowFlags(Qt::FramelessWindowHint);
 
-    // set reference point, paddings
-    int paddingLeft             = 14;
-    int paddingTop              = 470;
-    int titleVersionVSpace      = 17;
-    int titleCopyrightVSpace    = 22;
-
-    float fontFactor            = 1.0;
-
     // define text to place
     QString titleText       = tr(PACKAGE_NAME);
     QString versionText     = QString(tr("Version %1")).arg(QString::fromStdString(FormatFullVersion()));
     QString copyrightText   = QString::fromUtf8(CopyrightHolders("\xc2\xA9", 2014, COPYRIGHT_YEAR).c_str());
     QString titleAddText    = networkStyle->getTitleAddText();
 
-    QString font = QApplication::font().toString();
+    QFont baseFont = QApplication::font();
+    baseFont.setStyleStrategy(QFont::PreferAntialias);
 
     // load the bitmap for writing some text over it
     pixmap = networkStyle->getSplashImage();
 
+    // Clamp splash size to the current available desktop area.
+    // This prevents HiDPI / scaled desktops from turning the splash
+    // into a near-fullscreen window.
+    QRect screenGeometry = QApplication::desktop()->availableGeometry(this);
+
+    int maxSplashWidth  = qMax(320, qMin(480, int(screenGeometry.width() * 0.55)));
+    int maxSplashHeight = qMax(360, qMin(540, int(screenGeometry.height() * 0.72)));
+
+    if (pixmap.width() > maxSplashWidth || pixmap.height() > maxSplashHeight) {
+        pixmap = pixmap.scaled(
+            QSize(maxSplashWidth, maxSplashHeight),
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        );
+    }
+
+    const int paddingLeft   = qMax(12, int(pixmap.width() * 0.04));
+    const int paddingRight  = paddingLeft;
+    const int paddingBottom = qMax(12, int(pixmap.height() * 0.035));
+    const int lineGap       = qMax(2, int(pixmap.height() * 0.006));
+
+    float fontFactor = qMax(0.70f, qMin(1.0f, pixmap.width() / 480.0f));
+
     QPainter pixPaint(&pixmap);
+    pixPaint.setRenderHint(QPainter::Antialiasing, true);
+    pixPaint.setRenderHint(QPainter::TextAntialiasing, true);
+    pixPaint.setRenderHint(QPainter::SmoothPixmapTransform, true);
     pixPaint.setPen(QColor(255,255,255));
 
-    // check font size and drawing with
-    pixPaint.setFont(QFont(font, 28*fontFactor));
+    QFont titleFont(baseFont);
+    titleFont.setPixelSize(qMax(22, int(25 * fontFactor)));
+    titleFont.setWeight(QFont::Normal);
+
+    QFont versionFont(baseFont);
+    versionFont.setPixelSize(qMax(11, int(12 * fontFactor)));
+
+    QFont copyrightFont(baseFont);
+    copyrightFont.setPixelSize(qMax(8, int(9 * fontFactor)));
+
+    // Shrink title if it does not fit the current splash width.
+    pixPaint.setFont(titleFont);
     QFontMetrics fm = pixPaint.fontMetrics();
     int titleTextWidth = fm.width(titleText);
-    if (titleTextWidth > 160) {
-        fontFactor = 0.75;
+    const int availableTextWidth = pixmap.width() - paddingLeft - paddingRight;
+
+    if (titleTextWidth > availableTextWidth && titleTextWidth > 0) {
+        float fitFactor = fontFactor * (float(availableTextWidth) / float(titleTextWidth));
+        fontFactor = qMax(0.60f, qMin(fontFactor, fitFactor));
+
+        titleFont = QFont(baseFont);
+        titleFont.setPixelSize(qMax(22, int(25 * fontFactor)));
+        titleFont.setWeight(QFont::Normal);
+
+        versionFont = QFont(baseFont);
+        versionFont.setPixelSize(qMax(11, int(12 * fontFactor)));
+
+        copyrightFont = QFont(baseFont);
+        copyrightFont.setPixelSize(qMax(8, int(9 * fontFactor)));
     }
 
-    pixPaint.setFont(QFont(font, 28*fontFactor));
-    fm = pixPaint.fontMetrics();
-    titleTextWidth  = fm.width(titleText);
-    pixPaint.drawText(paddingLeft,paddingTop,titleText);
+    QFontMetrics titleMetrics(titleFont);
+    QFontMetrics versionMetrics(versionFont);
+    QFontMetrics copyrightMetrics(copyrightFont);
 
-    pixPaint.setFont(QFont(font, 15*fontFactor));
-    pixPaint.drawText(paddingLeft,paddingTop+titleVersionVSpace,versionText);
+    QRect copyrightProbeRect(
+        0,
+        0,
+        availableTextWidth,
+        pixmap.height()
+    );
 
-    // draw copyright stuff
-    {
-        pixPaint.setFont(QFont(font, 10*fontFactor));
-        const int x = paddingLeft;
-        const int y = paddingTop+titleCopyrightVSpace;
-        QRect copyrightRect(x, y, pixmap.width() - x, pixmap.height() - y);
-        pixPaint.drawText(copyrightRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, copyrightText);
-    }
+    QRect copyrightBounds = copyrightMetrics.boundingRect(
+        copyrightProbeRect,
+        Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+        copyrightText
+    );
+
+    const int copyrightTop = pixmap.height() - paddingBottom - copyrightBounds.height();
+    const int versionBaseline = copyrightTop - lineGap - versionMetrics.descent();
+    const int titleBaseline = versionBaseline - versionMetrics.ascent() - lineGap - titleMetrics.descent();
+
+    const int footerTop = qMax(0, titleBaseline - titleMetrics.ascent() - 10);
+
+    pixPaint.fillRect(
+        QRect(0, footerTop, pixmap.width(), pixmap.height() - footerTop),
+        QColor(0, 0, 0, 85)
+    );
+
+    QRect copyrightRect(
+        paddingLeft,
+        copyrightTop,
+        availableTextWidth,
+        copyrightBounds.height()
+    );
+
+    // Draw a subtle shadow first so the text stays readable over the noisy art.
+    pixPaint.setPen(QColor(0, 0, 0, 160));
+
+    pixPaint.setFont(titleFont);
+    pixPaint.drawText(paddingLeft + 1, titleBaseline + 1, titleText);
+
+    pixPaint.setFont(versionFont);
+    pixPaint.drawText(paddingLeft + 1, versionBaseline + 1, versionText);
+
+    pixPaint.setFont(copyrightFont);
+    pixPaint.drawText(
+        copyrightRect.translated(1, 1),
+        Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+        copyrightText
+    );
+
+    // Draw the actual white text.
+    pixPaint.setPen(QColor(255, 255, 255));
+
+    pixPaint.setFont(titleFont);
+    pixPaint.drawText(paddingLeft, titleBaseline, titleText);
+
+    pixPaint.setFont(versionFont);
+    pixPaint.drawText(paddingLeft, versionBaseline, versionText);
+
+    pixPaint.setFont(copyrightFont);
+    pixPaint.drawText(
+        copyrightRect,
+        Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+        copyrightText
+    );
 
     // draw additional text if special network
     if(!titleAddText.isEmpty()) {
-        QFont boldFont = QFont(font, 10*fontFactor);
+        QFont boldFont(baseFont);
+        boldFont.setPixelSize(qMax(9, int(10 * fontFactor)));
         boldFont.setWeight(QFont::Bold);
+
         pixPaint.setFont(boldFont);
-        fm = pixPaint.fontMetrics();
-        int titleAddTextWidth  = fm.width(titleAddText);
-        pixPaint.drawText(pixmap.width()-titleAddTextWidth-10,pixmap.height()-25,titleAddText);
+        QFontMetrics addTextMetrics = pixPaint.fontMetrics();
+        int titleAddTextWidth = addTextMetrics.width(titleAddText);
+
+        pixPaint.drawText(
+            pixmap.width() - titleAddTextWidth - 10,
+            pixmap.height() - 25,
+            titleAddText
+        );
     }
 
     pixPaint.end();
@@ -101,7 +206,7 @@ SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle *networkStyle) 
     QRect r(QPoint(), pixmap.size());
     resize(r.size());
     setFixedSize(r.size());
-    move(QApplication::desktop()->screenGeometry().center() - r.center());
+    move(screenGeometry.center() - r.center());
 
     subscribeToCoreSignals();
     installEventFilter(this);
@@ -115,7 +220,7 @@ SplashScreen::~SplashScreen()
 bool SplashScreen::eventFilter(QObject * obj, QEvent * ev) {
     if (ev->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(ev);
-        if(keyEvent->text()[0] == 'q' && breakAction != nullptr) {
+        if(!keyEvent->text().isEmpty() && keyEvent->text()[0] == 'q' && breakAction != nullptr) {
             breakAction();
         }
     }
@@ -201,10 +306,22 @@ void SplashScreen::showMessage(const QString &message, int alignment, const QCol
 
 void SplashScreen::paintEvent(QPaintEvent *event)
 {
+    Q_UNUSED(event);
+
     QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
     painter.drawPixmap(0, 0, pixmap);
+
     QRect r = rect().adjusted(5, 5, -5, -5);
     painter.setPen(curColor);
+
+    QFont messageFont = QApplication::font();
+    messageFont.setStyleStrategy(QFont::PreferAntialias);
+    painter.setFont(messageFont);
+
     painter.drawText(r, curAlignment, curMessage);
 }
 
