@@ -1,6 +1,6 @@
 # This workflow has been split from the old monolithic Yerbas build.
 
-name: Yerbas Build for WinTel Devices
+name: Yerbas Build
 
 on:
   push:

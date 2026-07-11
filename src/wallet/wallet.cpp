@@ -1551,12 +1551,18 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter, CAssetO
         {
             const CWalletTx& prev = (*mi).second;
             if (txin.prevout.n < prev.tx->vout.size())
-                if (IsMine(prev.tx->vout[txin.prevout.n]) & filter) {
-                    // if asset get that assets data from the scriptPubKey
-                    if (prev.tx->vout[txin.prevout.n].scriptPubKey.IsAssetScript())
-                        if (GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData))
-                            return prev.tx->vout[txin.prevout.n].nValue;
+            {
+                const CTxOut& prevout = prev.tx->vout[txin.prevout.n];
+
+                if (IsMine(prevout) & filter)
+                {
+                    // If asset, also populate that asset's data.
+                    if (prevout.scriptPubKey.IsAssetScript())
+                        GetAssetData(prevout.scriptPubKey, assetData);
+
+                    return prevout.nValue;
                 }
+            }
         }
     }
     return 0;
