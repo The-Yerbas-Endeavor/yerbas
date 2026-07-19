@@ -19,9 +19,9 @@ Yerbas inherited the `depends` folder from Bitcoin, which contains all dependenc
 dependencies must be built before Yerbas can actually be built. To do so, perform the following:
 
 ```bash
-$ cd depends
-$ make -j4 # Choose a good -j value, depending on the number of CPU cores available
-$ cd ..
+cd depends
+make -j4 # Choose a good -j value, depending on the number of CPU cores available
+cd ..
 ```
 
 This will download and build all dependencies required to build Yerbas Core. Caching of build results will ensure that only
@@ -38,10 +38,10 @@ Building Yerbas Core
 ---------------------
 
 ```bash
-$ ./autogen.sh
-$ ./configure --prefix=`pwd`/depends/<host>
-$ make
-$ make install # optional
+./autogen.sh
+./configure --prefix=`pwd`/depends/<host>
+make
+make install # optional
 ```
 
 Please replace `<host>` with your local system's `host-platform-triplet`. The following triplets are usually valid:
@@ -69,7 +69,7 @@ The default maximum cache size is 5G, which might not be enough to cache multipl
 very often. It is advised to increase the maximum cache size:
 
 ```bash
-$ ccache -M20G
+ccache -M20G
 ```
 
 Additional Configure Flags

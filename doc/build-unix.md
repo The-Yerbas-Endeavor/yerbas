@@ -12,22 +12,22 @@ Run the following commands to install required packages:
 
 ##### Debian/Ubuntu:
 ```bash
-$ sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
+sudo apt-get install curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
 ```
 
 ##### Fedora:
 ```bash
-$ sudo dnf install gcc-c++ libtool make autoconf automake python3 libstdc++-static patch
+sudo dnf install gcc-c++ libtool make autoconf automake python3 libstdc++-static patch
 ```
 
 ##### Arch Linux:
 ```bash
-$ pacman -S base-devel python3
+pacman -S base-devel python3
 ```
 
 ##### Alpine Linux:
 ```sh
-$ sudo apk --update --no-cache add autoconf automake curl g++ gcc libexecinfo-dev libexecinfo-static libtool make perl pkgconfig python3 patch linux-headers
+sudo apk --update --no-cache add autoconf automake curl g++ gcc libexecinfo-dev libexecinfo-static libtool make perl pkgconfig python3 patch linux-headers
 ```
 
 ##### FreeBSD/OpenBSD:
@@ -134,14 +134,14 @@ compiler is used and not ancient g++ 4.2.1. This is done by appending
 within the same executable will result in linker errors.
 
 ```bash
-$ cd depends
-$ make CC=cc CXX=c++
-$ cd ..
-$ export AUTOCONF_VERSION=2.69 # replace this with the autoconf version that you installed
-$ export AUTOMAKE_VERSION=1.15 # replace this with the automake version that you installed
-$ ./autogen.sh
-$ ./configure --prefix=<prefix> CC=cc CXX=c++
-$ gmake # use -jX here for parallelism
+cd depends
+make CC=cc CXX=c++
+cd ..
+export AUTOCONF_VERSION=2.69 # replace this with the autoconf version that you installed
+export AUTOMAKE_VERSION=1.15 # replace this with the automake version that you installed
+./autogen.sh
+./configure --prefix=<prefix> CC=cc CXX=c++
+gmake # use -jX here for parallelism
 ```
 
 OpenBSD Resource limits
