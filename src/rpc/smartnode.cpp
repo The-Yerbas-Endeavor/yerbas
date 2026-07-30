@@ -464,6 +464,7 @@ UniValue smartnodelist(const JSONRPCRequest& request)
             std::ostringstream streamFull;
             streamFull << std::setw(18) <<
                            dmnToStatus(dmn) << " " <<
+                           dmn->pdmnState->nPoSePenalty << " " <<
                            payeeStr << " " << std::setw(10) <<
                            dmnToLastPaidTime(dmn) << " "  << std::setw(6) <<
                            dmn->pdmnState->nLastPaidHeight << " " <<
@@ -476,6 +477,7 @@ UniValue smartnodelist(const JSONRPCRequest& request)
             std::ostringstream streamInfo;
             streamInfo << std::setw(18) <<
                            dmnToStatus(dmn) << " " <<
+                           dmn->pdmnState->nPoSePenalty << " " <<
                            payeeStr << " " <<
                            dmn->pdmnState->addr.ToString();
             std::string strInfo = streamInfo.str();
@@ -484,40 +486,93 @@ UniValue smartnodelist(const JSONRPCRequest& request)
             obj.push_back(Pair(strOutpoint, strInfo));
         } else if (strMode == "json") {
             std::ostringstream streamInfo;
-            streamInfo <<  dmn->proTxHash.ToString() << " " <<
-                           dmn->pdmnState->addr.ToString() << " " <<
-                           payeeStr << " " <<
-                           dmnToStatus(dmn) << " " <<
-                           dmnToLastPaidTime(dmn) << " " <<
-                           dmn->pdmnState->nLastPaidHeight << " " <<
-                           CBitcoinAddress(dmn->pdmnState->keyIDOwner).ToString() << " " <<
-                           CBitcoinAddress(dmn->pdmnState->keyIDVoting).ToString() << " " <<
-                           collateralAddressStr << " " <<
-                           dmn->pdmnState->pubKeyOperator.Get().ToString();
+            streamInfo << dmn->proTxHash.ToString() << " " <<
+                          dmn->pdmnState->addr.ToString() << " " <<
+                          payeeStr << " " <<
+                          dmnToStatus(dmn) << " " <<
+                          dmnToLastPaidTime(dmn) << " " <<
+                          dmn->pdmnState->nLastPaidHeight << " " <<
+                          CBitcoinAddress(dmn->pdmnState->keyIDOwner).ToString() << " " <<
+                          CBitcoinAddress(dmn->pdmnState->keyIDVoting).ToString() << " " <<
+                          collateralAddressStr << " " <<
+                          dmn->pdmnState->pubKeyOperator.Get().ToString();
+
             std::string strInfo = streamInfo.str();
-            if (strFilter !="" && strInfo.find(strFilter) == std::string::npos &&
-                strOutpoint.find(strFilter) == std::string::npos) return;
+
+            if (strFilter != "" &&
+                strInfo.find(strFilter) == std::string::npos &&
+                strOutpoint.find(strFilter) == std::string::npos) {
+                return;
+            }
+
             UniValue objMN(UniValue::VOBJ);
+
             objMN.push_back(Pair("proTxHash", dmn->proTxHash.ToString()));
             objMN.push_back(Pair("address", dmn->pdmnState->addr.ToString()));
             objMN.push_back(Pair("payee", payeeStr));
             objMN.push_back(Pair("status", dmnToStatus(dmn)));
+            objMN.push_back(Pair("posePenalty", dmn->pdmnState->nPoSePenalty));
             objMN.push_back(Pair("lastpaidtime", dmnToLastPaidTime(dmn)));
             objMN.push_back(Pair("lastpaidblock", dmn->pdmnState->nLastPaidHeight));
-            objMN.push_back(Pair("owneraddress", CBitcoinAddress(dmn->pdmnState->keyIDOwner).ToString()));
-            objMN.push_back(Pair("votingaddress", CBitcoinAddress(dmn->pdmnState->keyIDVoting).ToString()));
-            objMN.push_back(Pair("collateraladdress", collateralAddressStr));
-            objMN.push_back(Pair("pubkeyoperator", dmn->pdmnState->pubKeyOperator.Get().ToString()));
+
+            objMN.push_back(Pair(
+                "owneraddress",
+                CBitcoinAddress(dmn->pdmnState->keyIDOwner).ToString()
+            ));
+
+            objMN.push_back(Pair(
+                "votingaddress",
+                CBitcoinAddress(dmn->pdmnState->keyIDVoting).ToString()
+            ));
+
+            objMN.push_back(Pair(
+                "collateraladdress",
+                collateralAddressStr
+            ));
+
+            objMN.push_back(Pair(
+                "collateralAmount",
+                ValueFromAmount(dmn->pdmnState->nCollateralAmount)
+            ));
+
+            objMN.push_back(Pair(
+                "registeredHeight",
+                dmn->pdmnState->nRegisteredHeight
+            ));
+
+            objMN.push_back(Pair(
+                "pubkeyoperator",
+                dmn->pdmnState->pubKeyOperator.Get().ToString()
+            ));
+
             obj.push_back(Pair(strOutpoint, objMN));
         } else if (strMode == "lastpaidblock") {
-            if (strFilter !="" && strOutpoint.find(strFilter) == std::string::npos) return;
-            obj.push_back(Pair(strOutpoint, dmn->pdmnState->nLastPaidHeight));
+            if (strFilter != "" &&
+                strOutpoint.find(strFilter) == std::string::npos) {
+                return;
+            }
+
+            obj.push_back(Pair(
+                strOutpoint,
+                dmn->pdmnState->nLastPaidHeight
+            ));
         } else if (strMode == "lastpaidtime") {
-            if (strFilter !="" && strOutpoint.find(strFilter) == std::string::npos) return;
-            obj.push_back(Pair(strOutpoint, dmnToLastPaidTime(dmn)));
+            if (strFilter != "" &&
+                strOutpoint.find(strFilter) == std::string::npos) {
+                return;
+            }
+
+            obj.push_back(Pair(
+                strOutpoint,
+                dmnToLastPaidTime(dmn)
+            ));
         } else if (strMode == "payee") {
-            if (strFilter !="" && payeeStr.find(strFilter) == std::string::npos &&
-                strOutpoint.find(strFilter) == std::string::npos) return;
+            if (strFilter != "" &&
+                payeeStr.find(strFilter) == std::string::npos &&
+                strOutpoint.find(strFilter) == std::string::npos) {
+                return;
+            }
+
             obj.push_back(Pair(strOutpoint, payeeStr));
         } else if (strMode == "owneraddress") {
             if (strFilter !="" && strOutpoint.find(strFilter) == std::string::npos) return;

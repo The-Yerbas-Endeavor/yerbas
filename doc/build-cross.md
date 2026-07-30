@@ -11,28 +11,28 @@ MacOSX Cross-compilation
 Cross-compiling to MacOSX requires a few additional packages to be installed:
 
 ```bash
-$ sudo apt-get install python3-setuptools libcap-dev zlib1g-dev libbz2-dev
+sudo apt-get install python3-setuptools libcap-dev zlib1g-dev libbz2-dev
 ```
 
 Additionally, the Mac OSX SDK must be downloaded and extracted manually:
 
 ```bash
-$ mkdir -p depends/sdk-sources
-$ mkdir -p depends/SDKs
-$ curl https://bitcoincore.org/depends-sources/sdks/MacOSX10.11.sdk.tar.gz -o depends/sdk-sources/MacOSX10.11.sdk.tar.gz
-$ tar -C depends/SDKs -xf depends/sdk-sources/MacOSX10.11.sdk.tar.gz
+mkdir -p depends/sdk-sources
+mkdir -p depends/SDKs
+curl https://bitcoincore.org/depends-sources/sdks/MacOSX10.11.sdk.tar.gz -o depends/sdk-sources/MacOSX10.11.sdk.tar.gz
+tar -C depends/SDKs -xf depends/sdk-sources/MacOSX10.11.sdk.tar.gz
 ```
 
 When building the dependencies, as described in [build-generic](build-generic.md), use
 
 ```bash
-$ make HOST=x86_64-apple-darwin14 -j4
+make HOST=x86_64-apple-darwin14 -j4
 ```
 
 When building Yerbas Core, use
 
 ```bash
-$ ./configure --prefix=`pwd`/depends/x86_64-apple-darwin14
+./configure --prefix=`pwd`/depends/x86_64-apple-darwin14
 ```
 
 Windows 64bit Cross-compilation
@@ -96,19 +96,19 @@ ARM-Linux Cross-compilation
 Cross-compiling to ARM-Linux requires a few additional packages to be installed:
 
 ```bash
-$ sudo apt-get install g++-arm-linux-gnueabihf
+sudo apt-get install g++-arm-linux-gnueabihf
 ```
 
 When building the dependencies, as described in [build-generic](build-generic.md), use
 
 ```bash
-$ make HOST=arm-linux-gnueabihf -j4
+make HOST=arm-linux-gnueabihf -j4
 ```
 
 When building Yerbas Core, use
 
 ```bash
-$ ./configure --prefix=`pwd`/depends/arm-linux-gnueabihf
+./configure --prefix=`pwd`/depends/arm-linux-gnueabihf
 ```
 
 Footnotes
