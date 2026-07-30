@@ -28,6 +28,11 @@ GENERATED_TEST_FILES = $(JSON_TEST_FILES:.json=.json.h) $(RAW_TEST_FILES:.raw=.r
 
 # test_yerbas binary #
 BITCOIN_TESTS =\
+  assets/assetcontract.cpp \
+  assets/assetcontractstate.cpp \
+  assets/assetcontractdb.cpp \
+  assets/assetcontractcache.cpp \
+  test/assetcontract_tests.cpp \
   test/arith_uint256_tests.cpp \
   test/scriptnum10.h \
   test/addrman_tests.cpp \
@@ -110,7 +115,7 @@ BITCOIN_TESTS += \
 endif
 
 test_test_yerbas_SOURCES = $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)
-test_test_yerbas_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(TESTDEFS) $(EVENT_CFLAGS)
+test_test_yerbas_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(TESTDEFS) $(EVENT_CFLAGS) -DENABLE_EXPERIMENTAL_YAC
 test_test_yerbas_LDADD =
 if ENABLE_WALLET
 test_test_yerbas_LDADD += $(LIBBITCOIN_WALLET)
