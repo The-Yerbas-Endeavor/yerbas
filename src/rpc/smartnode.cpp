@@ -512,6 +512,7 @@ UniValue smartnodelist(const JSONRPCRequest& request)
             objMN.push_back(Pair("payee", payeeStr));
             objMN.push_back(Pair("status", dmnToStatus(dmn)));
             objMN.push_back(Pair("posePenalty", dmn->pdmnState->nPoSePenalty));
+            objMN.push_back(Pair("poseBanHeight", dmn->pdmnState->nPoSeBanHeight));
             objMN.push_back(Pair("lastpaidtime", dmnToLastPaidTime(dmn)));
             objMN.push_back(Pair("lastpaidblock", dmn->pdmnState->nLastPaidHeight));
 
