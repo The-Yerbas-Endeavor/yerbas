@@ -12,6 +12,8 @@
 #include <core_io.h>
 #include <net.h>
 #include <base58.h>
+#include <boost/multiprecision/cpp_int.hpp>
+#include <limits>
 #include <consensus/validation.h>
 #include <wallet/coincontrol.h>
 #include <utilmoneystr.h>
@@ -44,142 +46,51 @@ bool AddDistributeRewardSnapshot(CWallet& wallet, CRewardSnapshot& p_rewardSnaps
     return true;
 }
 
-bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList)
+bool CalculateRewardPayments(CAmount budget, int units, const std::vector<OwnerAndAmount>& owners,
+                             std::vector<OwnerAndAmount>& payments)
 {
-    auto pSnapshotRequestDb = wallet.assetSnapshotRequests.get();
-    auto pAssetSnapshotDb = wallet.assetSnapshots.get();
-
-    vecDistributionList.clear();
-
-    if (passets == nullptr) {
-        LogPrint(BCLog::REWARDS, "%s: Invalid assets cache!\n", __func__);
-        return false;
+    payments.clear();
+    if (budget <= 0 || units < 0 || units > 8) return false;
+    CAmount quantum = 1;
+    for (int i = units; i < 8; ++i) quantum *= 10;
+    CAmount total = 0;
+    std::set<std::string> addresses;
+    for (const auto& owner : owners) {
+        if (owner.amount < 0 || owner.amount > std::numeric_limits<CAmount>::max() - total ||
+            !addresses.insert(owner.address).second) return false;
+        total += owner.amount;
     }
-    if (pSnapshotRequestDb == nullptr) {
-        LogPrint(BCLog::REWARDS, "%s: Invalid Snapshot Request cache!\n", __func__);
-        return false;
+    if (total == 0) return false;
+    // A signed 64-bit amount times another fits in unsigned 128 bits. Never
+    // convert monetary amounts through floating point (notably on Windows).
+    const boost::multiprecision::uint128_t wholeUnits = budget / quantum;
+    for (const auto& owner : owners) {
+        const auto share = (wholeUnits * owner.amount / total).convert_to<CAmount>();
+        if (share > 0) payments.emplace_back(owner.address, share * quantum);
     }
-    if (pAssetSnapshotDb == nullptr) {
-        LogPrint(BCLog::REWARDS, "%s: Invalid asset snapshot cache!\n", __func__);
-        return false;
+    return !payments.empty();
+}
+
+bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& plan, std::vector<OwnerAndAmount>& payments)
+{
+    payments.clear();
+    if (!passets || !wallet.assetSnapshots) return false;
+    int units = 8;
+    if (plan.strDistributionAsset != "YERB" && plan.strDistributionAsset != "tYERB") {
+        CNewAsset asset;
+        if (!passets->GetAssetMetaDataIfExists(plan.strDistributionAsset, asset)) return false;
+        units = asset.units;
     }
-
-    //  Get details on the specified source asset
-    CNewAsset distributionAsset;
-    //bool srcIsIndivisible = false;
-    CAmount srcUnitDivisor = COIN;  //  Default to divisor for YERB
-    const int8_t COIN_DIGITS_PAST_DECIMAL = 8;
-
-    //  This value is in indivisible units of the source asset
-    CAmount modifiedPaymentInAssetUnits = p_rewardSnapshot.nDistributionAmount;
-
-    if (p_rewardSnapshot.strDistributionAsset != "YERB" && p_rewardSnapshot.strDistributionAsset != "tYERB") {
-        if (!passets->GetAssetMetaDataIfExists(p_rewardSnapshot.strDistributionAsset, distributionAsset)) {
-            LogPrint(BCLog::REWARDS, "%s: Failed to retrieve asset details for '%s'\n", __func__, p_rewardSnapshot.strDistributionAsset.c_str());
-            return false;
-        }
-
-        //  If the token is indivisible, signal this to later code with a zero divisor
-        if (distributionAsset.units == 0) {
-            //srcIsIndivisible = true;
-        }
-
-        srcUnitDivisor = static_cast<CAmount>(pow(10, distributionAsset.units));
-
-        CAmount srcDivisor = pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units);
-        modifiedPaymentInAssetUnits /= srcDivisor;
-
-        LogPrint(BCLog::REWARDS, "%s: Distribution asset '%s' has units %d and divisor %d\n", __func__,
-                 p_rewardSnapshot.strDistributionAsset.c_str(), distributionAsset.units, srcUnitDivisor);
+    CAssetSnapshotDBEntry snapshot;
+    if (!wallet.assetSnapshots->RetrieveOwnershipSnapshot(plan.strOwnershipAsset, plan.nHeight, snapshot)) return false;
+    std::set<std::string> exceptions;
+    boost::split(exceptions, plan.strExceptionAddresses, boost::is_any_of(ADDRESS_COMMA_DELIMITER));
+    std::vector<OwnerAndAmount> owners;
+    for (const auto& entry : snapshot.ownersAndAmounts) {
+        if (!exceptions.count(entry.first) && !Params().IsBurnAddress(entry.first))
+            owners.emplace_back(entry.first, entry.second);
     }
-    else {
-        LogPrint(BCLog::REWARDS, "%s: Distribution is YERB with divisor %d\n", __func__, srcUnitDivisor);
-    }
-
-    LogPrint(BCLog::REWARDS, "%s: Scaled payment amount in %s is %d\n", __func__,
-             p_rewardSnapshot.strDistributionAsset.c_str(), modifiedPaymentInAssetUnits);
-
-    //  Get details on the ownership asset
-    CNewAsset ownershipAsset;
-    CAmount tgtUnitDivisor = 0;
-    if (!passets->GetAssetMetaDataIfExists(p_rewardSnapshot.strOwnershipAsset, ownershipAsset)) {
-        LogPrint(BCLog::REWARDS, "%s: Failed to retrieve asset details for '%s'\n", __func__, p_rewardSnapshot.strOwnershipAsset.c_str());
-        return false;
-    }
-
-    //  Save the ownership asset's divisor
-    tgtUnitDivisor = static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - ownershipAsset.units));
-
-    LogPrint(BCLog::REWARDS, "%s: Ownership asset '%s' has units %d and divisor %d\n", __func__,
-             p_rewardSnapshot.strOwnershipAsset.c_str(), ownershipAsset.units, tgtUnitDivisor);
-
-    //  Remove exception addresses & amounts from the list
-    std::set<std::string> exceptionAddressSet;
-    boost::split(exceptionAddressSet, p_rewardSnapshot.strExceptionAddresses, boost::is_any_of(ADDRESS_COMMA_DELIMITER));
-
-    std::set<OwnerAndAmount> nonExceptionOwnerships;
-    CAmount totalAmtOwned = 0;
-
-    CAssetSnapshotDBEntry snapshotEntry;
-    if (!pAssetSnapshotDb->RetrieveOwnershipSnapshot(p_rewardSnapshot.strOwnershipAsset, p_rewardSnapshot.nHeight, snapshotEntry)) {
-        LogPrint(BCLog::REWARDS, "%s: Failed to retrieve ownership snapshot list!\n", __func__);
-        return false;
-    }
-
-    for (auto const & currPair : snapshotEntry.ownersAndAmounts) {
-        //  Ignore exception and burn addresses
-        if (
-                exceptionAddressSet.find(currPair.first) == exceptionAddressSet.end()
-                && !Params().IsBurnAddress(currPair.first)
-                ) {
-            //  Address is valid so add it to the payment list
-            nonExceptionOwnerships.insert(OwnerAndAmount(currPair.first, currPair.second));
-            totalAmtOwned += currPair.second;
-        }
-    }
-
-    //  Make sure we have some addresses to pay to
-    if (nonExceptionOwnerships.size() == 0) {
-        LogPrint(BCLog::REWARDS, "%s: Ownership of '%s' includes only exception/burn addresses.\n", __func__,
-                 p_rewardSnapshot.strOwnershipAsset.c_str());
-        return false;
-    }
-
-    LogPrint(BCLog::REWARDS, "%s: Total amount owned %d\n", __func__,
-             totalAmtOwned);
-
-    LogPrint(BCLog::REWARDS, "%s: Total payout amount %d\n", __func__,
-             modifiedPaymentInAssetUnits);
-
-    CAmount totalSentAsRewards = 0;
-    //  Loop through asset owners
-    for (auto & ownership : nonExceptionOwnerships) {
-        // Get percentage of total ownership
-        long double percent = (long double)ownership.amount / (long double)totalAmtOwned;
-        // Caculate the reward with potentional unit inaccurancies e.g with units 4, 90054100 satoshis = 0.90054100
-        CAmount rewardAmt = percent * modifiedPaymentInAssetUnits * static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units));
-        // Remove all none accurate units e.g with units 4 90054100 => 9005
-        rewardAmt /= static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units));
-        // Replace all none accurate units back with zeros e.g with units 4 9005 => 90050000 satoshis = 0.90050000
-        rewardAmt *= static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units));
-
-        totalSentAsRewards += rewardAmt;
-
-        LogPrint(BCLog::REWARDS, "%s: Found ownership address for '%s': '%s' owns %d => reward %d\n", __func__,
-                 p_rewardSnapshot.strOwnershipAsset.c_str(), ownership.address.c_str(),
-                 ownership.amount, rewardAmt);
-
-        //  Save it into our list if the reward payment is above zero
-        if (rewardAmt > 0)
-            vecDistributionList.push_back(OwnerAndAmount(ownership.address, rewardAmt));
-    }
-
-    CAmount change = totalAmtOwned - totalSentAsRewards;
-    if (change > 0) {
-        LogPrint(BCLog::REWARDS, "%s: Found change amount of %u\n", __func__, change);
-    }
-
-    return true;
+    return CalculateRewardPayments(plan.nDistributionAmount, units, owners, payments);
 }
 
 void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewardSnapshot)
@@ -235,6 +146,7 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                 }
             } else {
                 LogPrint(BCLog::REWARDS, "Failed to get wallet Tx: %s\n", txid.GetHex());
+                return; // Do not advance a plan whose recorded payment is absent.
             }
         } else {
             LogPrint(BCLog::REWARDS, "Didn't find transaction in database creating new transaction: %s %s %d %d\n", p_rewardSnapshot.strOwnershipAsset, p_rewardSnapshot.strDistributionAsset, p_rewardSnapshot.nDistributionAmount, i);

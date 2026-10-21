@@ -14,6 +14,7 @@
 #include <map>
 #include <unordered_map>
 #include <list>
+#include <vector>
 
 
 class CRewardSnapshot;
@@ -149,6 +150,9 @@ enum {
 
 
 #ifdef ENABLE_WALLET
+// Allocate whole distribution units, rounding down and leaving dust unspent.
+bool CalculateRewardPayments(CAmount budget, int units, const std::vector<OwnerAndAmount>& owners,
+                             std::vector<OwnerAndAmount>& payments);
 bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList);
 bool AddDistributeRewardSnapshot(CWallet& wallet, CRewardSnapshot& p_rewardSnapshot);
 

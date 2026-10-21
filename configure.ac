@@ -1,4 +1,4 @@
-AC_PREREQ([2.60])
+AC_PREREQ([2.69])
 define(_CLIENT_VERSION_MAJOR, 4)
 define(_CLIENT_VERSION_MINOR, 0)
 define(_CLIENT_VERSION_REVISION, 0)
@@ -34,7 +34,7 @@ dnl faketime breaks configure and is only needed for make. Disable it here.
 unset FAKETIME
 
 dnl Automake init set-up and checks
-AM_INIT_AUTOMAKE([no-define subdir-objects foreign])
+AM_INIT_AUTOMAKE([1.16 no-define subdir-objects foreign])
 
 dnl faketime messes with timestamps and causes configure to be re-run.
 dnl --disable-maintainer-mode can be used to bypass this.
@@ -82,8 +82,9 @@ AC_PATH_TOOL(RANLIB, ranlib)
 AC_PATH_TOOL(STRIP, strip)
 AC_PATH_TOOL(GCOV, gcov)
 AC_PATH_PROG(LCOV, lcov)
-dnl Python 3.x is supported from 3.4 on (see https://github.com/bitcoin/bitcoin/issues/7893)
-AC_PATH_PROGS([PYTHON], [python3.7 python3.6 python3.5 python3.4 python3 python])
+dnl The test runner uses Python 3.8+ APIs; never silently select Python 2.
+AC_ARG_VAR([PYTHON], [Python 3.8 or newer interpreter])
+AC_PATH_PROG([PYTHON], [python3])
 AC_PATH_PROG(GENHTML, genhtml)
 AC_PATH_PROG([GIT], [git])
 AC_PATH_PROG(CCACHE,ccache)
@@ -641,6 +642,15 @@ if test x$use_pkgconfig = xyes; then
   ])
 fi
 
+if test -n "$PYTHON"; then
+  AC_MSG_CHECKING([whether $PYTHON is Python 3.8 or newer])
+  AS_IF(["$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 8))'],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no]); AC_MSG_ERROR([Python 3.8 or newer is required; set PYTHON to a supported interpreter.])])
+elif test "x$use_tests" = xyes; then
+  AC_MSG_ERROR([Python 3.8 or newer is required for tests; install python3 or set PYTHON.])
+fi
+
 if test x$use_extended_functional_tests != xno; then
   AC_SUBST(EXTENDED_FUNCTIONAL_TESTS, --extended)
 fi
@@ -936,7 +946,7 @@ fi
 BITCOIN_QT_INIT
 
 dnl sets $bitcoin_enable_qt, $bitcoin_enable_qt_test, $bitcoin_enable_qt_dbus
-dnl The asset viewer uses Qt 5.9 redirect controls. Native builds use Qt 5.15.
+dnl Native GUI builds use shared system Qt 6.8 or newer.
 BITCOIN_QT_CONFIGURE([6.8.0])
 
 if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononono; then
@@ -1125,20 +1135,20 @@ if test x$use_pkgconfig = xyes; then
       PKG_CHECK_MODULES([SSL], [libssl >= 3.5],, [AC_MSG_ERROR(openssl not found.)])
       PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 3.5],,[AC_MSG_ERROR(libcrypto not found.)])
       if test x$use_qr != xno; then
-        BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
+        BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode >= 4.1.1], [have_qrencode=yes], [have_qrencode=no])])
       fi
       if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests != xnononono; then
-        PKG_CHECK_MODULES([EVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
+        PKG_CHECK_MODULES([EVENT], [libevent >= 2.1.12],, [AC_MSG_ERROR(libevent not found.)])
         if test x$TARGET_OS != xwindows; then
-          PKG_CHECK_MODULES([EVENT_PTHREADS], [libevent_pthreads],, [AC_MSG_ERROR(libevent_pthreads not found.)])
+          PKG_CHECK_MODULES([EVENT_PTHREADS], [libevent_pthreads >= 2.1.12],, [AC_MSG_ERROR(libevent_pthreads not found.)])
         fi
       fi
 
       if test "x$use_zmq" = "xyes"; then
-        PKG_CHECK_MODULES([ZMQ],[libzmq >= 4],
+        PKG_CHECK_MODULES([ZMQ],[libzmq >= 4.3.5],
           [AC_DEFINE([ENABLE_ZMQ],[1],[Define to 1 to enable ZMQ functions])],
           [AC_DEFINE([ENABLE_ZMQ],[0],[Define to 1 to enable ZMQ functions])
-           AC_MSG_WARN([libzmq version 4.x or greater not found, disabling])
+           AC_MSG_WARN([libzmq version 4.3.5 or greater not found, disabling])
            use_zmq=no])
       else
           AC_DEFINE_UNQUOTED([ENABLE_ZMQ],[0],[Define to 1 to enable ZMQ functions])
@@ -1201,6 +1211,20 @@ AC_CHECK_DECLS([EVP_MD_CTX_new],,,[AC_INCLUDES_DEFAULT
 #include <openssl/x509_vfy.h>
 ])
 CXXFLAGS="${save_CXXFLAGS}"
+
+dnl Fail during configure when the pinned BLS/GMP development files are missing.
+AC_ARG_VAR([BLS_LIBS], [Linker flags for the compatible Chia BLS fork and GMP])
+AS_IF([test -z "$BLS_LIBS"], [BLS_LIBS="-lchiabls -lgmp"])
+AC_CHECK_HEADER([chiabls/bls.hpp], [],
+  [AC_MSG_ERROR([Compatible chiabls headers not found. Build depends and use its config.site, or set CPPFLAGS to its include directory.])])
+save_LIBS="$LIBS"
+LIBS="$BLS_LIBS $PTHREAD_LIBS $LIBS"
+AC_MSG_CHECKING([whether the compatible Chia BLS and GMP libraries link])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <chiabls/bls.hpp>]], [[return bls::BLS::Init() ? 0 : 1;]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no]); AC_MSG_ERROR([Cannot link Chia BLS/GMP. Use the pinned depends libraries and set LDFLAGS/BLS_LIBS as needed.])])
+LIBS="$save_LIBS"
+AC_SUBST([BLS_LIBS])
 
 dnl univalue check
 

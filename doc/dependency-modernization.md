@@ -184,3 +184,66 @@ Linux GUI/headless, ARM64, Windows cross, and simulated native macOS; the retire
 macOS cross combination is rejected. Autotools regenerated successfully and
 accepted the local OpenSSL 3.5 headers. Hosted builds and live multiwallet asset
 issuance/transfer/reorg validation remain pending.
+
+## Bootstrap and asset follow-up — 2026-10-21
+
+Rechecked the required external release pins against upstream: Boost 1.92.0,
+OpenSSL 3.5.9 LTS, CMake 4.4.4 stable (4.5 is a release candidate), libevent
+2.1.13, ZeroMQ 4.3.5, GMP 6.3.0, immer 0.9.1, qrencode 4.1.1, and zlib 1.3.2.
+MiniUPnPc stays at the reviewed 2.3.3 client release; MiniUPnPd releases are a
+separate server component. Qt remains system-managed Qt >= 6.8. Berkeley DB 4.8
+and the compatible BLS fork remain intentional wallet/protocol exceptions.
+There are no invented version bumps or switches to prereleases in this pass.
+
+Additional release references:
+
+- [CMake stable downloads](https://cmake.org/download/)
+- [OpenSSL supported downloads](https://openssl-library.org/source/)
+- [libevent releases](https://libevent.org/)
+- [ZeroMQ 4.3.5](https://github.com/zeromq/libzmq/releases/tag/v4.3.5)
+- [GMP](https://gmplib.org/)
+- [zlib](https://zlib.net/)
+- [qrencode](https://github.com/fukuchi/libqrencode)
+
+The Boost recipe now restricts both stage and install to chrono, filesystem,
+program_options, thread, and test. Bootstrap selection alone did not constrain
+all b2 installation targets; the previous complete build also explored unrelated
+libraries and emitted a histogram target-selection error. Static/release/debug
+and platform settings remain explicit.
+
+`configure.ac` now requires Autoconf >= 2.69 and Automake >= 1.16, selects Python 3
+instead of obsolete version-specific/Python 2 executables, and verifies Python
+>= 3.8 (needed by the test runner). Tests require Python. Pkg-config checks require
+libevent >= 2.1.12, ZeroMQ >= 4.3.5, and qrencode >= 4.1.1; the existing OpenSSL
+>= 3.5 and Qt >= 6.8 checks remain. Minimum compatible versions are distinct from
+reproducible dependency pins.
+
+Configure also compiles the compatible BLS header and links BLS/GMP, producing
+an early actionable error when include/library paths are missing. `BLS_LIBS` is
+an overridable configure variable propagated into Makefile targets. Use the
+built depends `config.site`, or explicitly supply `CPPFLAGS`, `LDFLAGS`, and
+`BLS_LIBS` for a nonstandard installation. No sudo installation is required.
+
+`autogen.sh` handles its source directory independently of the caller's CDPATH,
+checks prerequisite tools, honors AUTORECONF/AUTOCONF/AUTOMAKE/ACLOCAL and
+PKG_CONFIG overrides, supports pkgconf, and forwards autoreconf arguments. The
+vendored secp256k1 bootstrap uses AC_PROG_CC; the pthread macro uses AS_ECHO;
+Automake knows yerbas-tx as an explicit optional target. These remove the observed
+regeneration warnings without hiding warnings or enabling another default binary.
+
+Six focused asset-wallet tests pass, including a new exact reward-allocation
+regression. Allocation now uses integer distribution units and a 128-bit
+intermediate product, never floating point. Native YERB uses eight decimals;
+asset payments respect their declared units. Rounding dust remains unspent.
+Zero/negative/overflowing ownership totals, duplicate recipients, invalid units,
+and payouts below one distribution unit are rejected. A recorded payment absent
+from the selected wallet stops processing before later batches are sent.
+These are wallet reward-construction fixes, not consensus changes.
+
+Validation: warning-free autoreconf regeneration; generated configure help;
+positive BLS/GMP/Python configure probe and negative missing-library/interpreter
+probes; Boost make-database inspection; six focused asset-wallet tests; Boost
+1.92 syntax checks of the changed reward code/tests. A complete dependency rebuild
+and application build remain manual. The preceding failed Linux jobs in run
+39556140920 use code before the Boost placeholder fix in 0b71fcf; new hosted
+results are required before claiming all platforms pass.

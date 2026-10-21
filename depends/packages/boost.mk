@@ -7,8 +7,10 @@ $(package)_sha256_hash=5c1d40cb8e19adbf740a4ec2da35b3e58f3f5804b1dce44deb53df721
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
 $(package)_config_opts_debug=variant=debug
-$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam
+$(package)_config_opts=--layout=tagged --user-config=user-config.jam
 $(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1
+# Restrict both stage and install, not just bootstrap (which only builds b2).
+$(package)_config_opts+=--with-chrono --with-filesystem --with-program_options --with-thread --with-test
 
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
 $(package)_config_opts_darwin=--toolset=clang-darwin runtime-link=shared

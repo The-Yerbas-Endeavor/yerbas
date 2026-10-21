@@ -9,6 +9,7 @@
 #include "base58.h"
 #include "rpc/server.h"
 #include "univalue.h"
+#include <limits>
 
 UniValue resumerewarddistribution(const JSONRPCRequest& request);
 #include <boost/test/unit_test.hpp>
@@ -232,6 +233,32 @@ BOOST_AUTO_TEST_CASE(legacy_restrictions_follow_watch_only_ownership)
         BOOST_CHECK(!wallet->assetRestrictions->ReadTaggedAddress("not-ours", "#OTHER", add, time));
     }
     env.Flush(true);
+}
+
+BOOST_AUTO_TEST_CASE(reward_allocation_is_exact_and_rejects_invalid_totals)
+{
+    std::vector<OwnerAndAmount> payments;
+    const std::vector<OwnerAndAmount> equal{{"a", COIN}, {"b", COIN}, {"c", COIN}};
+    BOOST_REQUIRE(CalculateRewardPayments(10, 8, equal, payments));
+    BOOST_REQUIRE_EQUAL(payments.size(), 3U);
+    for (const auto& payment : payments) BOOST_CHECK_EQUAL(payment.amount, 3);
+    BOOST_REQUIRE(CalculateRewardPayments(10 * COIN + 1, 0, equal, payments));
+    for (const auto& payment : payments) BOOST_CHECK_EQUAL(payment.amount, 3 * COIN);
+    BOOST_REQUIRE(CalculateRewardPayments(10001, 4, {{"a", 1}}, payments));
+    BOOST_CHECK_EQUAL(payments[0].amount, 10000);
+    const auto maximum = std::numeric_limits<CAmount>::max();
+    BOOST_REQUIRE(CalculateRewardPayments(maximum, 8, {{"a", maximum - 1}, {"b", 1}}, payments));
+    BOOST_REQUIRE_EQUAL(payments.size(), 2U);
+    BOOST_CHECK_EQUAL(payments[0].amount, maximum - 1);
+    BOOST_CHECK_EQUAL(payments[1].amount, 1);
+    BOOST_CHECK(!CalculateRewardPayments(1, 8, {{"a", maximum}, {"b", 1}}, payments));
+    BOOST_CHECK(payments.empty());
+    BOOST_CHECK(!CalculateRewardPayments(1, 8, {{"a", 0}}, payments));
+    BOOST_CHECK(!CalculateRewardPayments(1, 8, {{"a", -1}}, payments));
+    BOOST_CHECK(!CalculateRewardPayments(1, 8, {{"a", 1}, {"a", 1}}, payments));
+    BOOST_CHECK(!CalculateRewardPayments(1, 0, {{"a", 1}}, payments));
+    BOOST_CHECK(!CalculateRewardPayments(1, 9, {{"a", 1}}, payments));
+    BOOST_CHECK(!CalculateRewardPayments(-1, 8, {{"a", 1}}, payments));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
