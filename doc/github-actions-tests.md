@@ -117,3 +117,20 @@ Boost.Bind placeholders in validation and validationinterface. Callback sites no
 use `boost::placeholders::_1` (and corresponding arguments), including matching
 connect/disconnect expressions and the RPC/Tor callback sites. This fixes the
 reported compile errors without restoring deprecated global placeholder aliases.
+
+## CI compile fix: 2026-10-21
+
+Run 39560293539 passed dependency builds and configure on all five completed
+Linux/Windows jobs, then failed compiling `cuckoocache_tests.cpp`: the source used
+`std::deque` without including `<deque>`. Added the direct standard-library include
+so the test does not depend on Boost's transitive includes. A focused C++17 syntax
+check using Boost 1.92 passes. A full CI rerun remains necessary; this check does
+not establish that all later compilation or tests pass. macOS was still building
+dependencies when inspected. No test suites were excluded.
+
+The local dependency build also exposed a MiniUPnPc 2.3.3 recipe mismatch:
+Unix builds now produce `build/libminiupnpc.a`, while `Makefile.mingw` still
+produces `libminiupnpc.a`. The recipe now selects the correct platform path for
+both building and staging. A fresh patched Linux archive build passed (14 object
+files); Windows/macOS compilation remains for platform validation. CI currently
+uses `NO_UPNP=1`, so its dependency step did not exercise this recipe.

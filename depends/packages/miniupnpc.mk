@@ -6,6 +6,8 @@ $(package)_sha256_hash=d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e
 $(package)_patches=dont_leak_info.patch
 
 define $(package)_set_vars
+# Unix make moved the archive into build/; Makefile.mingw retains the root target.
+$(package)_library=$(if $(filter mingw32,$(host_os)),libminiupnpc.a,build/libminiupnpc.a)
 $(package)_build_opts=CC="$($(package)_cc)"
 $(package)_build_opts_darwin=LIBTOOL="$($(package)_libtool)"
 $(package)_build_opts_mingw32=-f Makefile.mingw
@@ -17,11 +19,11 @@ define $(package)_preprocess_cmds
 endef
 
 define $(package)_build_cmds
-	$(MAKE) libminiupnpc.a $($(package)_build_opts)
+	$(MAKE) $($(package)_library) $($(package)_build_opts)
 endef
 
 define $(package)_stage_cmds
 	mkdir -p $($(package)_staging_prefix_dir)/include/miniupnpc $($(package)_staging_prefix_dir)/lib &&\
 	install include/*.h $($(package)_staging_prefix_dir)/include/miniupnpc &&\
-	install libminiupnpc.a $($(package)_staging_prefix_dir)/lib
+	install $($(package)_library) $($(package)_staging_prefix_dir)/lib
 endef
