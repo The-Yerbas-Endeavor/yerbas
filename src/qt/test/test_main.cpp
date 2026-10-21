@@ -13,6 +13,7 @@
 #include "util.h"
 #include "uritests.h"
 #include "compattests.h"
+#include "assetviewtests.h"
 #include "trafficgraphdatatests.h"
 
 #ifdef ENABLE_WALLET
@@ -78,6 +79,9 @@ int main(int argc, char *argv[])
     app.setApplicationName("Yerbas-Qt-test");
 
     SSL_library_init();
+
+    AssetViewTests assetViewTests;
+    fInvalid |= QTest::qExec(&assetViewTests);
 
     URITests test1;
     if (QTest::qExec(&test1) != 0) {

@@ -6,7 +6,8 @@
 #ifndef RAVEN_QT_ASSETRECORD_H
 #define RAVEN_QT_ASSETRECORD_H
 
-#include "math.h"
+#include <algorithm>
+#include <cstdint>
 #include "amount.h"
 #include "tinyformat.h"
 
@@ -29,16 +30,19 @@ public:
 
     std::string formattedQuantity() const {
         bool sign = quantity < 0;
-        int64_t n_abs = (sign ? -quantity : quantity);
-        int64_t quotient = n_abs / COIN;
-        int64_t remainder = n_abs % COIN;
-        remainder = remainder / pow(10, 8 - units);
+        // Avoid signed overflow for INT64_MIN and floating-point formatting.
+        const uint64_t n_abs = sign ? uint64_t(-(quantity + 1)) + 1 : uint64_t(quantity);
+        const uint64_t quotient = n_abs / COIN;
+        uint64_t remainder = n_abs % COIN;
+        const int decimals = std::max(0, std::min(8, units));
+        for (int i = decimals; i < 8; ++i)
+            remainder /= 10;
 
         if (remainder == 0) {
             return strprintf("%s%d", sign ? "-" : "", quotient);
         }
         else {
-            return strprintf("%s%d.%0" + std::to_string(units) + "d", sign ? "-" : "", quotient, remainder);
+            return strprintf("%s%d.%0" + std::to_string(decimals) + "d", sign ? "-" : "", quotient, remainder);
         }
     }
 

@@ -64,6 +64,20 @@ std::string ArrayToString(const unsigned char A[], unsigned int width)
     return Stream.str();
 }
 
+BOOST_AUTO_TEST_CASE(hex_parsing_boundaries)
+{
+    BOOST_CHECK(arith_uint256("") == 0);
+    BOOST_CHECK(arith_uint256(" \t0Xf ") == 15);
+    BOOST_CHECK(arith_uint256("123xyz") == 0x123);
+    BOOST_CHECK(arith_uint256(std::string(65, 'f')) == ~arith_uint256(0));
+
+    // Parsing must also fill all 512 bits without reading beyond short inputs.
+    BOOST_CHECK(arith_uint512("") == 0);
+    BOOST_CHECK(arith_uint512("0x1") == 1);
+    BOOST_CHECK(arith_uint512(std::string(129, 'f')) == ~arith_uint512(0));
+    BOOST_CHECK(arith_uint512("1" + std::string(64, '0')) == (arith_uint512(1) << 256));
+}
+
 BOOST_AUTO_TEST_CASE( basics ) // constructors, equality, inequality
 {
     BOOST_CHECK(1 == 0+1);

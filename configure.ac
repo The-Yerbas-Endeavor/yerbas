@@ -1,13 +1,13 @@
 AC_PREREQ([2.60])
-define(_CLIENT_VERSION_MAJOR, 3)
-define(_CLIENT_VERSION_MINOR, 2)
+define(_CLIENT_VERSION_MAJOR, 4)
+define(_CLIENT_VERSION_MINOR, 0)
 define(_CLIENT_VERSION_REVISION, 0)
-define(_CLIENT_VERSION_BUILD, 21)
+define(_CLIENT_VERSION_BUILD, 1)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2026)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
 define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Yerbas Core]])
-AC_INIT([Yerbas Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/The-Yerbas-Endeavor/yerbas/issues],[yerbascore],[https://yerbas.org/])
+AC_INIT([Yerbas Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION._CLIENT_VERSION_BUILD],[https://github.com/The-Yerbas-Endeavor/yerbas/issues],[yerbascore],[https://yerbas.org/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/yerbas-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -937,7 +937,8 @@ fi
 BITCOIN_QT_INIT
 
 dnl sets $bitcoin_enable_qt, $bitcoin_enable_qt_test, $bitcoin_enable_qt_dbus
-BITCOIN_QT_CONFIGURE([5.5.1])
+dnl The asset viewer uses Qt 5.9 redirect controls. Native builds use Qt 5.15.
+BITCOIN_QT_CONFIGURE([5.9.0])
 
 if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononono; then
     use_boost=no
@@ -948,7 +949,7 @@ fi
 if test x$use_boost = xyes; then
 
 dnl Minimum required Boost version
-define(MINIMUM_REQUIRED_BOOST, 1.47.0)
+define(MINIMUM_REQUIRED_BOOST, 1.70.0)
 
 dnl Check for boost libs
 AX_BOOST_BASE([MINIMUM_REQUIRED_BOOST])
@@ -1122,9 +1123,9 @@ if test x$use_pkgconfig = xyes; then
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
-      PKG_CHECK_MODULES([CRYPTO], [libcrypto],,[AC_MSG_ERROR(libcrypto not found.)])
-      BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
+      PKG_CHECK_MODULES([SSL], [libssl >= 1.1.1],, [AC_MSG_ERROR(openssl not found.)])
+      PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 1.1.1],,[AC_MSG_ERROR(libcrypto not found.)])
+      BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf >= 3.20.3], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
       if test x$use_qr != xno; then
         BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
       fi
@@ -1193,6 +1194,12 @@ fi
 
 save_CXXFLAGS="${CXXFLAGS}"
 CXXFLAGS="${CXXFLAGS} ${CRYPTO_CFLAGS} ${SSL_CFLAGS}"
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <openssl/opensslv.h>
+#if OPENSSL_VERSION_NUMBER < 0x10101000L
+#error OpenSSL 1.1.1 or newer required
+#endif
+]], [[]])], [], [AC_MSG_ERROR([OpenSSL 1.1.1 or newer is required])])
 AC_CHECK_DECLS([EVP_MD_CTX_new],,,[AC_INCLUDES_DEFAULT
 #include <openssl/x509_vfy.h>
 ])
@@ -1247,6 +1254,32 @@ AC_SUBST(UNIVALUE_CFLAGS)
 AC_SUBST(UNIVALUE_LIBS)
 
 BITCOIN_QT_PATH_PROGS([PROTOC], [protoc],$protoc_bin_path)
+
+dnl Reject incompatible protoc/header combinations before compiling the GUI.
+BITCOIN_QT_CHECK([
+  AC_MSG_CHECKING([whether protoc output matches the protobuf headers])
+  mkdir -p conftest-protobuf
+  echo 'syntax = "proto2"; message YerbasProbe { optional string value = 1; }' > conftest-protobuf/probe.proto
+  if "$PROTOC" --proto_path=conftest-protobuf --cpp_out=conftest-protobuf conftest-protobuf/probe.proto; then
+    yerbas_save_CPPFLAGS="$CPPFLAGS"
+    CPPFLAGS="$CPPFLAGS $PROTOBUF_CFLAGS -I."
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+      #include <google/protobuf/stubs/common.h>
+      #if GOOGLE_PROTOBUF_VERSION < 3020003
+      #error Protobuf 3.20.3 or newer required
+      #endif
+      #include "conftest-protobuf/probe.pb.h"
+    ]], [[]])], [yerbas_protobuf_compatible=yes], [yerbas_protobuf_compatible=no])
+    CPPFLAGS="$yerbas_save_CPPFLAGS"
+  else
+    yerbas_protobuf_compatible=no
+  fi
+  rm -rf conftest-protobuf
+  AC_MSG_RESULT([$yerbas_protobuf_compatible])
+  if test x$yerbas_protobuf_compatible != xyes; then
+    BITCOIN_QT_FAIL([protoc and protobuf headers are incompatible; use the matching depends tools and headers])
+  fi
+])
 
 AC_MSG_CHECKING([whether to build yerbasd])
 AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_bitcoind = xyes])

@@ -9,5 +9,5 @@ define $(package)_config_cmds
 endef
 
 define $(package)_stage_cmds
-  ./b2 -d0 --prefix=$($(package)_staging_prefix_dir) install
+  ./b2 cxxstd=17 -d0 --prefix=$($(package)_staging_prefix_dir) install
 endef

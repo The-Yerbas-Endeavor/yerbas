@@ -1,11 +1,11 @@
 package=native_protobuf
-$(package)_version=2.6.1
-$(package)_download_path=https://github.com/google/protobuf/releases/download/v$($(package)_version)
-$(package)_file_name=protobuf-$($(package)_version).tar.bz2
-$(package)_sha256_hash=ee445612d544d885ae240ffbcbf9267faa9f593b7b101f21d58beceb92661910
+$(package)_version=3.20.3
+$(package)_download_path=https://github.com/protocolbuffers/protobuf/releases/download/v$($(package)_version)
+$(package)_file_name=protobuf-cpp-$($(package)_version).tar.gz
+$(package)_sha256_hash=e51cc8fc496f893e2a48beb417730ab6cbcb251142ad8b2cd1951faa5c76fe3d
 
 define $(package)_set_vars
-$(package)_config_opts=--disable-shared
+$(package)_config_opts=--disable-shared --without-zlib
 endef
 
 define $(package)_config_cmds
@@ -17,7 +17,7 @@ define $(package)_build_cmds
 endef
 
 define $(package)_stage_cmds
-  $(MAKE) -C src DESTDIR=$($(package)_staging_dir) install-strip
+  $(MAKE) -C src DESTDIR=$($(package)_staging_dir) install-binPROGRAMS
 endef
 
 define $(package)_postprocess_cmds

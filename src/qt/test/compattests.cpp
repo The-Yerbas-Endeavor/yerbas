@@ -5,6 +5,7 @@
 #include "paymentrequestplus.h" // this includes protobuf's port.h which defines its own bswap macos
 
 #include "compattests.h"
+#include "guiutil.h"
 
 #include "compat/byteswap.h"
 
@@ -20,4 +21,13 @@ void CompatTests::bswapTests()
 	QVERIFY(bswap_16(u1) == e1);
 	QVERIFY(bswap_32(u2) == e2);
 	QVERIFY(bswap_64(u3) == e3);
+}
+
+void CompatTests::pathConversionTests()
+{
+    const QStringList paths = {QString(), QStringLiteral("wallet.dat"),
+        QString::fromUtf8(u8"wallets/café/钱包-🌿.dat")};
+    for (const QString& path : paths) {
+        QCOMPARE(GUIUtil::boostPathToQString(GUIUtil::qstringToBoostPath(path)), path);
+    }
 }

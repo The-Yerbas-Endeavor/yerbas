@@ -80,6 +80,22 @@ AC_DEFUN([AX_BOOST_SYSTEM],
 			AC_SUBST(BOOST_CPPFLAGS)
 
 			AC_DEFINE(HAVE_BOOST_SYSTEM,,[define if the Boost::System library is available])
+            AC_LANG_PUSH([C++])
+            AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+                #include <boost/version.hpp>
+                #include <boost/system/error_code.hpp>
+                #if BOOST_VERSION < 106900
+                #error Boost.System requires a library before 1.69
+                #endif
+            ]], [[
+                boost::system::error_code ec(1, boost::system::system_category());
+                return ec.message().empty();
+            ]])], [boost_system_header_only=yes], [boost_system_header_only=no])
+            AC_LANG_POP([C++])
+            if test "x$boost_system_header_only" = xyes && test "x$ax_boost_user_system_lib" = x; then
+                BOOST_SYSTEM_LIB=""
+                AC_SUBST(BOOST_SYSTEM_LIB)
+            else
             BOOSTLIBDIR=`echo $BOOST_LDFLAGS | sed -e 's/@<:@^\/@:>@*//'`
 
 			LDFLAGS_SAVE=$LDFLAGS
@@ -114,6 +130,8 @@ AC_DEFUN([AX_BOOST_SYSTEM],
 				AC_MSG_ERROR(Could not link against $ax_lib !)
 			fi
 		fi
+
+            fi
 
 		CPPFLAGS="$CPPFLAGS_SAVED"
 	LDFLAGS="$LDFLAGS_SAVED"

@@ -90,3 +90,19 @@ registry IDs match their parameter types, and that the public-network small
 quorums retain their existing sizes and thresholds.
 
     src/test/test_yerbas --run_test=chainparams_tests
+
+### Additional legacy fixture fixes
+
+Fee-rate strings use the `YERB/kB` ticker. Governance proposal fixtures use
+mainnet Base58Check version 140; the invalid-address case retains a foreign
+network address, while the other invalid cases use a valid Yerbas address so
+address validation does not mask the intended failure.
+
+Arithmetic `SetHex` parses hexadecimal text rather than copying raw string
+bytes. The arithmetic suite covers empty/short input, optional prefixes,
+non-hex suffixes, truncation, and the high limbs of 512-bit values. Rebuild the
+unit-test executable before checking these changes:
+
+    python3 ci/run-unit-tests.py src/test/test_yerbas --output test-results-updated --suite arith_uint256_tests --suite uint256_tests --suite amount_tests --suite governance_validators_tests
+
+Asset GUI regression coverage is registered in `src/qt/test/assetviewtests.cpp`. After a GUI build, run `QT_QPA_PLATFORM=offscreen src/qt/test/test_yerbas-qt`. See `doc/asset-viewer-updates.md` for scope and remaining live-wallet checks.

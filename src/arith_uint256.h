@@ -212,13 +212,7 @@ public:
         return ret;
     }
 
-    void SetHex(const char* psz) {
-    	base_uint<BITS> b;
-		for(int x=0; x<b.WIDTH; ++x) {
-			memcpy((char*)&b.pn[x], psz + x*4, 4);
-		}
-		*this = b;
-    }
+    void SetHex(const char* psz);
 
     int CompareTo(const base_uint& b) const;
     bool EqualTo(uint64_t b) const;

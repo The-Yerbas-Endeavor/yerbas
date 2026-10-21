@@ -73,6 +73,9 @@ void OptionsModel::Init(bool resetSettings)
         settings.setValue("fMinimizeOnClose", false);
     fMinimizeOnClose = settings.value("fMinimizeOnClose").toBool();
 
+    // IPFS content is fetched only after a user action in the asset viewer.
+    strIpfsUrl = settings.value("strIpfsUrl", "https://ipfs.io/ipfs/%s").toString();
+
     // Display
     if (!settings.contains("nDisplayUnit"))
         settings.setValue("nDisplayUnit", BitcoinUnits::YERB);

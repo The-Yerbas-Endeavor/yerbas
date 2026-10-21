@@ -39,15 +39,25 @@ public:
     void refreshWallet() {
         qDebug() << "AssetTablePriv::refreshWallet";
         cachedBalances.clear();
+        LOCK(cs_main);
         auto currentActiveAssetCache = GetCurrentAssetCache();
         if (currentActiveAssetCache) {
             {
-                LOCK(cs_main);
                 std::map<std::string, CAmount> balances;
                 std::map<std::string, std::vector<COutput> > outputs;
-                if (!GetAllMyAssetBalances(outputs, balances)) {
+                CWallet* wallet = parent->walletModel ? parent->walletModel->getWallet() : nullptr;
+                if (!wallet) {
                     qWarning("AssetTablePriv::refreshWallet: Error retrieving asset balances");
                     return;
+                }
+                LOCK(wallet->cs_wallet);
+                wallet->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY);
+                for (const auto& entry : outputs) {
+                    for (const auto& output : entry.second) {
+                        CAssetOutputEntry data;
+                        if (GetAssetData(output.tx->tx->vout[output.i].scriptPubKey, data))
+                            balances[entry.first] += data.nAmount;
+                    }
                 }
                 std::set<std::string> setAssetsToSkip;
                 auto bal = balances.begin();
@@ -65,11 +75,12 @@ public:
                         CNewAsset assetData;
                         if (!currentActiveAssetCache->GetAssetMetaDataIfExists(bal->first, assetData)) {
                             qWarning("AssetTablePriv::refreshWallet: Error retrieving asset data");
-                            return;
+                            units = MAX_UNIT;
+                        } else {
+                            units = assetData.units;
+                            ipfsHash = assetData.strIPFSHash;
                         }
-                        units = assetData.units;
-                        ipfsHash = assetData.strIPFSHash;
-                        // If we have the administrator asset, add it to the skip listå
+                        // If we have the administrator asset, add it to the skip list
                         if (balances.count(bal->first + OWNER_TAG)) {
                             setAssetsToSkip.insert(bal->first + OWNER_TAG);
                         } else {
@@ -124,37 +135,34 @@ AssetTableModel::~AssetTableModel()
 void AssetTableModel::checkBalanceChanged() {
     qDebug() << "AssetTableModel::CheckBalanceChanged";
     // TODO: optimize by 1) updating cache incrementally; and 2) emitting more specific dataChanged signals
-    Q_EMIT layoutAboutToBeChanged();
+    beginResetModel();
 #ifdef ENABLE_WALLET
     priv->refreshWallet();
 #endif
-    Q_EMIT dataChanged(index(0, 0, QModelIndex()), index(priv->size(), columns.length()-1, QModelIndex()));
-    Q_EMIT layoutChanged();
+    endResetModel();
 }
 
 int AssetTableModel::rowCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
-    return priv->size();
+    return parent.isValid() ? 0 : priv->size();
 }
 
 int AssetTableModel::columnCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
-    return 2;
+    return parent.isValid() ? 0 : columns.size();
 }
 
 QVariant AssetTableModel::data(const QModelIndex &index, int role) const
 {
     Q_UNUSED(role);
-    if(!index.isValid())
+    if(!index.isValid() || index.model() != this || index.row() >= priv->size() || index.column() >= columns.size())
         return QVariant();
-    AssetRecord *rec = static_cast<AssetRecord*>(index.internalPointer());
+    const AssetRecord *rec = priv->index(index.row());
 
     switch (role)
     {
         case AmountRole:
-            return (unsigned long long) rec->quantity;
+            return QVariant::fromValue<qlonglong>(rec->quantity);
         case AssetNameRole:
             return QString::fromStdString(rec->name);
         case FormattedAmountRole:
@@ -186,7 +194,7 @@ QVariant AssetTableModel::data(const QModelIndex &index, int role) const
                 return QVariant();
 
             if (!rec->fIsAdministrator)
-                QVariant();
+                return QVariant();
 
             QPixmap pixmap;
 
@@ -221,7 +229,7 @@ QVariant AssetTableModel::headerData(int section, Qt::Orientation orientation, i
     if (role == Qt::DisplayRole)
     {
         if (orientation == Qt::Horizontal) {
-            if (section < columns.size())
+            if (section >= 0 && section < columns.size())
                 return columns.at(section);
         } else {
             return section;
@@ -241,7 +249,8 @@ QVariant AssetTableModel::headerData(int section, Qt::Orientation orientation, i
 
 QModelIndex AssetTableModel::index(int row, int column, const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
+    if (parent.isValid() || column < 0 || column >= columns.size())
+        return QModelIndex();
     AssetRecord *data = priv->index(row);
     if(data)
     {

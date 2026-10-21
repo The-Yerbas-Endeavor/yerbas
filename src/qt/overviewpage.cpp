@@ -20,12 +20,18 @@
 #include "validation.h"
 #include "assetfilterproxy.h"
 #include "assettablemodel.h"
+#include "assetdetailsdialog.h"
+#include "assetrecord.h"
+#include <QDesktopServices>
+#include <QPersistentModelIndex>
+#include <QNetworkProxy>
 
 #include "smartnode/smartnode-sync.h"
 #include "privatesend/privatesend-client.h"
 
 #include <QAbstractItemDelegate>
 #include <QPainter>
+#include <QPainterPath>
 #include <QSettings>
 #include <QTimer>
 #include <QMouseEvent>
@@ -329,6 +335,7 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     connect(asset_typing_delay, SIGNAL(timeout()), this, SLOT(assetSearchChanged()));
 
     ui->listAssets->viewport()->installEventFilter(this);
+    connect(ui->listAssets, &QListView::doubleClicked, this, &OverviewPage::showAssetDetails);
     /** Create the search bar for assets */
     ui->assetSearch->setAttribute(Qt::WA_MacShowFocusRect, 0);
     ui->assetSearch->setAlignment(Qt::AlignVCenter);
@@ -364,6 +371,8 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
 
     // context menu
     contextMenu = new QMenu(this);
+    auto* detailsAction = contextMenu->addAction(tr("View asset details"));
+    detailsAction->setObjectName("Details");
     contextMenu->addAction(sendAction);
     contextMenu->addAction(issueSub);
     contextMenu->addAction(issueUnique);
@@ -415,11 +424,10 @@ bool OverviewPage::eventFilter(QObject *object, QEvent *event)
         // Select the current index at the mouse location
         QModelIndex currentIndex = ui->listAssets->indexAt(mouseEv->pos());
 
-        // Open the menu on right click, direct url on left click
+        // Open the action menu on right click; double-click shows details.
         if (mouseEv->buttons() & Qt::RightButton ) {
             handleAssetRightClicked(currentIndex);
-        } else if (mouseEv->buttons() & Qt::LeftButton) {
-            openIPFSForAsset(currentIndex);
+
         }
     }
 
@@ -434,7 +442,7 @@ void OverviewPage::handleTransactionClicked(const QModelIndex &index)
 
 void OverviewPage::handleAssetRightClicked(const QModelIndex &index)
 {
-    if(assetFilter) {
+    if(assetFilter && walletModel && index.isValid()) {
         // Grab the data elements from the index that we need to disable and enable menu items
         QString name = index.data(AssetTableModel::AssetNameRole).toString();
         QString ipfshash = index.data(AssetTableModel::AssetIPFSHashRole).toString();
@@ -448,7 +456,7 @@ void OverviewPage::handleAssetRightClicked(const QModelIndex &index)
         }
 
         // If the ipfs hash isn't there or doesn't start with Qm, disable the action item
-        if (ipfshash.count() > 0 && ipfshash.indexOf("Qm") == 0 && ipfsbrowser.indexOf("http") == 0 ) {
+        if (!AssetDetailsDialog::contentUrl(ipfshash, ipfsbrowser).isEmpty() ) {
             openURL->setDisabled(false);
         } else {
             openURL->setDisabled(true);
@@ -469,6 +477,7 @@ void OverviewPage::handleAssetRightClicked(const QModelIndex &index)
             issueUnique->setDisabled(false);
             reissue->setDisabled(true);
             CNewAsset asset;
+            LOCK(cs_main);
             auto currentActiveAssetCache = GetCurrentAssetCache();
             if (currentActiveAssetCache && currentActiveAssetCache->GetAssetMetaDataIfExists(name.toStdString(), asset))
                 if (asset.nReissuable)
@@ -476,9 +485,16 @@ void OverviewPage::handleAssetRightClicked(const QModelIndex &index)
 
         }
 
+        // A model reset while the menu is open must not target a different asset.
+        QPersistentModelIndex selected(index);
         QAction* action = contextMenu->exec(QCursor::pos());
 
-        if (action) {
+        if (action && selected.isValid()) {
+            const QModelIndex index = selected;
+            if (action->objectName() == "Details") {
+                showAssetDetails(index);
+                return;
+            }
             if (action->objectName() == "Send")
                 Q_EMIT assetSendClicked(assetFilter->mapToSource(index));
             else if (action->objectName() == "Sub")
@@ -494,7 +510,7 @@ void OverviewPage::handleAssetRightClicked(const QModelIndex &index)
             else if (action->objectName() == "Copy Hash")
                 GUIUtil::setClipboard(ipfshash);
             else if (action->objectName() == "Browse") {
-                //QDesktopServices::openUrl(QUrl::fromUserInput(ipfsbrowser.replace("%s", ipfshash)));
+                openIPFSForAsset(index);
             }
         }
     }
@@ -950,7 +966,9 @@ void OverviewPage::SetupTransactionList(int nNumItems) {
 
         assetFilter.reset(new AssetFilterProxy());
         assetFilter->setSourceModel(walletModel->getAssetTableModel());
-        assetFilter->sort(AssetTableModel::AssetNameRole, Qt::DescendingOrder);
+        assetFilter->setSortRole(AssetTableModel::AssetNameRole);
+        assetFilter->setSortCaseSensitivity(Qt::CaseInsensitive);
+        assetFilter->sort(AssetTableModel::Name, Qt::AscendingOrder);
         ui->listAssets->setModel(assetFilter.get());
         ui->listAssets->setAutoFillBackground(false);
     }
@@ -983,14 +1001,16 @@ void OverviewPage::assetSearchChanged()
 
 void OverviewPage::openIPFSForAsset(const QModelIndex &index)
 {
+    if (!walletModel || !index.isValid())
+        return;
     // Get the ipfs hash of the asset clicked
     QString ipfshash = index.data(AssetTableModel::AssetIPFSHashRole).toString();
     QString ipfsbrowser = walletModel->getOptionsModel()->getIpfsUrl();
 
     // If the ipfs hash isn't there or doesn't start with Qm, disable the action item
-    if (ipfshash.count() > 0 && ipfshash.indexOf("Qm") == 0 && ipfsbrowser.indexOf("http") == 0)
+    if (!AssetDetailsDialog::contentUrl(ipfshash, ipfsbrowser).isEmpty())
     {
-        QUrl ipfsurl = QUrl::fromUserInput(ipfsbrowser.replace("%s", ipfshash));
+        const QUrl ipfsurl = AssetDetailsDialog::contentUrl(ipfshash, ipfsbrowser);
 
         // Create the box with everything.
         if(QMessageBox::Yes == QMessageBox::question(this,
@@ -999,7 +1019,58 @@ void OverviewPage::openIPFSForAsset(const QModelIndex &index)
                                                         + ipfsurl.toString()
                                                     ))
         {
-        //QDesktopServices::openUrl(ipfsurl);
+        if (!QDesktopServices::openUrl(ipfsurl))
+            QMessageBox::warning(this, tr("Open IPFS content"), tr("Could not open the default browser."));
         }
     }
+}
+
+void OverviewPage::showAssetDetails(const QModelIndex& index)
+{
+    if (!walletModel || !index.isValid())
+        return;
+    const QString name = index.data(AssetTableModel::AssetNameRole).toString();
+    std::string metadataName = name.toStdString();
+    if (IsAssetNameAnOwner(metadataName))
+        metadataName.pop_back();
+    CNewAsset asset;
+    bool found = false;
+    {
+        LOCK(cs_main);
+        auto* cache = GetCurrentAssetCache();
+        found = cache && cache->GetAssetMetaDataIfExists(metadataName, asset);
+    }
+    QString details = tr("Name: %1\nWallet quantity: %2\nAdministrator: %3")
+        .arg(name, index.data(AssetTableModel::FormattedAmountRole).toString(),
+             index.data(AssetTableModel::AdministratorRole).toBool() ? tr("Yes") : tr("No"));
+    AssetType assetType = AssetType::INVALID;
+    IsAssetNameValid(name.toStdString(), assetType);
+    QString type = tr("Unknown");
+    switch (assetType) {
+    case AssetType::ROOT: type = tr("Root"); break;
+    case AssetType::SUB: type = tr("Sub-asset"); break;
+    case AssetType::UNIQUE: type = tr("Unique / NFT"); break;
+    case AssetType::OWNER: type = tr("Owner token"); break;
+    case AssetType::MSGCHANNEL: type = tr("Message channel"); break;
+    case AssetType::QUALIFIER: type = tr("Qualifier"); break;
+    case AssetType::SUB_QUALIFIER: type = tr("Sub-qualifier"); break;
+    case AssetType::RESTRICTED: type = tr("Restricted"); break;
+    case AssetType::VOTE: type = tr("Vote"); break;
+    default: break;
+    }
+    details += tr("\nType: %1").arg(type);
+    QString hash;
+    if (found) {
+        hash = QString::fromStdString(EncodeAssetData(asset.strIPFSHash));
+        AssetRecord supply(asset.strName, asset.nAmount, asset.units, false, "");
+        details += tr("\nMetadata asset: %1\nTotal supply: %2\nDecimal places: %3\nReissuable: %4\nContent reference: %5")
+            .arg(QString::fromStdString(asset.strName), QString::fromStdString(supply.formattedQuantity()))
+            .arg(int(asset.units)).arg(asset.nReissuable ? tr("Yes") : tr("No"), hash);
+    } else {
+        details += tr("\nMetadata unavailable. The asset may not yet be confirmed.");
+    }
+    QNetworkProxy proxy(QNetworkProxy::NoProxy);
+    walletModel->getOptionsModel()->getProxySettings(proxy);
+    AssetDetailsDialog dialog(details, hash, walletModel->getOptionsModel()->getIpfsUrl(), proxy, this);
+    dialog.exec();
 }
