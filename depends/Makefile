@@ -3,7 +3,6 @@
 SOURCES_PATH ?= $(BASEDIR)/sources
 WORK_PATH = $(BASEDIR)/work
 BASE_CACHE ?= $(BASEDIR)/built
-SDK_PATH ?= $(BASEDIR)/SDKs
 NO_QT ?=
 USE_SYSTEM_QT ?=
 NO_WALLET ?=
@@ -55,6 +54,12 @@ host_os+=$(findstring mingw32,$(full_host_os))
 host_os:=$(strip $(host_os))
 ifeq ($(host_os),)
 host_os=$(full_host_os)
+endif
+
+ifeq ($(host_os),darwin)
+ifneq ($(build_os),darwin)
+$(error macOS cross builds are retired. Build natively on macOS with Xcode command-line tools)
+endif
 endif
 
 $(host_arch)_$(host_os)_prefix=$(BASEDIR)/$(host)
@@ -192,11 +197,18 @@ install: check-packages $(host_prefix)/share/config.site
 download-one: check-sources $(all_sources)
 
 download-osx:
-	@$(MAKE) -s HOST=x86_64-apple-darwin14 download-one
+ifeq ($(build_os),darwin)
+	@$(MAKE) -s HOST=$(BUILD) download-one
+else
+	@echo "macOS dependency downloads require a native macOS builder" >&2; exit 1
+endif
 download-linux:
 	@$(MAKE) -s HOST=x86_64-unknown-linux-gnu download-one
 download-win:
 	@$(MAKE) -s HOST=x86_64-w64-mingw32 download-one
-download: download-osx download-linux download-win
+download: download-linux download-win
+ifeq ($(build_os),darwin)
+download: download-osx
+endif
 
 .PHONY: install cached clean clean-all download-one download-osx download-linux download-win download check-packages check-sources

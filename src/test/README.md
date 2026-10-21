@@ -106,3 +106,7 @@ unit-test executable before checking these changes:
     python3 ci/run-unit-tests.py src/test/test_yerbas --output test-results-updated --suite arith_uint256_tests --suite uint256_tests --suite amount_tests --suite governance_validators_tests
 
 Asset GUI regression coverage is registered in `src/qt/test/assetviewtests.cpp`. After a GUI build, run `QT_QPA_PLATFORM=offscreen src/qt/test/test_yerbas-qt`. See `doc/asset-viewer-updates.md` for scope and remaining live-wallet checks.
+
+`assetdb_tests` covers empty/exact/wildcard asset filters, reverse pagination in
+mixed-key databases, extreme negative offsets, and clearing stale wallet balance
+outputs. It uses in-memory asset databases with the normal testing fixture.

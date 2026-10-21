@@ -964,20 +964,26 @@ UniValue listmyassets(const JSONRPCRequest &request)
     std::map<std::string, CAmount> balances;
     std::map<std::string, std::vector<COutput> > outputs;
     if (filter == "*") {
-        if (!GetAllMyAssetBalances(outputs, balances, confs))
+        if (!GetAllMyAssetBalances(*pwallet, outputs, balances, confs))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't get asset balances. For all assets");
     }
     else if (filter.back() == '*') {
         std::vector<std::string> assetNames;
         filter.pop_back();
-        if (!GetAllMyAssetBalances(outputs, balances, confs, filter))
+        if (!GetAllMyAssetBalances(*pwallet, outputs, balances, confs, filter))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't get asset balances. For all assets");
     }
     else {
         if (!IsAssetNameValid(filter))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid asset name.");
-        if (!GetAllMyAssetBalances(outputs, balances, confs, filter))
+        if (!GetAllMyAssetBalances(*pwallet, outputs, balances, confs, filter))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't get asset balances. For all assets");
+        for (auto it = balances.begin(); it != balances.end();) {
+            if (it->first != filter)
+                it = balances.erase(it);
+            else
+                ++it;
+        }
     }
 
     // pagination setup

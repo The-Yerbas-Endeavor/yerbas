@@ -55,8 +55,7 @@ configuration/tool discovery are checked. GUI sources are checked against Qt
 6.10.2, Boost 1.92 and OpenSSL 3.5.9 headers; focused tests use offscreen Qt.
 
 A full dependency rebuild and complete application link/runtime test remain
-pending and manual. Hosted results for earlier commits do not validate these
-uncommitted changes. Use the manual GUI build instructions and run every enabled
+pending and manual. Hosted results for earlier commits do not validate later changes. Use the manual GUI build instructions and run every enabled
 Boost suite plus the integrated Qt test executable after rebuilding.
 
 ## Upstream references
@@ -111,3 +110,77 @@ build configurations. The simulated native-macOS package selection excludes
 legacy DMG Python dependencies, but macOS compiler execution cannot be checked
 on this Linux machine. Invalid GUI/headless combinations and cross-system-Qt
 requests are rejected. These checks do not replace platform builds.
+
+## Dependency and asset audit — 2026-10-21
+
+Current upstream releases were rechecked before this pass. No version-only bump
+was needed for the active general-purpose dependencies:
+
+| Package | Selected version | Upstream reference |
+| --- | --- | --- |
+| Boost | 1.92.0 | https://www.boost.org/releases/latest/ |
+| OpenSSL | 3.5.9 LTS | https://openssl-library.org/source/ |
+| libevent | 2.1.13-stable | https://libevent.org/ |
+| ZeroMQ | 4.3.5 | https://github.com/zeromq/libzmq/releases/latest |
+| GMP | 6.3.0 | https://gmplib.org/ |
+| CMake | 4.4.4 | https://github.com/Kitware/CMake/releases/latest |
+| immer | 0.9.1 | https://github.com/arximboldi/immer/releases |
+| MiniUPnPc (client) | 2.3.3 | https://miniupnp.tuxfamily.org/files/ |
+| qrencode | 4.1.1 | https://github.com/fukuchi/libqrencode/releases/latest |
+| zlib | 1.3.2 | https://zlib.net/ |
+
+OpenSSL 4.0.3 is newer, but the selected 3.5 LTS line has upstream support through
+April 2030. Both pkg-config and direct header checks now require OpenSSL >= 3.5;
+the old 1.1.1 fallback is no longer accepted. Qt remains supplied by the OS/SDK,
+with minimum 6.8; upstream Qt 6.12 is current, but the installed validation SDK is
+6.10.2. See https://www.qt.io/blog/qt-6.12-released.
+Libbacktrace retains the previously reviewed immutable upstream snapshot.
+
+Removed 34 retired or unselected package recipes and their tracked patches:
+the old Qt 5/X11/font/DBus stack, alternative unused BLS/sodium/NAT-PMP and
+Boost helpers, Python DMG tools, and the obsolete macOS cross compiler/packaging
+stack. This supersedes the earlier note that inactive recipes remained present.
+The old cross graph referenced missing `cmake` and did not fully select its
+compiler dependencies. macOS now explicitly requires a native Xcode builder;
+Linux-to-macOS cross builds fail early with an actionable message. Native macOS
+and Linux-to-Windows remain selected CI platforms. `download` no longer tries a
+retired macOS cross build on Linux; `download-osx` is native-macOS-only. The native
+macOS deployment minimum is 11.0, matching CI. Updated depends usage examples.
+
+Compatibility exceptions remain explicit: Berkeley DB 4.8.30 and the legacy
+BLS fork retain wallet/protocol compatibility. Vendored LevelDB, secp256k1,
+UniValue, and consensus hashing implementations are unchanged in this pass.
+This is not a claim that every embedded third-party source is now at upstream
+HEAD. Their upgrades require separate API, persistence and consensus-vector
+validation, and the full application build remains manual.
+
+### Asset corrections
+
+- Empty database asset filters no longer call `back()` on an empty string.
+- Negative pagination returns to the queried database namespace, rather than
+  the first key in the entire database. This fixes missing reverse-page results
+  for asset holdings and owner-address queries in mixed-key databases.
+- Negative offsets beyond the beginning clamp to the first matching row;
+  `LONG_MIN` is covered without signed negation or unsigned wraparound.
+- Balance helpers require the caller's wallet and lock that wallet. The asset
+  RPC and rewards code pass their selected wallet instead of using `vpwallets[0]`.
+- Reused balance/output parameters are reset, avoiding stale amounts and outputs.
+- Exact `listmyassets` filters exclude subassets sharing the requested prefix;
+  trailing-star filters retain prefix matching.
+
+These changes affect queries and wallet selection, not asset issuance validity,
+serialization, activation heights, or public consensus settings.
+
+### Validation
+
+Three new `assetdb_tests` cases are registered in the regular Boost test binary.
+A focused binary compiled the changed asset database, balance, rewards and RPC
+sources and linked them against existing local libraries: all three cases pass.
+The original database source fails the new reverse-pagination regression.
+This targeted binary is not a full rebuild with the new dependency stack.
+The changed production sources also pass C++17 syntax checks against Boost 1.92
+and the prepared OpenSSL 3.5.9 headers. Dependency graph checks pass for native
+Linux GUI/headless, ARM64, Windows cross, and simulated native macOS; the retired
+macOS cross combination is rejected. Autotools regenerated successfully and
+accepted the local OpenSSL 3.5 headers. Hosted builds and live multiwallet asset
+issuance/transfer/reorg validation remain pending.

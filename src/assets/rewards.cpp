@@ -339,7 +339,7 @@ bool BuildTransaction(
 
         // Get the total amount of distribution assets this wallet has
         CAmount totalAssetBalance = 0;
-        GetMyAssetBalance(p_rewardSnapshot.strDistributionAsset, totalAssetBalance, 0);
+        GetMyAssetBalance(*p_walletPtr, p_rewardSnapshot.strDistributionAsset, totalAssetBalance, 0);
 
         //  This should (due to external logic) only include pending payments
         for (int i = start; i < (int)p_pendingPayments.size() && i < stop; i++) {

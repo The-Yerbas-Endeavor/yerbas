@@ -63,3 +63,6 @@ valuable wallets. Existing core test failures must remain visible.
 
 See [dependency-modernization.md](dependency-modernization.md) for pins,
 compatibility exceptions, upstream sources and validation details.
+
+The core configure checks require OpenSSL 3.5 or newer. Depends supplies 3.5.9
+LTS; system builds must provide matching supported headers and libraries.

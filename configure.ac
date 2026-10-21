@@ -1122,8 +1122,8 @@ if test x$use_pkgconfig = xyes; then
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      PKG_CHECK_MODULES([SSL], [libssl >= 1.1.1],, [AC_MSG_ERROR(openssl not found.)])
-      PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 1.1.1],,[AC_MSG_ERROR(libcrypto not found.)])
+      PKG_CHECK_MODULES([SSL], [libssl >= 3.5],, [AC_MSG_ERROR(openssl not found.)])
+      PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 3.5],,[AC_MSG_ERROR(libcrypto not found.)])
       if test x$use_qr != xno; then
         BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
       fi
@@ -1193,10 +1193,10 @@ save_CXXFLAGS="${CXXFLAGS}"
 CXXFLAGS="${CXXFLAGS} ${CRYPTO_CFLAGS} ${SSL_CFLAGS}"
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <openssl/opensslv.h>
-#if OPENSSL_VERSION_NUMBER < 0x10101000L
-#error OpenSSL 1.1.1 or newer required
+#if OPENSSL_VERSION_NUMBER < 0x30500000L
+#error OpenSSL 3.5 or newer required
 #endif
-]], [[]])], [], [AC_MSG_ERROR([OpenSSL 1.1.1 or newer is required])])
+]], [[]])], [], [AC_MSG_ERROR([OpenSSL 3.5 or newer is required])])
 AC_CHECK_DECLS([EVP_MD_CTX_new],,,[AC_INCLUDES_DEFAULT
 #include <openssl/x509_vfy.h>
 ])

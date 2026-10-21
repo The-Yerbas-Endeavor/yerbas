@@ -8,9 +8,5 @@ wallet_packages=bdb
 
 upnp_packages=miniupnpc
 
-# Legacy Python DMG packaging is retired; native macOS builds need no packaging tools.
+# Native macOS builds use Xcode; obsolete cross/DMG toolchains are retired.
 darwin_native_packages =
-
-ifneq ($(build_os),darwin)
-darwin_native_packages += native_cctools native_cdrkit native_libdmg-hfsplus
-endif

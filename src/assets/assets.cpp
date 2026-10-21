@@ -3591,14 +3591,14 @@ bool GetBestAssetAddressAmount(CAssetsCache& cache, const std::string& assetName
 
 #ifdef ENABLE_WALLET
 //! sets _balances_ with the total quantity of each owned asset
-bool GetAllMyAssetBalances(std::map<std::string, std::vector<COutput> >& outputs, std::map<std::string, CAmount>& amounts, const int confirmations, const std::string& prefix) {
+bool GetAllMyAssetBalances(CWallet& wallet, std::map<std::string, std::vector<COutput> >& outputs, std::map<std::string, CAmount>& amounts, const int confirmations, const std::string& prefix) {
 
-    // Return false if no wallet was found to compute asset balances
-    if (!vpwallets.size())
-        return false;
+    LOCK2(cs_main, wallet.cs_wallet);
 
+    outputs.clear();
+    amounts.clear();
     // Get the map of assetnames to outputs
-    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
+    wallet.AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
 
     // Loop through all pairs of Asset Name -> vector<COutput>
     for (const auto& pair : outputs) {
@@ -3616,16 +3616,15 @@ bool GetAllMyAssetBalances(std::map<std::string, std::vector<COutput> >& outputs
     return true;
 }
 
-bool GetMyAssetBalance(const std::string& name, CAmount& balance, const int& confirmations) {
+bool GetMyAssetBalance(CWallet& wallet, const std::string& name, CAmount& balance, const int& confirmations) {
 
-    // Return false if no wallet was found to compute asset balances
-    if (!vpwallets.size())
-        return false;
+    LOCK2(cs_main, wallet.cs_wallet);
 
     // Get the map of assetnames to outputs
     std::map<std::string, std::vector<COutput> > outputs;
-    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
+    wallet.AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
 
+    balance = 0;
     // Loop through all pairs of Asset Name -> vector<COutput>
     if (outputs.count(name)) {
         auto& ref = outputs.at(name);

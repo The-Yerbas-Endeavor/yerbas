@@ -12,19 +12,19 @@ rebuild commands, see [dependency updates](../doc/dependency-updates.md).
 
 To build dependencies for the current arch+OS:
 
-    make
+    make NO_QT=1
 
 To build for another arch/OS:
 
-    make HOST=host-platform-triplet
+    make NO_QT=1 HOST=host-platform-triplet
 
 For example:
 
-    make HOST=x86_64-w64-mingw32 -j4
+    make NO_QT=1 HOST=x86_64-w64-mingw32 -j4
 
-A prefix will be generated that's suitable for plugging into Saltcoin's
+A prefix will be generated that's suitable for plugging into Yerbas's
 configure. In the above example, a dir named x86_64-w64-mingw32 will be
-created. To use it for Saltcoin:
+created. To use it for Yerbas:
 
     ./configure --prefix=`pwd`/depends/x86_64-w64-mingw32
 
@@ -32,7 +32,6 @@ Common `host-platform-triplets` for cross compilation are:
 
 - `i686-w64-mingw32` for Win32
 - `x86_64-w64-mingw32` for Win64
-- `x86_64-apple-darwin14` for MacOSX
 - `arm-linux-gnueabihf` for Linux ARM 32 bit
 - `aarch64-linux-gnu` for Linux ARM 64 bit
 - `riscv32-linux-gnu` for Linux RISC-V 32 bit
@@ -43,9 +42,8 @@ No other options are needed, the paths are automatically configured.
 Install the required dependencies: Ubuntu & Debian
 --------------------------------------------------
 
-For macOS cross compilation:
-
-    sudo apt-get install curl librsvg2-bin libtiff-tools bsdmainutils imagemagick libcap-dev libz-dev libbz2-dev python-setuptools
+For macOS, build natively with Xcode command-line tools. The old cross compiler
+and DMG packaging stack are retired. CI uses macOS 15 Intel.
 
 For Win32/Win64 cross compilation:
 
@@ -59,7 +57,7 @@ For linux RISC-V 64-bit cross compilation (there are no packages for 32-bit):
 
     sudo apt-get install curl g++-riscv64-linux-gnu binutils-riscv64-linux-gnu
 
-RISC-V known issue: gcc-7.3.0 and gcc-7.3.1 result in a broken `test_saltcoin` executable (see https://github.com/bitcoin/bitcoin/pull/13543),
+RISC-V known issue: gcc-7.3.0 and gcc-7.3.1 result in a broken `test_yerbas` executable (see https://github.com/bitcoin/bitcoin/pull/13543),
 this is apparently fixed in gcc-8.1.0.
 
 Dependency Options:
@@ -67,7 +65,6 @@ The following can be set when running make: make FOO=bar
 
     SOURCES_PATH: downloaded sources will be placed here
     BASE_CACHE: built packages will be placed here
-    SDK_PATH: Path where sdk's can be found (used by OSX)
     FALLBACK_DOWNLOAD_PATH: If a source file can't be fetched, try here before giving up
     USE_SYSTEM_QT: Set to 1 for native Linux GUI builds using installed Qt 6.8 or newer
     NO_QT: Don't download/build/cache qt and its dependencies
@@ -78,12 +75,12 @@ The following can be set when running make: make FOO=bar
     BUILD_ID_SALT: Optional salt to use when generating build package ids
 
 If some packages are not built, for example `make NO_WALLET=1`, the appropriate
-options will be passed to Saltcoin Core's configure. In this case, `--disable-wallet`.
+options will be passed to Yerbas Core's configure. In this case, `--disable-wallet`.
 
 Additional targets:
 
     download: run 'make download' to fetch all sources without building them
-    download-osx: run 'make download-osx' to fetch all sources needed for osx builds
+    download-osx: fetch native macOS sources (macOS builders only)
     download-win: run 'make download-win' to fetch all sources needed for win builds
     download-linux: run 'make download-linux' to fetch all sources needed for linux builds
 

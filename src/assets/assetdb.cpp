@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <util.h>
+#include <algorithm>
 #include <consensus/params.h>
 #include <script/ismine.h>
 #include <tinyformat.h>
@@ -181,7 +182,7 @@ bool CAssetsDB::AssetDir(std::vector<CDatabasedAssetData>& assets, const std::st
     pcursor->Seek(std::make_pair(ASSET_FLAG, std::string()));
 
     auto prefix = filter;
-    bool wildcard = prefix.back() == '*';
+    bool wildcard = !prefix.empty() && prefix.back() == '*';
     if (wildcard)
         prefix.pop_back();
 
@@ -205,8 +206,8 @@ bool CAssetsDB::AssetDir(std::vector<CDatabasedAssetData>& assets, const std::st
             }
             pcursor->Next();
         }
-        skip = table_size + start;
-        pcursor->SeekToFirst();
+        skip = std::max<long>(0, table_size + start);
+        pcursor->Seek(std::make_pair(ASSET_FLAG, std::string()));
     }
 
 
@@ -281,8 +282,8 @@ bool CAssetsDB::AddressDir(std::vector<std::pair<std::string, CAmount> >& vecAss
             }
             pcursor->Next();
         }
-        skip = table_size + start;
-        pcursor->SeekToFirst();
+        skip = std::max<long>(0, table_size + start);
+        pcursor->Seek(std::make_pair(ADDRESS_ASSET_QUANTITY_FLAG, std::make_pair(address, std::string())));
     }
 
 
@@ -354,8 +355,8 @@ bool CAssetsDB::AssetAddressDir(std::vector<std::pair<std::string, CAmount> >& v
             }
             pcursor->Next();
         }
-        skip = table_size + start;
-        pcursor->SeekToFirst();
+        skip = std::max<long>(0, table_size + start);
+        pcursor->Seek(std::make_pair(ASSET_ADDRESS_QUANTITY_FLAG, std::make_pair(assetName, std::string())));
     }
 
     size_t loaded = 0;
