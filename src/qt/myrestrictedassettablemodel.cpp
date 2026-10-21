@@ -393,7 +393,7 @@ QVariant MyRestrictedAssetsTableModel::data(const QModelIndex &index, int role) 
         case TypeRole:
             return rec->type;
         case DateRole:
-            return QDateTime::fromTime_t(static_cast<uint>(rec->time));
+            return QDateTime::fromSecsSinceEpoch(static_cast<uint>(rec->time));
         case WatchonlyRole:
             return rec->involvesWatchAddress;
         case WatchonlyDecorationRole:
@@ -411,7 +411,7 @@ QVariant MyRestrictedAssetsTableModel::data(const QModelIndex &index, int role) 
         case TxPlainTextRole:
         {
             QString details;
-            QDateTime date = QDateTime::fromTime_t(static_cast<uint>(rec->time));
+            QDateTime date = QDateTime::fromSecsSinceEpoch(static_cast<uint>(rec->time));
             QString txLabel = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->address));
 
             details.append(date.toString("M/d/yy HH:mm"));
@@ -553,13 +553,13 @@ static void ShowProgress(MyRestrictedAssetsTableModel *ttm, const std::string &t
 void MyRestrictedAssetsTableModel::subscribeToCoreSignals()
 {
     // Connect signals to wallet
-    wallet->NotifyMyRestrictedAssetsChanged.connect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3, _4, _5));
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
+    wallet->NotifyMyRestrictedAssetsChanged.connect(boost::bind(NotifyTransactionChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
+    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
 }
 
 void MyRestrictedAssetsTableModel::unsubscribeFromCoreSignals()
 {
     // Disconnect signals from wallet
-    wallet->NotifyMyRestrictedAssetsChanged.disconnect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3, _4, _5));
-    wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    wallet->NotifyMyRestrictedAssetsChanged.disconnect(boost::bind(NotifyTransactionChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
+    wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
 }

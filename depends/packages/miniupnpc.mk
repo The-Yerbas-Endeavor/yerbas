@@ -1,8 +1,8 @@
 package=miniupnpc
-$(package)_version=2.2.2
-$(package)_download_path=https://miniupnp.tuxfamily.org/files
+$(package)_version=2.3.3
+$(package)_download_path=https://github.com/miniupnp/miniupnp/releases/download/miniupnpc_$(subst .,_,$($(package)_version))
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=888fb0976ba61518276fe1eda988589c700a3f2a69d71089260d75562afd3687
+$(package)_sha256_hash=d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e634bd1a
 $(package)_patches=dont_leak_info.patch
 
 define $(package)_set_vars
@@ -22,6 +22,6 @@ endef
 
 define $(package)_stage_cmds
 	mkdir -p $($(package)_staging_prefix_dir)/include/miniupnpc $($(package)_staging_prefix_dir)/lib &&\
-	install *.h $($(package)_staging_prefix_dir)/include/miniupnpc &&\
+	install include/*.h $($(package)_staging_prefix_dir)/include/miniupnpc &&\
 	install libminiupnpc.a $($(package)_staging_prefix_dir)/lib
 endef

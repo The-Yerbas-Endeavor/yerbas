@@ -216,7 +216,7 @@ QVariant AssetTableModel::data(const QModelIndex &index, int role) const
         case Qt::TextAlignmentRole:
         {
             if (index.column() == Quantity) {
-                return Qt::AlignRight + Qt::AlignVCenter;
+                return int(Qt::AlignRight | Qt::AlignVCenter);
             }
         }
         default:
@@ -239,9 +239,9 @@ QVariant AssetTableModel::headerData(int section, Qt::Orientation orientation, i
             return QSize(30, 50);
     } else if (role == Qt::TextAlignmentRole) {
         if (orientation == Qt::Vertical)
-            return Qt::AlignLeft + Qt::AlignVCenter;
+            return int(Qt::AlignLeft | Qt::AlignVCenter);
 
-        return Qt::AlignHCenter + Qt::AlignVCenter;
+        return int(Qt::AlignHCenter | Qt::AlignVCenter);
     }
 
     return QVariant();

@@ -1,12 +1,12 @@
 package=expat
-$(package)_version=2.4.1
+$(package)_version=2.9.0
 $(package)_download_path=https://github.com/libexpat/libexpat/releases/download/R_$(subst .,_,$($(package)_version))/
 $(package)_file_name=$(package)-$($(package)_version).tar.xz
-$(package)_sha256_hash=cf032d0dba9b928636548e32b327a2d66b1aab63c4f4a13dd132c2d1d2f2fb6a
+$(package)_sha256_hash=1e6371862cc31999b368c3b89b49994f0677e1bab5f1b2b85ae3741f5d803051
 
 define $(package)_set_vars
 $(package)_config_opts=--disable-shared --without-docbook --without-tests --without-examples
-$(package)_config_opts += --disable-dependancy-tracking --enable-option-checking --without-xmlwf
+$(package)_config_opts += --disable-dependency-tracking --enable-option-checking --without-xmlwf
 $(package)_config_opts_linux=--with-pic
 endef
 

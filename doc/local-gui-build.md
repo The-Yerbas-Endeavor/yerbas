@@ -1,111 +1,62 @@
-# Local Linux GUI build with modern dependencies
+# Local Linux GUI build: Qt 6
 
-The existing checkout remains on `dev`. Use `USE_SYSTEM_QT=1` for the local
-Ubuntu desktop build. It uses the installed Qt 5.15 development packages and
-system desktop libraries, while building the remaining pinned dependencies.
-Qt 5.15.18 and its moc/uic/rcc/lrelease/lupdate tools were found on this machine.
-The older Qt 5.9 source recipe is unchanged and is not the recommended local
-build path. This is a native Linux configuration, not a portable release bundle.
+Yerbas 4.0.0.1 now uses shared Qt **6.8 or newer**, including Core5Compat.
+Boost is pinned to **1.92.0**. The native Linux build uses the operating system's
+Qt packages; it does not download or pin Qt itself. Compatibility checks use
+Ubuntu's Qt 6.10.2 development files. Upstream Qt 6.12 is the current LTS
+release; a full 6.12 build has not been validated here.
 
-| Dependency | Previous | Local GUI configuration |
-| --- | --- | --- |
-| Boost | 1.70.0 | pinned 1.90.0 |
-| Qt | source recipe 5.9.6 | installed system Qt 5.15.18 |
-| protobuf/protoc | 2.6.1 | pinned 3.20.3, matching compiler and runtime |
-| libqrencode | 3.4.4 | pinned 4.1.1 |
-| zlib | 1.2.11 | pinned 1.3.2 |
+The bundled Qt 5 build path is retired. `depends` requires `USE_SYSTEM_QT=1`
+for a native Linux GUI, or `NO_QT=1` for headless builds. Cross-platform GUI
+release packaging is not supported by this migration. Headless CI remains enabled.
 
-Protobuf 3.20.3 is an incremental compatibility update for the existing payment
-request implementation and Autotools build, not the latest protobuf generation.
-The earlier OpenSSL 3.5.9, ZeroMQ 4.3.5, and GMP 6.3.0 updates are also included.
-BLS serialization and public consensus parameters are unchanged.
+## Features and compatibility
 
-## Changes
+Ordinary `yerbas:` links, address/amount/label/message handling, wallet operations,
+QR codes and asset viewing remain. Legacy BIP70 payment files, remote `r=` and
+`req-r=` requests, merchant certificate verification, and payment acknowledgements
+are retired. No protobuf library or protoc compiler is needed. Historical request
+bytes and merchant labels retain their original serialized positions and are
+preserved as opaque data; historical requests cannot be submitted as payments.
+Transaction details identify retained legacy metadata without processing it.
 
-Boost.System is detected with a link test that permits its header-only form.
-The Boost build no longer requests a System library and uses C++17. Obsolete
-filesystem calls in configuration, RPC, and wallet handling were replaced.
-Qt filename conversion uses public Qt UTF-8/native-wide-string methods instead
-of Boost's private codecvt class; a Unicode regression case was added to the
-existing GUI compatibility tests.
+Qt compatibility changes cover screen geometry, font measurements, dates, sorting,
+item flags, image access, keyboard events, DBus image metatypes and explicit
+includes. Core5Compat
+supplies the remaining QRegExp APIs. The `yerbas://` normalization also fixes an
+existing wrong prefix length which corrupted the address. The traffic-graph
+regression test now uses a deterministic Qt random generator.
 
-The native Qt mode skips the old Qt/X11/font recipes and enables system
-pkg-config discovery only for this explicit mode. It leaves the compiler,
-protobuf, OpenSSL, Boost, and other dependency prefix settings in place. The
-mode participates in the final prefix cache identity, so changing modes
-regenerates the installed prefix. Combining it with NO_QT or cross compilation
-is rejected. Hosted headless CI continues to use NO_QT=1.
+## Manual build
 
-The protobuf recipes keep protoc and runtime versions synchronized, install
-only the required native compiler and target library/headers, and avoid an
-unnecessary zlib dependency. QR encoding uses the official source tag and
-regenerates its configure script. zlib no longer applies the obsolete macOS
-fdopen patch. All changed source archive hashes were verified locally.
-
-## Build manually
-
-These commands build dependencies and the GUI, daemon, CLI, and enabled tests.
-They deliberately clean old object files because objects compiled with Boost
-1.70 must not be reused with Boost 1.90. They do not remove wallet data.
+Install Qt 6 development packages and tools (requires a distribution offering
+Qt >= 6.8), plus the normal compiler, Autotools, pkg-config, Perl and Python:
 
 ```bash
+sudo apt install qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools qt6-l10n-tools qt6-5compat-dev
 cd /home/anno/Code/yerbas
 make -C depends -j2 HOST=x86_64-pc-linux-gnu USE_SYSTEM_QT=1 NO_UPNP=1
+# Clean old objects if this checkout already has a generated Makefile.
 make clean
 ./autogen.sh
 ./configure --prefix="$PWD/depends/x86_64-pc-linux-gnu" \
-  --with-gui=qt5 --with-qrencode --without-miniupnpc \
+  --with-gui=qt6 --with-qrencode --without-miniupnpc \
   --disable-bench --enable-wallet --enable-tests
 make -j2
-```
-
-Do not reuse the earlier dependency prefix under Documents/Codex. If starting
-from an unconfigured checkout, omit `make clean` when there is no Makefile.
-On a different Ubuntu installation, install Qt 5 development packages and tools
-(`qtbase5-dev`, `qtbase5-dev-tools`, `qttools5-dev-tools`) in addition to the
-normal compiler, Autotools, pkg-config, Perl, Python, and CMake prerequisites.
-The system Qt mode intentionally relies on the OS package versions.
-
-After the build:
-
-```bash
 python3 ci/run-unit-tests.py src/test/test_yerbas --output test-results-gui-deps
 QT_QPA_PLATFORM=offscreen src/qt/test/test_yerbas-qt
 ```
 
-Run `src/qt/yerbas-qt` from the graphical desktop when ready. Runtime GUI and
-wallet behavior have not been tested with this dependency combination yet.
-Existing unrelated legacy unit-test failures remain visible.
+Do not reuse the old dependency prefix under Documents/Codex or objects compiled
+against older Boost/Qt versions. If no Makefile exists, omit `make clean`.
+Qt tool discovery uses Qt6Core's pkg-config `libexecdir` and `bindir` and rejects
+non-Qt-6 moc/uic/rcc/lrelease. Configure no longer probes protobuf.
 
-## Checks completed without a full build
+The dependency and full application rebuild remain manual. Syntax checks and
+focused GUI tests do not establish full linking, GUI startup, wallet transaction
+behavior, or cross-platform compatibility. Run the asset wallet checks in
+[asset-viewer-updates.md](asset-viewer-updates.md) before using this build with
+valuable wallets. Existing core test failures must remain visible.
 
-- Boost 1.90 archive SHA-256 matches the upstream metadata.
-- protobuf 3.20.3, QR encoding 4.1.1, and zlib 1.3.2 configure successfully.
-- The updated Boost.System Autoconf macro accepts the installed Boost 1.90
-  without a libboost_system. A static filesystem/thread/chrono link and run pass.
-- Native Qt and headless package lists select the expected dependencies.
-  Generated config.site discovers system Qt only in the requested mode.
-  Incompatible mode/cross-build combinations fail as intended.
-- Syntax checks pass for util.cpp, rpc/protocol.cpp, wallet/db.cpp,
-  qt/guiutil.cpp, qt/paymentrequestplus.cpp, qt/paymentserver.cpp, and
-  qt/test/compattests.cpp against the updated Boost/Qt/protobuf/OpenSSL headers.
-- Matching protoc generates the payment-request C++ bindings successfully.
-- The actual GUI filename-conversion functions pass empty, ASCII, accented,
-  Chinese, and emoji roundtrips in an isolated compiled check.
-- Diff whitespace checks pass.
-
-No full dependency or application build was launched. Full compilation, linking,
-GUI startup, and the integrated unit/GUI test executables still require the
-manual build above.
-
-## Upstream references
-
-- https://www.boost.org/releases/1.90.0/
-- https://download.qt.io/archive/qt/5.15/5.15.18/submodules/
-- https://github.com/protocolbuffers/protobuf/releases/tag/v3.20.3
-- https://github.com/fukuchi/libqrencode/releases/tag/v4.1.1
-- https://zlib.net/
-
-## Asset viewer follow-up
-
-See [asset-viewer-updates.md](asset-viewer-updates.md) for the new details/image viewer, asset model fixes, configure minimums and protoc compatibility check, focused test results, and manual wallet checks. Regenerate with `./autogen.sh`; the new Qt tests run as part of `test_yerbas-qt`.
+See [dependency-modernization.md](dependency-modernization.md) for pins,
+compatibility exceptions, upstream sources and validation details.

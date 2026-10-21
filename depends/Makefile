@@ -96,10 +96,12 @@ endif
 ifneq ($(host_arch)_$(host_os),$(build_arch)_linux)
 $(error USE_SYSTEM_QT=1 supports native Linux builds only)
 endif
-# Keep protobuf/QR/zlib pinned, but use the desktop Qt/X11/font stack.
+# Keep QR/zlib pinned, but use the desktop Qt 6 stack.
 qt_packages_ = $(qt_packages)
 else
-qt_packages_$(NO_QT) = $(qt_packages) $(qt_$(host_os)_packages) $(qt_$(host_arch)_$(host_os)_packages)
+ifeq ($(NO_QT),)
+$(error Bundled Qt 5 is retired. Use USE_SYSTEM_QT=1 for native Linux GUI builds, or NO_QT=1 for headless builds)
+endif
 endif
 wallet_packages_$(NO_WALLET) = $(wallet_packages)
 upnp_packages_$(NO_UPNP) = $(upnp_packages)

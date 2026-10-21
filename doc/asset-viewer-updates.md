@@ -1,3 +1,7 @@
+> Dependency/configure notes below describe the original asset-viewer batch.
+> The later [Qt 6 migration](local-gui-build.md) supersedes its Qt/protobuf
+> requirements: protobuf and the protoc probe have been removed.
+
 # Asset viewer, audit fixes, and configure updates
 
 Prepared on `dev`, based on b20adb4aa1613cbbfc9ef7155d9c5e98c8e61a5b. They extend the dependency work documented in [dependency-updates.md](dependency-updates.md) and [local-gui-build.md](local-gui-build.md).

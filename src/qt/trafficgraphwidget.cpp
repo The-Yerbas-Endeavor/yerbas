@@ -2,6 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <QPainterPath>
+#include <boost/bind/bind.hpp>
 #include "trafficgraphwidget.h"
 #include "clientmodel.h"
 
@@ -120,13 +122,13 @@ void TrafficGraphWidget::paintEvent(QPaintEvent *)
 
     if(!queue.empty()) {
         QPainterPath pIn;
-        paintPath(pIn, queue, boost::bind(chooseIn,_1));
+        paintPath(pIn, queue, boost::bind(chooseIn,boost::placeholders::_1));
         painter.fillPath(pIn, QColor(0, 255, 0, 128));
         painter.setPen(Qt::green);
         painter.drawPath(pIn);
 
         QPainterPath pOut;
-        paintPath(pOut, queue, boost::bind(chooseOut,_1));
+        paintPath(pOut, queue, boost::bind(chooseOut,boost::placeholders::_1));
         painter.fillPath(pOut, QColor(255, 0, 0, 128));
         painter.setPen(Qt::red);
         painter.drawPath(pOut);

@@ -4,6 +4,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <QRegExp>
+#include <QLocale>
+#include <QStandardPaths>
 #if defined(WIN32) || defined(_WIN32)
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
@@ -46,7 +49,7 @@
 #include <QClipboard>
 #include <QDateTime>
 #include <QDesktopServices>
-#include <QDesktopWidget>
+#include <QScreen>
 #include <QDoubleValidator>
 #include <QFileDialog>
 #include <QFont>
@@ -138,12 +141,12 @@ QString getThemedStyleQString(ThemedStyle style)
 
 QString dateTimeStr(const QDateTime &date)
 {
-    return date.date().toString(Qt::SystemLocaleShortDate) + QString(" ") + date.toString("hh:mm");
+    return QLocale().toString(date.date(), QLocale::ShortFormat) + QString(" ") + date.toString("hh:mm");
 }
 
 QString dateTimeStr(qint64 nTime)
 {
-    return dateTimeStr(QDateTime::fromTime_t((qint32)nTime));
+    return dateTimeStr(QDateTime::fromSecsSinceEpoch((qint32)nTime));
 }
 
 QFont fixedPitchFont()
@@ -204,6 +207,9 @@ void setupAmountWidget(QLineEdit *widget, QWidget *parent)
 
 bool parseBitcoinURI(const QUrl &uri, SendCoinsRecipient *out)
 {
+    const QUrlQuery paymentQuery(uri);
+    if (paymentQuery.hasQueryItem("r") || paymentQuery.hasQueryItem("req-r")) return false;
+
     // return if URI is not valid or is no yerbas: URI
     if(!uri.isValid() || uri.scheme() != QString("yerbas"))
         return false;
@@ -277,7 +283,7 @@ bool parseBitcoinURI(QString uri, SendCoinsRecipient *out)
     //    which will lower-case it (and thus invalidate the address).
     if(uri.startsWith("yerbas://", Qt::CaseInsensitive))
     {
-        uri.replace(0, 7, "yerbas:");
+        uri.replace(0, QStringLiteral("yerbas://").size(), "yerbas:");
     }
     QUrl uriInstance(uri);
     return parseBitcoinURI(uriInstance, out);
@@ -1092,9 +1098,9 @@ void concatenate(QPainter* painter, QString& catString, int static_width, int le
 
     // Get the length of the dots
     //#ifndef QTversionPreFiveEleven
-    //	int dots_width = painter->fontMetrics().horizontalAdvance("...");
+    //  int dots_width = painter->fontMetrics().horizontalAdvance("...");
     //#else
-    	int dots_width = painter->fontMetrics().width("...");
+        int dots_width = painter->fontMetrics().horizontalAdvance("...");
     //#endif
 
     // Add the dots width to the amount width
@@ -1105,9 +1111,9 @@ void concatenate(QPainter* painter, QString& catString, int static_width, int le
     {
         // Get the text width of the current name
         //#ifndef QTversionPreFiveEleven
-        //	int text_width = painter->fontMetrics().horizontalAdvance(catString);
+        //  int text_width = painter->fontMetrics().horizontalAdvance(catString);
         //#else
-        	int text_width = painter->fontMetrics().width(catString);
+            int text_width = painter->fontMetrics().horizontalAdvance(catString);
        // #endif
         // Check to see if the text width is going to overlap the amount width if it doesn't break the loop
         if (left_side + text_width < right_size - static_width)

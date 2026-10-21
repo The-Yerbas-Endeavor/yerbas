@@ -1,6 +1,6 @@
-For a native Linux GUI using installed Qt 5.15, see
+For a native Linux GUI using installed Qt 6.8 or newer, see
 [the local GUI build instructions](../doc/local-gui-build.md). Select it with
-`USE_SYSTEM_QT=1`; the legacy Qt source recipe is not used in this mode.
+`USE_SYSTEM_QT=1`; the bundled Qt 5 path is retired. Headless builds require `NO_QT=1`.
 
 For the current headless CI dependency pins, validation status, and manual
 rebuild commands, see [dependency updates](../doc/dependency-updates.md).
@@ -66,7 +66,7 @@ The following can be set when running make: make FOO=bar
     BASE_CACHE: built packages will be placed here
     SDK_PATH: Path where sdk's can be found (used by OSX)
     FALLBACK_DOWNLOAD_PATH: If a source file can't be fetched, try here before giving up
-    USE_SYSTEM_QT: Set to 1 for native Linux GUI builds using installed Qt 5.15
+    USE_SYSTEM_QT: Set to 1 for native Linux GUI builds using installed Qt 6.8 or newer
     NO_QT: Don't download/build/cache qt and its dependencies
     NO_WALLET: Don't download/build/cache libs needed to enable the wallet
     NO_UPNP: Don't download/build/cache packages needed for enabling upnp

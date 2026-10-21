@@ -204,7 +204,6 @@ AC_ARG_ENABLE([zmq],
   [use_zmq=$enableval],
   [use_zmq=yes])
 
-AC_ARG_WITH([protoc-bindir],[AS_HELP_STRING([--with-protoc-bindir=BIN_DIR],[specify protoc bin path])], [protoc_bin_path=$withval], [])
 
 AC_ARG_ENABLE(man,
     [AS_HELP_STRING([--disable-man],
@@ -561,7 +560,7 @@ case $host in
 
          openssl_prefix=`$BREW --prefix openssl 2>/dev/null`
          bdb_prefix=`$BREW --prefix berkeley-db4 2>/dev/null`
-         qt5_prefix=`$BREW --prefix qt5 2>/dev/null`
+         qt6_prefix=`$BREW --prefix qt6 2>/dev/null`
          if test x$openssl_prefix != x; then
            PKG_CONFIG_PATH="$openssl_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
            export PKG_CONFIG_PATH
@@ -570,8 +569,8 @@ case $host in
            CPPFLAGS="$CPPFLAGS -I$bdb_prefix/include"
            LIBS="$LIBS -L$bdb_prefix/lib"
          fi
-         if test x$qt5_prefix != x; then
-           PKG_CONFIG_PATH="$qt5_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+         if test x$qt6_prefix != x; then
+           PKG_CONFIG_PATH="$qt6_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
            export PKG_CONFIG_PATH
          fi
        fi
@@ -938,7 +937,7 @@ BITCOIN_QT_INIT
 
 dnl sets $bitcoin_enable_qt, $bitcoin_enable_qt_test, $bitcoin_enable_qt_dbus
 dnl The asset viewer uses Qt 5.9 redirect controls. Native builds use Qt 5.15.
-BITCOIN_QT_CONFIGURE([5.9.0])
+BITCOIN_QT_CONFIGURE([6.8.0])
 
 if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononono; then
     use_boost=no
@@ -1125,7 +1124,6 @@ if test x$use_pkgconfig = xyes; then
     [
       PKG_CHECK_MODULES([SSL], [libssl >= 1.1.1],, [AC_MSG_ERROR(openssl not found.)])
       PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 1.1.1],,[AC_MSG_ERROR(libcrypto not found.)])
-      BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf >= 3.20.3], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
       if test x$use_qr != xno; then
         BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
       fi
@@ -1185,7 +1183,6 @@ else
     esac
   fi
 
-  BITCOIN_QT_CHECK(AC_CHECK_LIB([protobuf] ,[main],[PROTOBUF_LIBS=-lprotobuf], BITCOIN_QT_FAIL(libprotobuf not found)))
   if test x$use_qr != xno; then
     BITCOIN_QT_CHECK([AC_CHECK_LIB([qrencode], [main],[QR_LIBS=-lqrencode], [have_qrencode=no])])
     BITCOIN_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, have_qrencode=no)])
@@ -1252,34 +1249,6 @@ fi
 AM_CONDITIONAL([EMBEDDED_UNIVALUE],[test x$need_bundled_univalue = xyes])
 AC_SUBST(UNIVALUE_CFLAGS)
 AC_SUBST(UNIVALUE_LIBS)
-
-BITCOIN_QT_PATH_PROGS([PROTOC], [protoc],$protoc_bin_path)
-
-dnl Reject incompatible protoc/header combinations before compiling the GUI.
-BITCOIN_QT_CHECK([
-  AC_MSG_CHECKING([whether protoc output matches the protobuf headers])
-  mkdir -p conftest-protobuf
-  echo 'syntax = "proto2"; message YerbasProbe { optional string value = 1; }' > conftest-protobuf/probe.proto
-  if "$PROTOC" --proto_path=conftest-protobuf --cpp_out=conftest-protobuf conftest-protobuf/probe.proto; then
-    yerbas_save_CPPFLAGS="$CPPFLAGS"
-    CPPFLAGS="$CPPFLAGS $PROTOBUF_CFLAGS -I."
-    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-      #include <google/protobuf/stubs/common.h>
-      #if GOOGLE_PROTOBUF_VERSION < 3020003
-      #error Protobuf 3.20.3 or newer required
-      #endif
-      #include "conftest-protobuf/probe.pb.h"
-    ]], [[]])], [yerbas_protobuf_compatible=yes], [yerbas_protobuf_compatible=no])
-    CPPFLAGS="$yerbas_save_CPPFLAGS"
-  else
-    yerbas_protobuf_compatible=no
-  fi
-  rm -rf conftest-protobuf
-  AC_MSG_RESULT([$yerbas_protobuf_compatible])
-  if test x$yerbas_protobuf_compatible != xyes; then
-    BITCOIN_QT_FAIL([protoc and protobuf headers are incompatible; use the matching depends tools and headers])
-  fi
-])
 
 AC_MSG_CHECKING([whether to build yerbasd])
 AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_bitcoind = xyes])
@@ -1499,7 +1468,6 @@ AC_SUBST(SSL_LIBS)
 AC_SUBST(EVENT_LIBS)
 AC_SUBST(EVENT_PTHREADS_LIBS)
 AC_SUBST(ZMQ_LIBS)
-AC_SUBST(PROTOBUF_LIBS)
 AC_SUBST(QR_LIBS)
 AC_SUBST(DSYMUTIL_FLAT)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile share/setup.nsi share/qt/Info.plist test/config.ini])

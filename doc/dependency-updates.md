@@ -66,9 +66,6 @@ suites against the newly linked executable.
 
 ## Follow-up migrations
 
-Boost and the local GUI dependency configuration are now updated in the
-[local GUI build instructions](local-gui-build.md). The BLS fork remains pinned
-to preserve signature and serialization compatibility; Berkeley DB 4.8 remains
-pinned for wallet compatibility. CMake, immer, and backtrace updates remain
-separate work. The legacy Qt 5.9 source-build path is not modernized; use the
-explicit native system-Qt mode for the local GUI.
+See [dependency-modernization.md](dependency-modernization.md) for the subsequent
+Boost, Qt 6, CMake, immer, libevent, MiniUPnPc and libbacktrace changes, the BIP70
+retirement, and the BLS/Berkeley DB compatibility exceptions.

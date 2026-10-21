@@ -253,7 +253,7 @@ public:
         //#ifndef QTversionPreFiveEleven
         //	int amount_width = painter->fontMetrics().horizontalAdvance(amountText);
 		//#else
-			int amount_width = painter->fontMetrics().width(amountText);
+			int amount_width = painter->fontMetrics().horizontalAdvance(amountText);
 		//#endif
         // Set the painter for the font used for the asset name, so that the concatenate function estimated width correctly
         painter->setFont(nameFont);

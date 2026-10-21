@@ -4,7 +4,7 @@ $(package)_version=bls-signatures-20181101
 $(package)_download_path=https://github.com/The-Yerbas-Endeavor/bls-signatures/releases/download/v20181101/
 $(package)_file_name=$($(package)_version).tar.gz
 $(package)_sha256_hash=b3776ec5e32c26397480b43fb0d35e153976118e116ec79056d09c11d61ebb39
-$(package)_dependencies=gmp
+$(package)_dependencies=gmp native_cmake
 #$(package)_patches=...TODO (when we switch back to https://github.com/Chia-Network/bls-signatures)
 
 #define $(package)_preprocess_cmds
@@ -38,7 +38,7 @@ define $(package)_config_cmds
   export CXXFLAGS="$($(package)_cxxflags) $($(package)_cppflags)" && \
   export LDFLAGS="$($(package)_ldflags)" && \
   mkdir -p build && cd build && \
-  cmake ../ $($(package)_config_opts)
+  $(build_prefix)/bin/cmake ../ $($(package)_config_opts)
 endef
 
 define $(package)_build_cmds
