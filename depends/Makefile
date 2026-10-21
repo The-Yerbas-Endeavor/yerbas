@@ -4,7 +4,6 @@ SOURCES_PATH ?= $(BASEDIR)/sources
 WORK_PATH = $(BASEDIR)/work
 BASE_CACHE ?= $(BASEDIR)/built
 NO_QT ?=
-USE_SYSTEM_QT ?=
 NO_WALLET ?=
 NO_UPNP ?=
 FALLBACK_DOWNLOAD_PATH ?= https://bitcoincore.org/depends-sources
@@ -94,6 +93,17 @@ $(host_arch)_$(host_os)_id_string+=$(shell $(host_CXX) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_RANLIB) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_STRIP) --version 2>/dev/null)
 
+# Plain make selects the supported GUI dependency path on native Linux.
+# Explicit headless/cross-build choices must not inherit that default.
+ifeq ($(NO_QT),)
+ifeq ($(build_os),linux)
+ifeq ($(canonical_host),$(build))
+USE_SYSTEM_QT ?= 1
+endif
+endif
+endif
+USE_SYSTEM_QT ?=
+
 ifeq ($(USE_SYSTEM_QT),1)
 ifneq ($(NO_QT),)
 $(error USE_SYSTEM_QT=1 cannot be combined with NO_QT)
@@ -105,7 +115,12 @@ endif
 qt_packages_ = $(qt_packages)
 else
 ifeq ($(NO_QT),)
-$(error Bundled Qt 5 is retired. Use USE_SYSTEM_QT=1 for native Linux GUI builds, or NO_QT=1 for headless builds)
+ifeq ($(build_os)_$(host_os)_$(host_arch),linux_mingw32_x86_64)
+qt_packages_ = $(qt_packages) qt qt5compat
+qt_native_packages = native_qt native_qttools
+else
+$(error GUI dependencies support native Linux or Linux to x86_64-w64-mingw32. Use NO_QT=1 only for headless builds)
+endif
 endif
 endif
 wallet_packages_$(NO_WALLET) = $(wallet_packages)

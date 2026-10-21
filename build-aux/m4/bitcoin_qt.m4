@@ -72,6 +72,7 @@ AC_DEFUN([BITCOIN_QT_INIT],[
   AC_ARG_WITH([qt-libdir],[AS_HELP_STRING([--with-qt-libdir=LIB_DIR],[specify qt lib path (overridden by pkgconfig)])], [qt_lib_path=$withval], [])
   AC_ARG_WITH([qt-plugindir],[AS_HELP_STRING([--with-qt-plugindir=PLUGIN_DIR],[specify qt plugin path (overridden by pkgconfig)])], [qt_plugin_path=$withval], [])
   AC_ARG_WITH([qt-translationdir],[AS_HELP_STRING([--with-qt-translationdir=PLUGIN_DIR],[specify qt translation path (overridden by pkgconfig)])], [qt_translation_path=$withval], [])
+  AC_ARG_WITH([qt-libexecdir],[AS_HELP_STRING([--with-qt-libexecdir=DIR],[native Qt moc/uic/rcc directory for cross compilation])], [qt_libexec_path=$withval], [])
   AC_ARG_WITH([qt-bindir],[AS_HELP_STRING([--with-qt-bindir=BIN_DIR],[specify qt bin path])], [qt_bin_path=$withval], [])
 
   AC_ARG_WITH([qtdbus],
@@ -103,7 +104,9 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
     if test "x$bitcoin_cv_static_qt" = xyes; then
       BITCOIN_QT_FAIL([Static Qt is unsupported; use shared Qt 6 development packages])
     fi
-    qt_libexec_path="`$PKG_CONFIG --variable=libexecdir Qt6Core`"
+    if test "x$qt_libexec_path" = x; then
+      qt_libexec_path="`$PKG_CONFIG --variable=libexecdir Qt6Core`"
+    fi
     if test "x$qt_bin_path" = x; then
       qt_bin_path="`$PKG_CONFIG --variable=bindir Qt6Core`"
     fi

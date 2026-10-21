@@ -247,3 +247,25 @@ probes; Boost make-database inspection; six focused asset-wallet tests; Boost
 and application build remain manual. The preceding failed Linux jobs in run
 39556140920 use code before the Boost placeholder fix in 0b71fcf; new hosted
 results are required before claiming all platforms pass.
+
+
+### Windows Qt repair in progress (2026-10-21)
+
+The development machine is Linux; the priority output is the Windows Qt wallet
+and its existing asset viewer. Continue using the existing depends/Autotools build.
+The working tree now restores a Qt dependency route for
+`HOST=x86_64-w64-mingw32`, using matching Qt 6.12.0 native Linux tools and shared
+Windows libraries, with Core5Compat and its two upstream CVE-2026-101201 patches.
+Native Linux defaults to system Qt; `NO_QT=1` explicitly selects headless builds.
+Configure now requires Qt when GUI dependencies were selected, accepts a separate
+native Qt libexec directory, and GUI link flags exclude the old all-static option.
+The MinGW global C++ flags no longer force a separate static C++ runtime into the
+shared Qt wallet; headless targets retain their existing all-static link setting.
+
+Validation so far: all four dependency-selection checks (native Linux GUI,
+native headless, Windows GUI, Windows headless), `git diff --check`, and Autotools
+regeneration pass. No Qt compilation, Windows linking, executable startup or asset
+viewer runtime validation has been performed. The Windows CI still explicitly
+builds headless targets. Runtime DLL/plugin packaging and Windows GUI CI validation
+remain unfinished. These changes are committed as build infrastructure work in progress and must not
+be represented as a working Windows wallet release.

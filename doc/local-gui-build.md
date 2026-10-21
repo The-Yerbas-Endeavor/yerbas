@@ -6,8 +6,9 @@ Qt packages; it does not download or pin Qt itself. Compatibility checks use
 Ubuntu's Qt 6.10.2 development files. Upstream Qt 6.12 is the current LTS
 release; a full 6.12 build has not been validated here.
 
-The bundled Qt 5 build path is retired. `depends` requires `USE_SYSTEM_QT=1`
-for a native Linux GUI, or `NO_QT=1` for headless builds. Cross-platform GUI
+The bundled Qt 5 build path is retired. `depends` automatically selects `USE_SYSTEM_QT=1`
+for a native Linux GUI when you run plain `make`. Use `NO_QT=1` for headless builds.
+This builds the other dependencies; it does not install Qt itself. Cross-platform GUI
 release packaging is not supported by this migration. Headless CI remains enabled.
 
 ## Features and compatibility
@@ -38,7 +39,7 @@ for the independent, unprivileged BDB-only build.
 
 ```bash
 cd /home/anno/Code/yerbas
-make -C depends -j2 HOST=x86_64-pc-linux-gnu USE_SYSTEM_QT=1 NO_UPNP=1
+make -C depends -j2 NO_UPNP=1
 # Clean old objects if this checkout already has a generated Makefile.
 make clean
 ./autogen.sh
