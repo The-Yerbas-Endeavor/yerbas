@@ -165,6 +165,7 @@ BOOST_AUTO_TEST_CASE(base58_keys_valid_parse)
             BOOST_CHECK_MESSAGE(addr.IsScript() == (exp_addrType == "script"), "isScript mismatch" + strTest);
             CTxDestination dest = addr.Get();
             BOOST_CHECK_MESSAGE(boost::apply_visitor(TestAddrTypeVisitor(exp_addrType), dest), "addrType mismatch" + strTest);
+            BOOST_CHECK_MESSAGE(boost::apply_visitor(TestPayloadVisitor(exp_payload), dest), "payload mismatch: " + strTest);
 
             // Public key must be invalid private key
             secret.SetString(exp_base58string);
