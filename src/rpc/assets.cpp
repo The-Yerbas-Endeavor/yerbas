@@ -2894,6 +2894,7 @@ UniValue isvalidverifierstring(const JSONRPCRequest& request)
     return _("Valid Verifier");
 }
 
+#ifdef ENABLE_WALLET
 UniValue getsnapshot(const JSONRPCRequest& request)
 {
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 2)
@@ -2925,10 +2926,13 @@ UniValue getsnapshot(const JSONRPCRequest& request)
     std::string asset_name = request.params[0].get_str();
     int block_height = request.params[1].get_int();
 
+    CWallet* const wallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(wallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, wallet->cs_wallet);
+    auto pAssetSnapshotDb = wallet->assetSnapshots.get();
     if (!pAssetSnapshotDb)
         throw JSONRPCError(RPC_DATABASE_ERROR, std::string("Asset Snapshot database is not setup. Please restart wallet to try again"));
 
-    LOCK(cs_main);
     UniValue result (UniValue::VOBJ);
 
     CAssetSnapshotDBEntry snapshotDbEntry;
@@ -2982,13 +2986,16 @@ UniValue purgesnapshot(const JSONRPCRequest& request)
     std::string asset_name = request.params[0].get_str();
     int block_height = 0;
     if (request.params.size() > 1) {
-        block_height = request.params[2].get_int();
+        block_height = request.params[1].get_int();
     }
 
+    CWallet* const wallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(wallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, wallet->cs_wallet);
+    auto pAssetSnapshotDb = wallet->assetSnapshots.get();
     if (!pAssetSnapshotDb)
         throw JSONRPCError(RPC_DATABASE_ERROR, std::string("Asset Snapshot database is not setup. Please restart wallet to try again"));
 
-    LOCK(cs_main);
     UniValue result (UniValue::VOBJ);
 
     if (pAssetSnapshotDb->RemoveOwnershipSnapshot(asset_name, block_height)) {
@@ -3002,6 +3009,8 @@ UniValue purgesnapshot(const JSONRPCRequest& request)
 
     return NullUniValue;
 }
+
+#endif
 
 static const CRPCCommand commands[] =
 { //  category    name                          actor (function)             argNames
@@ -3045,8 +3054,12 @@ static const CRPCCommand commands[] =
     { "restricted assets",   "checkglobalrestriction",     &checkglobalrestriction,     true, {"restricted_name"}},
     { "restricted assets",   "isvalidverifierstring",      &isvalidverifierstring,      true, {"verifier_string"}},
 
+#ifdef ENABLE_WALLET
     { "assets",   "getsnapshot",                &getsnapshot,                true, {"asset_name", "block_height"}},
+#endif
+#ifdef ENABLE_WALLET
     { "assets",   "purgesnapshot",              &purgesnapshot,              true, {"asset_name", "block_height"}},
+#endif
 };
 
 void RegisterAssetRPCCommands(CRPCTable &t)

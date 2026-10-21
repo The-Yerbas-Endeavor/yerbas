@@ -110,3 +110,14 @@ Asset GUI regression coverage is registered in `src/qt/test/assetviewtests.cpp`.
 `assetdb_tests` covers empty/exact/wildcard asset filters, reverse pagination in
 mixed-key databases, extreme negative offsets, and clearing stale wallet balance
 outputs. It uses in-memory asset databases with the normal testing fixture.
+
+### Wallet asset persistence
+
+`asset_wallet_tests` exercises real wallet.dat backup/restore, wallet isolation,
+legacy asset-store migration, corruption rejection, and paused reward imports:
+
+```sh
+src/test/test_yerbas --run_test=asset_wallet_tests --log_level=test_suite
+```
+
+See `doc/wallet-asset-storage.md` for the record format and migration policy.

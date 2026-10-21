@@ -109,3 +109,11 @@ Make-variable and bootstrap failure-path checks can run on Linux, but they do
 not establish macOS compatibility. The SDK correction addresses a missing
 native-toolchain setting; a successful hosted macOS build is still required to
 confirm that it resolves the reported failure.
+
+### Boost 1.92 callback compatibility
+
+Run `39556140920`, Ubuntu 26.04 job `119076493633`, failed compiling unqualified
+Boost.Bind placeholders in validation and validationinterface. Callback sites now
+use `boost::placeholders::_1` (and corresponding arguments), including matching
+connect/disconnect expressions and the RPC/Tor callback sites. This fixes the
+reported compile errors without restoring deprecated global placeholder aliases.

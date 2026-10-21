@@ -188,6 +188,15 @@ public:
         return true;
     }
 
+    bool GetValue(CDataStream& value) {
+        leveldb::Slice raw = piter->value();
+        value = CDataStream(raw.data(), raw.data() + raw.size(), SER_DISK, CLIENT_VERSION);
+        value.Xor(dbwrapper_private::GetObfuscateKey(parent));
+        return true;
+    }
+
+    bool StatusOK() const { return piter->status().ok(); }
+
     unsigned int GetValueSize() {
         return piter->value().size();
     }

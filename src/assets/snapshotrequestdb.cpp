@@ -31,7 +31,7 @@ CSnapshotRequestDBEntry::CSnapshotRequestDBEntry(
 
 CSnapshotRequestDB::CSnapshotRequestDB(
     size_t nCacheSize, bool fMemory, bool fWipe)
-    : CDBWrapper(GetDataDir() / "rewards" / "snapshotrequest", nCacheSize, fMemory, fWipe) {
+    : CWalletAssetDB(GetDataDir() / "rewards" / "snapshotrequest", nCacheSize, fMemory, fWipe) {
 }
 
 bool CSnapshotRequestDB::ScheduleSnapshot(
@@ -131,7 +131,7 @@ bool CSnapshotRequestDB::RetrieveSnapshotRequestsForHeight(
     // Load all pending rewards
     while (pcursor->Valid()) {
         boost::this_thread::interruption_point();
-        std::pair<char, int> key;
+        std::pair<char, std::string> key;
 
         //  Only retrieve entries at the provided block height
         if (pcursor->GetKey(key) && key.first == SNAPSHOTREQUEST_FLAG) {
@@ -146,7 +146,7 @@ bool CSnapshotRequestDB::RetrieveSnapshotRequestsForHeight(
                     }
                 }
             } else {
-                LogPrint(BCLog::REWARDS, "%s: Failed to read snapshot request\n", __func__);
+                return error("%s: Failed to read snapshot request", __func__);
             }
         }
 
@@ -158,7 +158,7 @@ bool CSnapshotRequestDB::RetrieveSnapshotRequestsForHeight(
 
 CDistributeSnapshotRequestDB::CDistributeSnapshotRequestDB(
         size_t nCacheSize, bool fMemory, bool fWipe)
-        : CDBWrapper(GetDataDir() / "rewards" / "distributerequests", nCacheSize, fMemory, fWipe) {
+        : CWalletAssetDB(GetDataDir() / "rewards" / "distributerequests", nCacheSize, fMemory, fWipe) {
 }
 
 // Schedule a distribution to occur

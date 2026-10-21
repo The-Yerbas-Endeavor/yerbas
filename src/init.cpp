@@ -1897,11 +1897,11 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     pMessagesCache = new CLRUCache<std::string, CMessage>(1000);
                     pMessageSubscribedChannelsCache = new CLRUCache<std::string, int>(1000);
                     pMessagesSeenAddressCache = new CLRUCache<std::string, int>(1000);
-                    pmessagedb = new CMessageDB(nBlockTreeDBCache, false, false);
-                    pmessagechanneldb = new CMessageChannelDB(nBlockTreeDBCache, false, false);
+                    pmessagedb = nullptr; // Wallet-owned stores are opened with each wallet.
+                    pmessagechanneldb = nullptr;
 
                     // My restricted assets
-                    pmyrestricteddb = new CMyRestrictedDB(nBlockTreeDBCache, false, false);
+                    pmyrestricteddb = nullptr;
 
                     // Restricted assets
                     prestricteddb = new CRestrictedDB(nBlockTreeDBCache, false, fReset);
@@ -1912,9 +1912,9 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     passetsGlobalRestrictionCache = new CLRUCache<std::string, int8_t>(MAX_CACHE_ASSETS_SIZE);
 
                     // Rewards
-                    pSnapshotRequestDb = new CSnapshotRequestDB(nBlockTreeDBCache, false, false);
-                    pAssetSnapshotDb = new CAssetSnapshotDB(nBlockTreeDBCache, false, false);
-                    pDistributeSnapshotDb = new CDistributeSnapshotRequestDB(nBlockTreeDBCache, false, false);
+                    pSnapshotRequestDb = nullptr;
+                    pAssetSnapshotDb = nullptr;
+                    pDistributeSnapshotDb = nullptr;
 
                     // Read for fAssetIndex to make sure that we only load asset address balances if it if true
                     pblocktree->ReadFlag("assetindex", fAssetIndex);

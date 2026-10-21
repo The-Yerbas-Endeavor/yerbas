@@ -5392,7 +5392,6 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
         return nLoadWalletRet;
     fFirstRunRet = !vchDefaultKey.IsValid();
 
-    uiInterface.LoadWallet(this);
 
     return DB_LOAD_OK;
 }
@@ -6302,6 +6301,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
     int64_t nStart = GetTimeMillis();
     bool fFirstRun = true;
     std::unique_ptr<CWalletDBWrapper> dbw(new CWalletDBWrapper(&bitdb, walletFile));
+    const bool existingWalletFile = fs::exists(GetDataDir() / walletFile);
     CWallet *walletInstance = new CWallet(std::move(dbw));
     DBErrors nLoadWalletRet = walletInstance->LoadWallet(fFirstRun);
     if (nLoadWalletRet != DB_LOAD_OK)
@@ -6330,6 +6330,17 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             return nullptr;
         }
     }
+
+    try {
+        if (!InitializeWalletAssetStores(*walletInstance, existingWalletFile))
+            throw std::runtime_error("Asset record migration or initialization failed");
+    } catch (const std::exception& e) {
+        InitError(strprintf("Error loading wallet asset records: %s", e.what()));
+        delete walletInstance;
+        return nullptr;
+    }
+
+    uiInterface.LoadWallet(walletInstance);
 
     if (gArgs.GetBoolArg("-upgradewallet", fFirstRun))
     {

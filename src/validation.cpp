@@ -2640,20 +2640,18 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
     #ifdef ENABLE_WALLET
-        if (myNullAssetData.size() && pmyrestricteddb) {
-            for (auto item : myNullAssetData) {
-                if (IsAssetNameAQualifier(item.second.asset_name)) {
-                    // TODO we can add block height to this data also, and use it to pull more info on when this was tagged/untagged
-                    pmyrestricteddb->WriteTaggedAddress(item.first, item.second.asset_name, item.second.flag ? true : false, block.nTime);
-                } else if (IsAssetNameAnRestricted(item.second.asset_name)) {
-                    pmyrestricteddb->WriteRestrictedAddress(item.first, item.second.asset_name, item.second.flag ? true : false, block.nTime);
-                }
-
-
-                if (vpwallets.size())
-                    //reenable later
-                    vpwallets[0]->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
-
+        for (auto item : myNullAssetData) {
+            for (auto wallet : vpwallets) {
+                LOCK(wallet->cs_wallet);
+                if (!(IsMine(*wallet, DecodeDestination(item.first)) & ISMINE_ALL)) continue;
+                auto db = wallet->assetRestrictions.get();
+                bool written = db != nullptr;
+                if (db && IsAssetNameAQualifier(item.second.asset_name))
+                    written = db->WriteTaggedAddress(item.first, item.second.asset_name, item.second.flag != 0, block.nTime);
+                else if (db && IsAssetNameAnRestricted(item.second.asset_name))
+                    written = db->WriteRestrictedAddress(item.first, item.second.asset_name, item.second.flag != 0, block.nTime);
+                if (!written) throw std::runtime_error("Failed to save wallet restricted asset record");
+                wallet->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
             }
         }
     #endif
@@ -3013,11 +3011,11 @@ private:
 
 public:
     ConnectTrace(CTxMemPool &_pool) : blocksConnected(1), pool(_pool) {
-        pool.NotifyEntryRemoved.connect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, _1, _2));
+        pool.NotifyEntryRemoved.connect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, boost::placeholders::_1, boost::placeholders::_2));
     }
 
     ~ConnectTrace() {
-        pool.NotifyEntryRemoved.disconnect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, _1, _2));
+        pool.NotifyEntryRemoved.disconnect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, boost::placeholders::_1, boost::placeholders::_2));
     }
 
     void BlockConnected(CBlockIndex* pindex, std::shared_ptr<const CBlock> pblock) {
@@ -3144,29 +3142,18 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
 
         /** YERB START */
 
-    //  Determine if the new block height has any pending snapshot requests,
-    //      and if so, capture a snapshot of the relevant target assets.
-    if (pSnapshotRequestDb != nullptr) {
-        //  Retrieve the scheduled snapshot requests
-        std::set<CSnapshotRequestDBEntry> assetsToSnapshot;
-        if (pSnapshotRequestDb->RetrieveSnapshotRequestsForHeight("", pindexNew->nHeight, assetsToSnapshot)) {
-            //  Loop through them
-            for (auto const & assetEntry : assetsToSnapshot) {
-                //  Add a snapshot entry for the target asset ownership
-                if (!pAssetSnapshotDb->AddAssetOwnershipSnapshot(assetEntry.assetName, pindexNew->nHeight)) {
-                   LogPrint(BCLog::REWARDS, "ConnectTip: Failed to snapshot owners for '%s' at height %d!\n",
-                       assetEntry.assetName.c_str(), pindexNew->nHeight);
-                }
-            }
-        }
-        else {
-            LogPrint(BCLog::REWARDS, "ConnectTip: Failed to load payable Snapshot Requests at height %d!\n", pindexNew->nHeight);
-        }
-    }
-
 #ifdef ENABLE_WALLET
-    if (vpwallets.size()) {
-        CheckRewardDistributions(vpwallets[0]);
+    for (auto wallet : vpwallets) {
+        LOCK(wallet->cs_wallet);
+        std::set<CSnapshotRequestDBEntry> requests;
+        if (!fAssetIndex || !wallet->assetSnapshotRequests || !wallet->assetSnapshots) continue;
+        if (!wallet->assetSnapshotRequests->RetrieveSnapshotRequestsForHeight("", pindexNew->nHeight, requests))
+            throw std::runtime_error("Cannot read wallet asset snapshot schedules");
+        for (const auto& request : requests) {
+            if (!wallet->assetSnapshots->AddAssetOwnershipSnapshot(request.assetName, pindexNew->nHeight))
+                LogPrintf("Failed to capture wallet asset snapshot %s at height %d\n", request.assetName, pindexNew->nHeight);
+        }
+        CheckRewardDistributions(wallet);
     }
 #endif
     /** YERB END */

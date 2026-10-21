@@ -330,7 +330,7 @@ public:
     {
         if (!pdb || activeTxn)
             return false;
-        DbTxn* ptxn = bitdb.TxnBegin();
+        DbTxn* ptxn = env->TxnBegin();
         if (!ptxn)
             return false;
         activeTxn = ptxn;

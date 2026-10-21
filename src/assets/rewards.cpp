@@ -19,30 +19,36 @@
 #include "assetsnapshotdb.h"
 #include "wallet/wallet.h"
 
-std::map<uint256, CRewardSnapshot> mapRewardSnapshots;
+
 
 uint256 CRewardSnapshot::GetHash() const
 {
     return SerializeHash(*this, SER_GETHASH);
 }
 
-bool AddDistributeRewardSnapshot(CRewardSnapshot& p_rewardSnapshot)
+#ifdef ENABLE_WALLET
+bool AddDistributeRewardSnapshot(CWallet& wallet, CRewardSnapshot& p_rewardSnapshot)
 {
+    auto pDistributeSnapshotDb = wallet.assetDistributions.get();
+    auto& mapRewardSnapshots = wallet.rewardSnapshots;
+
     auto hash = p_rewardSnapshot.GetHash();
     CRewardSnapshot temp;
     if (pDistributeSnapshotDb->RetrieveDistributeSnapshotRequest(hash, temp)) {
         return false;
     }
 
-    if (pDistributeSnapshotDb->AddDistributeSnapshot(hash, p_rewardSnapshot)) {
-        mapRewardSnapshots[hash] = p_rewardSnapshot;
-    }
+    if (!pDistributeSnapshotDb->AddDistributeSnapshot(hash, p_rewardSnapshot)) return false;
+    mapRewardSnapshots[hash] = p_rewardSnapshot;
 
     return true;
 }
 
-bool GenerateDistributionList(const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList)
+bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList)
 {
+    auto pSnapshotRequestDb = wallet.assetSnapshotRequests.get();
+    auto pAssetSnapshotDb = wallet.assetSnapshots.get();
+
     vecDistributionList.clear();
 
     if (passets == nullptr) {
@@ -176,10 +182,12 @@ bool GenerateDistributionList(const CRewardSnapshot& p_rewardSnapshot, std::vect
     return true;
 }
 
-#ifdef ENABLE_WALLET
-
 void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewardSnapshot)
 {
+    auto pDistributeSnapshotDb = (*p_wallet).assetDistributions.get();
+    auto pAssetSnapshotDb = (*p_wallet).assetSnapshots.get();
+
+    if (p_rewardSnapshot.nStatus == CRewardSnapshot::PAUSED || p_rewardSnapshot.nStatus == CRewardSnapshot::COMPLETE) return;
     if (p_wallet->IsLocked()) {
         LogPrint(BCLog::REWARDS, "Skipping distribution: Wallet is locked!\n");
         return;
@@ -200,12 +208,12 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
 
     //  Generate payment transactions and store in the payments DB
     std::vector<OwnerAndAmount> paymentDetails;
-    if (!GenerateDistributionList(p_rewardSnapshot, paymentDetails)) {
+    if (!GenerateDistributionList(*p_wallet, p_rewardSnapshot, paymentDetails)) {
         LogPrint(BCLog::REWARDS, "Failed to generate payment details!\n");
         return;
     }
 
-    int nNumberOfTransactions = ((int)paymentDetails.size() / MAX_PAYMENTS_PER_TRANSACTION) + 1;
+    int nNumberOfTransactions = ((int)paymentDetails.size() + MAX_PAYMENTS_PER_TRANSACTION - 1) / MAX_PAYMENTS_PER_TRANSACTION;
     CRewardSnapshot copyRewardSnapshot = p_rewardSnapshot;
     for (int i = 0; i < nNumberOfTransactions; i++) {
         uint256 txid;
@@ -238,7 +246,8 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                 LogPrint(BCLog::REWARDS, "Failed to build Tx: distribute: %s, amount: %d\n", p_rewardSnapshot.strDistributionAsset, p_rewardSnapshot.nDistributionAmount);
                 return;
             }
-            pDistributeSnapshotDb->AddDistributeTransaction(p_rewardSnapshot.GetHash(), i, retTxid);
+            if (!pDistributeSnapshotDb->AddDistributeTransaction(p_rewardSnapshot.GetHash(), i, retTxid))
+                throw std::runtime_error("Cannot save reward payment transaction");
         }
     }
 }
@@ -248,6 +257,9 @@ bool BuildTransaction(
         const std::vector<OwnerAndAmount> & p_pendingPayments,const int& start,
         std::string& change_address, uint256& retTxid)
 {
+    auto pDistributeSnapshotDb = (*p_walletPtr).assetDistributions.get();
+    auto& mapRewardSnapshots = (*p_walletPtr).rewardSnapshots;
+
     int expectedCount = 0;
     int actualCount = 0;
     CValidationState state;
@@ -384,6 +396,10 @@ bool BuildTransaction(
 
 void CheckRewardDistributions(CWallet * p_wallet)
 {
+    LOCK(p_wallet->cs_wallet);
+    auto& mapRewardSnapshots = (*p_wallet).rewardSnapshots;
+
+    if (!fAssetIndex) return;
     for (auto item : mapRewardSnapshots) {
         DistributeRewardSnapshot(p_wallet, item.second);
     }

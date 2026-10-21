@@ -84,6 +84,7 @@ public:
         cacheMyAssetData.clear();
         vectAssetData.clear();
         LOCK(cs_main);
+        auto pmyrestricteddb = wallet ? wallet->assetRestrictions.get() : nullptr;
         if (!pmyrestricteddb || !wallet)
             return;
         LOCK(wallet->cs_wallet);

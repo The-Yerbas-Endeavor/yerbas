@@ -7,13 +7,46 @@
 
 #include <dbwrapper.h>
 
+class CWallet;
+
+// The LevelDB base is only an in-memory view for wallet-backed instances.
+// Legacy disk constructors are retained exclusively for migration.
+class CWalletAssetDB : public CDBWrapper {
+    CWallet* wallet = nullptr;
+    std::string section;
+    bool Persist(const CDataStream& key, const CDataStream* value);
+    bool WriteSerialized(const CDataStream& key, const CDataStream* value, bool sync);
+public:
+    using CDBWrapper::CDBWrapper;
+#ifdef ENABLE_WALLET
+    CWalletAssetDB(CWallet& wallet, const std::string& section);
+#endif
+    template<typename K, typename V> bool Write(const K& key, const V& value, bool sync = false) {
+        CDataStream k(SER_DISK, CLIENT_VERSION), v(SER_DISK, CLIENT_VERSION);
+        k << key; v << value;
+        return WriteSerialized(k, &v, sync);
+    }
+    template<typename K> bool Erase(const K& key, bool sync = false) {
+        CDataStream k(SER_DISK, CLIENT_VERSION); k << key;
+        return WriteSerialized(k, nullptr, sync);
+    }
+};
+
+#ifdef ENABLE_WALLET
+bool InitializeWalletAssetStores(CWallet& wallet, bool migrateLegacy);
+bool ValidateWalletAssetRecord(const std::pair<std::string, std::vector<unsigned char>>& key, const std::vector<unsigned char>& value);
+#endif
+
 class CMessage;
 class COutPoint;
 
-class CMessageDB  : public CDBWrapper {
+class CMessageDB  : public CWalletAssetDB {
 
 public:
     explicit CMessageDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+#ifdef ENABLE_WALLET
+    explicit CMessageDB(CWallet& wallet);
+#endif
 
     CMessageDB(const CMessageDB&) = delete;
     CMessageDB& operator=(const CMessageDB&) = delete;
@@ -32,9 +65,12 @@ public:
     bool Flush();
 };
 
-class CMessageChannelDB  : public CDBWrapper {
+class CMessageChannelDB  : public CWalletAssetDB {
 public:
     explicit CMessageChannelDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+#ifdef ENABLE_WALLET
+    explicit CMessageChannelDB(CWallet& wallet);
+#endif
 
     CMessageChannelDB(const CMessageChannelDB&) = delete;
     CMessageChannelDB& operator=(const CMessageChannelDB&) = delete;
@@ -56,9 +92,12 @@ public:
     bool Flush();
 };
 
-class CMyRestrictedDB : public CDBWrapper {
+class CMyRestrictedDB : public CWalletAssetDB {
 public:
     explicit CMyRestrictedDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+#ifdef ENABLE_WALLET
+    explicit CMyRestrictedDB(CWallet& wallet);
+#endif
 
     CMyRestrictedDB(const CMyRestrictedDB&) = delete;
     CMyRestrictedDB& operator=(const CMyRestrictedDB&) = delete;

@@ -269,6 +269,15 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssKey >> strAddress;
             ssValue >> pwallet->mapAddressBook[CBitcoinAddress(strAddress).Get()].purpose;
         }
+        else if (strType == "assetrecord")
+        {
+            std::pair<std::string, std::vector<unsigned char>> key;
+            std::vector<unsigned char> value;
+            ssKey >> key;
+            ssValue >> value;
+            if (!ssKey.empty() || !ssValue.empty() || !ValidateWalletAssetRecord(key, value)) return false;
+            pwallet->walletAssetRecords.emplace(std::move(key), std::move(value));
+        }
         else if (strType == "tx")
         {
             uint256 hash;
@@ -598,7 +607,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
             {
                 // losing keys is considered a catastrophic error, anything else
                 // we assume the user can live with:
-                if (IsKeyType(strType))
+                if (IsKeyType(strType) || strType == "assetrecord")
                     result = DB_CORRUPT;
                 else
                 {

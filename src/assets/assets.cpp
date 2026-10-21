@@ -4916,9 +4916,13 @@ bool ContextualCheckNullAssetTxOut(const CTxOut& txout, CAssetsCache* assetCache
     }
 
 #ifdef ENABLE_WALLET
-    if (myNullAssetData && vpwallets.size()) {
-        if (IsMine(*vpwallets[0], DecodeDestination(address)) & ISMINE_ALL) {
-            myNullAssetData->emplace_back(std::make_pair(address, data));
+    if (myNullAssetData) {
+        for (auto wallet : vpwallets) {
+            LOCK(wallet->cs_wallet);
+            if (IsMine(*wallet, DecodeDestination(address)) & ISMINE_ALL) {
+                myNullAssetData->emplace_back(address, data);
+                break;
+            }
         }
     }
 #endif

@@ -241,20 +241,22 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint2
 #ifdef ENABLE_WALLET
                         if (fMessaging && pMessageSubscribedChannelsCache) {
                             LOCK(cs_messaging);
-                            if (vpwallets.size() && vpwallets[0]->IsMine(tx.vout[i]) == ISMINE_SPENDABLE) {
+                            for (auto wallet : vpwallets) {
+                                LOCK(wallet->cs_wallet);
+                                if (wallet->IsMine(tx.vout[i]) != ISMINE_SPENDABLE) continue;
                                 AssetType aType;
                                 IsAssetNameValid(assetTransfer.strName, aType);
 
                                 if (aType == AssetType::ROOT || aType == AssetType::SUB) {
-                                    if (!IsChannelSubscribed(GetParentName(assetTransfer.strName) + OWNER_TAG)) {
-                                        if (!IsAddressSeen(address)) {
-                                            AddChannel(GetParentName(assetTransfer.strName) + OWNER_TAG);
-                                            AddAddressSeen(address);
+                                    if (!IsChannelSubscribed(*wallet, GetParentName(assetTransfer.strName) + OWNER_TAG)) {
+                                        if (!IsAddressSeen(*wallet, address)) {
+                                            AddChannel(*wallet, GetParentName(assetTransfer.strName) + OWNER_TAG);
+                                            AddAddressSeen(*wallet, address);
                                         }
                                     }
                                 } else if (aType == AssetType::OWNER || aType == AssetType::MSGCHANNEL) {
-                                    AddChannel(assetTransfer.strName);
-                                    AddAddressSeen(address);
+                                    AddChannel(*wallet, assetTransfer.strName);
+                                    AddAddressSeen(*wallet, address);
                                 }
                             }
                         }
@@ -264,21 +266,22 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction &tx, int nHeight, uint2
 #ifdef ENABLE_WALLET
                         if (fMessaging && pMessageSubscribedChannelsCache) {
                             LOCK(cs_messaging);
-                            if (vpwallets.size()) {
+                            for (auto wallet : vpwallets) {
+                                LOCK(wallet->cs_wallet);
                                 AssetType aType;
                                 IsAssetNameValid(assetData.assetName, aType);
-                                if (vpwallets[0]->IsMine(tx.vout[i]) == ISMINE_SPENDABLE) {
+                                if (wallet->IsMine(tx.vout[i]) == ISMINE_SPENDABLE) {
                                     if (aType == AssetType::ROOT || aType == AssetType::SUB) {
-                                        AddChannel(assetData.assetName + OWNER_TAG);
-                                        AddAddressSeen(EncodeDestination(assetData.destination));
+                                        AddChannel(*wallet, assetData.assetName + OWNER_TAG);
+                                        AddAddressSeen(*wallet, EncodeDestination(assetData.destination));
                                     } else if (aType == AssetType::OWNER || aType == AssetType::MSGCHANNEL) {
-                                        AddChannel(assetData.assetName);
-                                        AddAddressSeen(EncodeDestination(assetData.destination));
+                                        AddChannel(*wallet, assetData.assetName);
+                                        AddAddressSeen(*wallet, EncodeDestination(assetData.destination));
                                     }
                                 } else {
                                     if (aType == AssetType::MSGCHANNEL) {
-                                        if (IsChannelSubscribed(GetParentName(assetData.assetName) + OWNER_TAG)) {
-                                            AddChannel(assetData.assetName);
+                                        if (IsChannelSubscribed(*wallet, GetParentName(assetData.assetName) + OWNER_TAG)) {
+                                            AddChannel(*wallet, assetData.assetName);
                                         }
                                     }
                                 }
