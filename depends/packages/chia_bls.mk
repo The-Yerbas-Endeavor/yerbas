@@ -5,16 +5,18 @@ $(package)_download_path=https://github.com/The-Yerbas-Endeavor/bls-signatures/r
 $(package)_file_name=$($(package)_version).tar.gz
 $(package)_sha256_hash=b3776ec5e32c26397480b43fb0d35e153976118e116ec79056d09c11d61ebb39
 $(package)_dependencies=gmp native_cmake
-#$(package)_patches=...TODO (when we switch back to https://github.com/Chia-Network/bls-signatures)
+$(package)_patches=relic-symbol-namespace.patch
 
-#define $(package)_preprocess_cmds
-#  for i in $($(package)_patches); do patch -N -p1 < $($(package)_patch_dir)/$$$$i; done
-#endef
+define $(package)_preprocess_cmds
+  patch -p1 < $($(package)_patch_dir)/relic-symbol-namespace.patch
+endef
 
 define $(package)_set_vars
   $(package)_config_opts=-DCMAKE_INSTALL_PREFIX=$($(package)_staging_dir)/$(host_prefix)
   $(package)_config_opts+= -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   $(package)_config_opts+= -DCMAKE_PREFIX_PATH=$($(package)_staging_dir)/$(host_prefix)
+  # Namespace RELIC symbols (including bn_init) away from OpenSSL.
+  $(package)_config_opts+= -DLABEL=yerbas_bls
   $(package)_config_opts+= -DSTLIB=ON -DSHLIB=OFF -DSTBIN=ON
   $(package)_config_opts_linux=-DOPSYS=LINUX -DCMAKE_SYSTEM_NAME=Linux
   $(package)_config_opts_darwin=-DOPSYS=MACOSX -DCMAKE_SYSTEM_NAME=Darwin

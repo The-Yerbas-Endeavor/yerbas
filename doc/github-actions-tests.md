@@ -141,3 +141,24 @@ searching the input, retaining a writable pointer for its allocated output. This
 fixes GCC's discarded-qualifier warnings without casts or warning suppression.
 The patched Linux static library rebuilt without warnings using `-Wall -Wextra
 -Werror=discarded-qualifiers`. No full application rebuild was run for this fix.
+
+## OpenSSL / RELIC symbol collision: 2026-10-21
+
+Static linking with OpenSSL 3.5 exposed duplicate `bn_init` definitions in
+libcrypto and the pinned Chia BLS fork's RELIC implementation. Depends now enables
+RELIC's existing `LABEL=yerbas_bls` symbol namespace. The fork's archive/test target
+references follow the labeled RELIC target, and its own generated/source headers
+take precedence over older installed headers. Cryptographic algorithms, parameters
+and serialized formats are unchanged. Configure now links an OpenSSL BIGNUM call
+and BLS key generation together to catch this conflict early.
+
+Validation: reproduced the collision with the old archive; rebuilt only the BLS
+archive; successfully linked and ran it with pinned OpenSSL/GMP; verified OpenSSL
+BIGNUM arithmetic and a BLS signature; confirmed that the serialized signature
+exactly matches the original archive for the same seed/message. `nm` confirms
+`yerbas_bls_bn_init` replaces the unprefixed RELIC symbol. Autotools regeneration
+and whitespace checks pass. A full application/platform rebuild remains pending.
+
+Rebuild depends first so both the BLS archive and installed RELIC headers are
+updated. Then regenerate configure and recheck the existing configuration before
+resuming make. Do not mix old BLS objects/headers with the namespaced library.

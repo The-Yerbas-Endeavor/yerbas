@@ -1218,11 +1218,20 @@ AS_IF([test -z "$BLS_LIBS"], [BLS_LIBS="-lchiabls -lgmp"])
 AC_CHECK_HEADER([chiabls/bls.hpp], [],
   [AC_MSG_ERROR([Compatible chiabls headers not found. Build depends and use its config.site, or set CPPFLAGS to its include directory.])])
 save_LIBS="$LIBS"
-LIBS="$BLS_LIBS $PTHREAD_LIBS $LIBS"
-AC_MSG_CHECKING([whether the compatible Chia BLS and GMP libraries link])
-AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <chiabls/bls.hpp>]], [[return bls::BLS::Init() ? 0 : 1;]])],
+LIBS="$CRYPTO_LIBS $BLS_LIBS $PTHREAD_LIBS $LIBS"
+AC_MSG_CHECKING([whether Chia BLS, GMP and OpenSSL link together])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <openssl/bn.h>
+#include <chiabls/bls.hpp>
+]], [[
+  BIGNUM* n = BN_new();
+  BN_free(n);
+  const uint8_t seed[] = {1, 2, 3, 4};
+  if (!bls::BLS::Init()) return 1;
+  bls::PrivateKey::FromSeed(seed, sizeof(seed));
+]])],
   [AC_MSG_RESULT([yes])],
-  [AC_MSG_RESULT([no]); AC_MSG_ERROR([Cannot link Chia BLS/GMP. Use the pinned depends libraries and set LDFLAGS/BLS_LIBS as needed.])])
+  [AC_MSG_RESULT([no]); AC_MSG_ERROR([Cannot link Chia BLS/GMP with OpenSSL. Rebuild the pinned depends BLS library with RELIC symbol namespacing; check LDFLAGS/BLS_LIBS.])])
 LIBS="$save_LIBS"
 AC_SUBST([BLS_LIBS])
 
