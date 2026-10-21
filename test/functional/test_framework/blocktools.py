@@ -37,6 +37,24 @@ def serialize_script_num(value):
         r[-1] |= 0x80
     return r
 
+def get_block_subsidy(height):
+    """Yerbas subsidy in base units for a new block at height (not prev height)."""
+    previous_height = height - 1
+    if previous_height < 420:
+        return 420000000
+    if previous_height <= 1000000:
+        return 100 * COIN
+    if previous_height < 2000000:
+        return 80 * COIN
+    rewards = (7000000000, 5000000000, 4000000000, 2000000000,
+               1000000000, 900000000, 800000000, 700000000,
+               600000000, 500000000, 420000000, 300000000,
+               200000000, 100000000)
+    if previous_height < 16000000:
+        return rewards[previous_height // 1000000 - 2]
+    return 42000000
+
+
 # Create a coinbase transaction, assuming no miner fees.
 # If pubkey is passed in, the coinbase output will be a P2PK output;
 # otherwise an anyone-can-spend output.
@@ -45,9 +63,7 @@ def create_coinbase(height, pubkey = None, dip4_activated=False):
     coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff),
                 ser_string(serialize_script_num(height)), 0xffffffff))
     coinbaseoutput = CTxOut()
-    coinbaseoutput.nValue = 500 * COIN
-    halvings = int(height/150) # regtest
-    coinbaseoutput.nValue >>= halvings
+    coinbaseoutput.nValue = get_block_subsidy(height)
     if (pubkey != None):
         coinbaseoutput.scriptPubKey = CScript([pubkey, OP_CHECKSIG])
     else:

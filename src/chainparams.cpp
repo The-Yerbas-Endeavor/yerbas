@@ -936,8 +936,11 @@ public:
         // Regtest Yerbas BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 1;
 
-        // long living quorum params
-        consensus.llmqs[Consensus::LLMQ_5_60] = llmq3_60;
+        // Keep the small regtest quorum's serialized type consistent with its
+        // map key. Do not mutate llmq3_60: mainnet/testnet use it as LLMQ_50_60.
+        auto regtestQuorum = llmq3_60;
+        regtestQuorum.type = Consensus::LLMQ_5_60;
+        consensus.llmqs[Consensus::LLMQ_5_60] = regtestQuorum;
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
         consensus.llmqTypeChainLocks = Consensus::LLMQ_5_60;
         consensus.llmqTypeInstantSend = Consensus::LLMQ_5_60;

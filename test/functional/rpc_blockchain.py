@@ -64,12 +64,36 @@ class BlockchainTest(BitcoinTestFramework):
         self._test_getblockchaininfo()
         self._test_getchaintxstats()
         self._test_gettxoutsetinfo()
+        self._test_getrichlist()
         self._test_getblockheader()
         self._test_getdifficulty()
         self._test_getnetworkhashps()
         self._test_stopatheight()
         self._test_waitforblockheight()
         assert self.nodes[0].verifychain(4, 0)
+
+    def _test_getrichlist(self):
+        self.log.info("Test confirmed UTXO rich list, including immature rewards")
+        node = self.nodes[0]
+        snapshot = node.getrichlist(1000)
+        stats = node.gettxoutsetinfo()
+        assert_equal(snapshot['height'], stats['height'])
+        assert_equal(snapshot['bestblock'], stats['bestblock'])
+        assert_equal(snapshot['txouts'], stats['txouts'])
+        assert_equal(int(snapshot['totalSatoshis']), int(stats['total_amount'] * Decimal(100000000)))
+        assert_equal(sum(int(item['balanceSatoshis']) for item in snapshot['items'])
+                     + int(snapshot['unattributedSatoshis']), int(snapshot['totalSatoshis']))
+        ordered = sorted(snapshot['items'], key=lambda item: (-int(item['balanceSatoshis']), item['address']))
+        assert_equal(snapshot['items'], ordered)
+        assert_equal(node.getrichlist()['items'], snapshot['items'][:100])
+        assert_equal(node.getrichlist(1)['items'], snapshot['items'][:1])
+        for count in [0, -1, 1001]:
+            assert_raises_rpc_error(-8, "count must be", node.getrichlist, count)
+        tip = node.getbestblockhash()
+        node.invalidateblock(tip)
+        assert_equal(node.getrichlist(1)['height'], snapshot['height'] - 1)
+        node.reconsiderblock(tip)
+        assert_equal(node.getrichlist(1000), snapshot)
 
     def _test_getblockchaininfo(self):
         self.log.info("Test getblockchaininfo")
