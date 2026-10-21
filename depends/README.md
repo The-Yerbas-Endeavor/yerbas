@@ -1,3 +1,6 @@
+For a BDB-only build without sudo or Qt, run `sh contrib/build-bdb.sh` from
+the repository root. See [local Berkeley DB instructions](../doc/berkeley-db-local.md).
+
 For a native Linux GUI using installed Qt 6.8 or newer, see
 [the local GUI build instructions](../doc/local-gui-build.md). Select it with
 `USE_SYSTEM_QT=1`; the bundled Qt 5 path is retired. Headless builds require `NO_QT=1`.

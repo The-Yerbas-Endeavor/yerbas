@@ -29,11 +29,14 @@ regression test now uses a deterministic Qt random generator.
 
 ## Manual build
 
-Install Qt 6 development packages and tools (requires a distribution offering
-Qt >= 6.8), plus the normal compiler, Autotools, pkg-config, Perl and Python:
+Provide Qt 6.8+ development libraries and tools (Core, Gui, Widgets, Network,
+Core5Compat, Test and Linguist), plus a compiler, Autotools, pkg-config, Perl and
+Python. An existing system installation or a user-owned Qt SDK can be used; for
+a local SDK, put its pkg-config directory on PKG_CONFIG_PATH. Berkeley DB does
+not require system installation: see [berkeley-db-local.md](berkeley-db-local.md)
+for the independent, unprivileged BDB-only build.
 
 ```bash
-sudo apt install qt6-base-dev qt6-base-dev-tools qt6-tools-dev-tools qt6-l10n-tools qt6-5compat-dev
 cd /home/anno/Code/yerbas
 make -C depends -j2 HOST=x86_64-pc-linux-gnu USE_SYSTEM_QT=1 NO_UPNP=1
 # Clean old objects if this checkout already has a generated Makefile.
