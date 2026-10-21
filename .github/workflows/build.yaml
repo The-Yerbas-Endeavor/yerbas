@@ -1,1564 +1,245 @@
-# This workflow has been split from the old monolithic Yerbas build.
-
-name: Yerbas Build
+name: Yerbas Build and Tests
 
 on:
   push:
-    branches:
-      - v3.1*
-      - 3.1*
-      - 3.2*
-      - dev
-      - Codex
-    tags:
-      - v*
+    branches: [dev, main]
+    tags: ['v*']
   pull_request:
-    branches:
-      - dev
-      - Codex
   workflow_dispatch:
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  COIN_NAME: yerbas
-  BUILD_DIR: yerbas-build
-  COMPRESS_DIR: yerbas-compress
-  TEST_DIR: yerbas-test
-  FALLBACK_DOWNLOAD_PATH: https://bitcoincore.org/depends-sources
 
 permissions:
   contents: read
-  checks: write
-  id-token: write
+
+concurrency:
+  group: yerbas-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_JOBS: '2'
+  FALLBACK_DOWNLOAD_PATH: https://bitcoincore.org/depends-sources
 
 jobs:
-  get-version:
-    name: Get Version
-    runs-on: ubuntu-latest
-
-    outputs:
-      version: ${{ steps.selected-version.outputs.version }}
-
-    steps:
-      - name: Triggered By
-        run: |
-          echo "checking out $GITHUB_REF triggered by $GITHUB_EVENT_NAME"
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Generate Version Logic
-        id: selected-version
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          VERSION=$(grep '^release-version=' build.properties | cut -d'=' -f2)
-
-          if [ -z "$VERSION" ]; then
-            echo "release-version was not found in build.properties"
-            exit 1
-          fi
-
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "BUILD_VERSION=$VERSION" > version.txt
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: version
-          path: version.txt
-
-  build-ubuntu26-x86:
-    name: Ubuntu 26 x86 Build
-    needs: get-version
-    runs-on: ubuntu-26.04
+  build:
+    name: ${{ matrix.platform.name }} Build
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Ubuntu 22
+            id: ubuntu22
+            runner: ubuntu-22.04
+            host: x86_64-pc-linux-gnu
+            extension: ''
+          - name: Ubuntu 24
+            id: ubuntu24
+            runner: ubuntu-24.04
+            host: x86_64-pc-linux-gnu
+            extension: ''
+          - name: Ubuntu 26
+            id: ubuntu26
+            runner: ubuntu-26.04
+            host: x86_64-pc-linux-gnu
+            extension: ''
+          - name: Ubuntu 24 ARM64
+            id: ubuntu24-arm64
+            runner: ubuntu-24.04-arm
+            host: aarch64-linux-gnu
+            extension: ''
+          - name: macOS 15 Intel
+            id: macos15-intel
+            runner: macos-15-intel
+            host: x86_64-apple-darwin24
+            extension: ''
+          - name: Windows 64-bit
+            id: win64
+            runner: ubuntu-22.04
+            host: x86_64-w64-mingw32
+            extension: .exe
     env:
-      ARCH_TYPE: x86
-      OS: ubuntu-26.04
-      HOST_TRIPLE: x86_64-pc-linux-gnu
-      CONFIGURE_HOST: ""
-
+      HOST_TRIPLE: ${{ matrix.platform.host }}
+      BINARY_EXTENSION: ${{ matrix.platform.extension }}
+      PLATFORM_ID: ${{ matrix.platform.id }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-tests --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-tests --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_debug" "${BUILD_DIR}_not_strip"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            rm -rf temp
-            mkdir -p "temp/${BUILD_DIR}"
-
-            cp "$dir"/* "temp/${BUILD_DIR}/"
-
-            pushd "temp/${BUILD_DIR}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${BUILD_DIR}"
-          done
-
-          mv ./*.tar.gz "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.tar.gz; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
+          persist-credentials: false
 
-  build-ubuntu24-x86:
-    name: Ubuntu 24 x86 Build
-    needs: get-version
-    runs-on: ubuntu-24.04
-    env:
-      ARCH_TYPE: x86
-      OS: ubuntu-24.04
-      HOST_TRIPLE: x86_64-pc-linux-gnu
-      CONFIGURE_HOST: ""
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libtool \
+            autotools-dev pkg-config curl ca-certificates python3 bsdextrautils cmake zip
+          if [[ "$HOST_TRIPLE" == x86_64-w64-mingw32 ]]; then
+            sudo apt-get install -y g++-mingw-w64-x86-64
+            sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+            sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+          fi
 
+      - name: Install macOS build tools
+        if: runner.os == 'macOS'
+        run: |
+          brew install autoconf automake libtool pkg-config cmake coreutils gnu-sed make
+          for formula in coreutils gnu-sed make; do
+            echo "$(brew --prefix "$formula")/libexec/gnubin" >> "$GITHUB_PATH"
+          done
+
+      - name: Cache dependency sources and packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            depends/sources
+            depends/built
+          key: depends-${{ matrix.platform.id }}-${{ hashFiles('depends/Makefile', 'depends/**/*.mk', 'depends/patches/**', 'depends/config.site.in') }}
+          restore-keys: |
+            depends-${{ matrix.platform.id }}-
+
+      - name: Build pinned dependencies
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          extra_args=()
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            extra_args+=(OSX_MIN_VERSION=11.0)
+          fi
+          make -C depends -j"$BUILD_JOBS" HOST="$HOST_TRIPLE" NO_QT=1 NO_UPNP=1 "${extra_args[@]}" \
+            2>&1 | tee ci-logs/depends.log
+
+      - name: Configure with wallet and tests enabled
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            export CXXFLAGS="-O2 -g1 -Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
+          fi
+          ./autogen.sh 2>&1 | tee ci-logs/autogen.log
+          ./configure --prefix="$PWD/depends/$HOST_TRIPLE" \
+            --without-gui --without-miniupnpc --disable-bench --enable-wallet --enable-tests \
+            2>&1 | tee ci-logs/configure.log
+
+      - name: Build binaries and unit tests
+        run: |
+          set -euo pipefail
+          make -j"$BUILD_JOBS" 2>&1 | tee ci-logs/build.log
+
+      - name: Collect binaries and checksums
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts package/bin test-binaries
+          for name in yerbasd yerbas-cli; do
+            install -m755 "src/${name}${BINARY_EXTENSION}" package/bin/
+          done
+          install -m755 "src/test/test_yerbas${BINARY_EXTENSION}" test-binaries/
+          {
+            echo "commit=$GITHUB_SHA"
+            cat build.properties
+            echo "host=$HOST_TRIPLE"
+          } > package/build-info.txt
+          (
+            cd package
+            sha256sum bin/* build-info.txt > SHA256SUMS
+          )
+          archive="yerbas-${PLATFORM_ID}-${GITHUB_SHA}"
+          if [[ "$BINARY_EXTENSION" == .exe ]]; then
+            (cd package && zip -r "../artifacts/$archive.zip" .)
+          else
+            tar -czf "artifacts/$archive.tar.gz" -C package .
+          fi
+          (cd artifacts && sha256sum yerbas-* > SHA256SUMS)
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yerbas-${{ matrix.platform.id }}-binaries
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test executable
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yerbas-${{ matrix.platform.id }}-test-executable
+          path: test-binaries/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yerbas-${{ matrix.platform.id }}-build-logs
+          path: |
+            ci-logs/
+            config.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  test:
+    name: ${{ matrix.platform.name }} Tests
+    needs: build
+    # Still test artifacts from successful platforms if another build fails.
+    if: ${{ !cancelled() }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Ubuntu 22
+            id: ubuntu22
+            runner: ubuntu-22.04
+            binary: test_yerbas
+          - name: Ubuntu 24
+            id: ubuntu24
+            runner: ubuntu-24.04
+            binary: test_yerbas
+          - name: Ubuntu 26
+            id: ubuntu26
+            runner: ubuntu-26.04
+            binary: test_yerbas
+          - name: Ubuntu 24 ARM64
+            id: ubuntu24-arm64
+            runner: ubuntu-24.04-arm
+            binary: test_yerbas
+          - name: macOS 15 Intel
+            id: macos15-intel
+            runner: macos-15-intel
+            binary: test_yerbas
+          - name: Windows 64-bit
+            id: win64
+            runner: windows-2022
+            binary: test_yerbas.exe
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-tests --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-tests --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_debug" "${BUILD_DIR}_not_strip"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            if [ "$suffix" = "release" ]; then
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-            else
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
-            fi
-
-            rm -rf temp
-            mkdir -p "temp/${package_dir}"
-
-            cp "$dir"/* "temp/${package_dir}/"
-
-            pushd "temp/${package_dir}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
-          done
-
-          mv ./*.tar.gz "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.tar.gz; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+      - name: Checkout test runner
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
+          persist-credentials: false
 
-  build-ubuntu22-x86:
-    name: Ubuntu 22 x86 Build
-    needs: get-version
-    runs-on: ubuntu-22.04
-    env:
-      ARCH_TYPE: x86
-      OS: ubuntu-22.04
-      HOST_TRIPLE: x86_64-pc-linux-gnu
-      CONFIGURE_HOST: ""
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_debug" "${BUILD_DIR}_not_strip"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            if [ "$suffix" = "release" ]; then
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-            else
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
-            fi
-
-            rm -rf temp
-            mkdir -p "temp/${package_dir}"
-
-            cp "$dir"/* "temp/${package_dir}/"
-
-            pushd "temp/${package_dir}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
-          done
-
-          mv ./*.tar.gz "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.tar.gz; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+      - name: Download test executable
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
+          name: yerbas-${{ matrix.platform.id }}-test-executable
+          path: test-binaries
 
-  build-win64:
-    name: Win64 x86 Build
-    needs: get-version
-    runs-on: ubuntu-22.04
-    env:
-      ARCH_TYPE: x86
-      OS: win64
-      HOST_TRIPLE: x86_64-w64-mingw32
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
+      - name: Restore executable permission
+        if: runner.os != 'Windows'
         shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake zip
-          sudo apt-get install -y g++-mingw-w64-x86-64 gcc-mingw-w64-x86-64 nsis
-          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
-          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+        run: chmod +x test-binaries/test_yerbas
 
-      - name: Build Depends
+      - name: Run every enabled unit suite
         shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
+        run: python ci/run-unit-tests.py "test-binaries/${{ matrix.platform.binary }}" --output test-results --timeout 180
 
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli.exe src/yerbasd.exe src/yerbas-tx.exe src/qt/yerbas-qt.exe; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas Windows binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli.exe src/yerbasd.exe src/yerbas-tx.exe src/qt/yerbas-qt.exe; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas Windows debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_not_strip" "${BUILD_DIR}_debug"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            if [ "$suffix" = "release" ]; then
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-            else
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
-            fi
-
-            rm -rf temp
-            mkdir -p "temp/${package_dir}"
-
-            cp "$dir"/* "temp/${package_dir}/"
-
-            pushd "temp/${package_dir}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            pushd temp
-            /usr/bin/zip -r -9 "../${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.zip" "${package_dir}"
-            popd
-          done
-
-          mv ./*.zip "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.zip; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+      - name: Upload test reports and logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
-
-      - name: Upload Installer Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-setup-${{ needs.get-version.outputs.version }}
-          path: release
-          if-no-files-found: ignore
-
-  build-ubuntu22-arm64:
-    name: Ubuntu 22 ARM64 Build
-    needs: get-version
-    runs-on: ubuntu-22.04
-    env:
-      ARCH_TYPE: arm64
-      OS: ubuntu-22.04
-      HOST_TRIPLE: aarch64-linux-gnu
-      CONFIGURE_HOST: --host=aarch64-linux-gnu
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake g++-aarch64-linux-gnu
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_debug" "${BUILD_DIR}_not_strip"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            if [ "$suffix" = "release" ]; then
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-            else
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
-            fi
-
-            rm -rf temp
-            mkdir -p "temp/${package_dir}"
-
-            cp "$dir"/* "temp/${package_dir}/"
-
-            pushd "temp/${package_dir}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
-          done
-
-          mv ./*.tar.gz "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.tar.gz; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
-
-  build-ubuntu24-arm64:
-    name: Ubuntu 24 ARM64 Build
-    needs: get-version
-    runs-on: ubuntu-24.04
-    env:
-      ARCH_TYPE: arm64
-      OS: ubuntu-24.04
-      HOST_TRIPLE: aarch64-linux-gnu
-      CONFIGURE_HOST: --host=aarch64-linux-gnu
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake g++-aarch64-linux-gnu
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_debug" "${BUILD_DIR}_not_strip"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            if [ "$suffix" = "release" ]; then
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-            else
-              package_dir="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-${suffix}"
-            fi
-
-            rm -rf temp
-            mkdir -p "temp/${package_dir}"
-
-            cp "$dir"/* "temp/${package_dir}/"
-
-            pushd "temp/${package_dir}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${package_dir}"
-          done
-
-          mv ./*.tar.gz "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.tar.gz; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
-
-  build-ubuntu26-arm64:
-    name: Ubuntu 26 ARM64 Build
-    needs: get-version
-    runs-on: ubuntu-26.04
-    env:
-      ARCH_TYPE: arm64
-      OS: ubuntu-26.04
-      HOST_TRIPLE: aarch64-linux-gnu
-      CONFIGURE_HOST: --host=aarch64-linux-gnu
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y curl build-essential libtool autotools-dev automake pkg-config python3 bsdmainutils cmake g++-aarch64-linux-gnu
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "building with $(nproc) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(nproc) HOST=${HOST_TRIPLE}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          strip "${BUILD_DIR}"/* || true
-
-      - name: Build Debug Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make clean || true
-          make distclean || true
-          ./autogen.sh
-          ./configure --prefix=$(pwd)/depends/${HOST_TRIPLE} ${CONFIGURE_HOST} --disable-bench --enable-debug
-          make -j$(nproc)
-
-          mkdir -p "${BUILD_DIR}_debug"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}_debug/"
-              found=1
-            else
-              echo "Optional debug binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas debug binaries were found to package."
-            exit 1
-          fi
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${COMPRESS_DIR}"
-
-          for dir in "${BUILD_DIR}" "${BUILD_DIR}_debug" "${BUILD_DIR}_not_strip"; do
-            case "$dir" in
-              *_debug) suffix="debug" ;;
-              *_not_strip) suffix="notstrip" ;;
-              *) suffix="release" ;;
-            esac
-
-            rm -rf temp
-            mkdir -p "temp/${BUILD_DIR}"
-
-            cp "$dir"/* "temp/${BUILD_DIR}/"
-
-            pushd "temp/${BUILD_DIR}"
-            {
-              echo "sha256:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                shasum -a 256 "$f"
-              done
-              echo "------------------------------------"
-              echo "sha256sum:"
-              echo "------------------------------------"
-              for f in *; do
-                [ "$f" = "checksums.txt" ] && continue
-                sha256sum "$f"
-              done
-            } > checksums.txt
-            cat checksums.txt
-            popd
-
-            tar -czf "${COIN_NAME}-${OS}-${ARCH_TYPE}-${suffix}-${{ needs.get-version.outputs.version }}.tar.gz" -C temp "${BUILD_DIR}"
-          done
-
-          mv ./*.tar.gz "${COMPRESS_DIR}/"
-
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.tar.gz; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "sha256sum: $(sha256sum "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.OS }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
-
-  build-macos-13-x86:
-    name: macOS 13 x86 Build
-    needs: get-version
-    runs-on: macos-15-intel
-    env:
-      MACOS_LABEL: macOS13
-      ARCH_TYPE: x86
-      OSX_HOST: x86_64-apple-darwin22
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          for pkg in automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python; do
-            if ! brew list --versions "$pkg" >/dev/null 2>&1; then
-              echo "Installing $pkg..."
-              brew install "$pkg"
-            else
-              echo "$pkg already installed, skipping."
-            fi
-          done
-
-          python3 -m venv .venv
-          source .venv/bin/activate
-          python -m pip install -U pip setuptools
-          python -m pip install ds_store mac_alias
-          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          clang++ --version
-          xcodebuild -version
-          sw_vers
-          echo "building with $(sysctl -n hw.ncpu) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(sysctl -n hw.ncpu) HOST=${OSX_HOST}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure \
-            CXXFLAGS="-Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION" \
-            --prefix=$(pwd)/depends/${OSX_HOST} \
-            --disable-bench || {
-              echo "===== config.log boost/thread lines ====="
-              grep -n -i "boost\|thread\|sleep\|chrono\|unary_function\|enum-constexpr" config.log || true
-              exit 1
-            }
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(sysctl -n hw.ncpu)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          for f in "${BUILD_DIR}"/*; do
-            if [ -f "$f" ]; then
-              xcrun strip -x "$f" || true
-            fi
-          done
-
-          ls -l "${BUILD_DIR}"
-          ls -l "${BUILD_DIR}_not_strip"
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-    
-          PACKAGE_DIR="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-          PACKAGE_NOTSTRIP_DIR="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-notstrip"
-    
-          pushd "${BUILD_DIR}"
-          {
-            echo "sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              shasum -a 256 "$f"
-            done
-            echo "openssl-sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              openssl sha256 "$f"
-            done
-          } > checksums.txt
-          popd
-    
-          rm -rf "${PACKAGE_DIR}"
-          cp -R "${BUILD_DIR}" "${PACKAGE_DIR}"
-          /usr/bin/zip -r -9 "${COIN_NAME}-${MACOS_LABEL}-${ARCH_TYPE}-release-${{ needs.get-version.outputs.version }}.zip" "${PACKAGE_DIR}"
-          rm -rf "${PACKAGE_DIR}"
-    
-          pushd "${BUILD_DIR}_not_strip"
-          {
-            echo "sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              shasum -a 256 "$f"
-            done
-            echo "openssl-sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              openssl sha256 "$f"
-            done
-          } > checksums.txt
-          popd
-    
-          rm -rf "${PACKAGE_NOTSTRIP_DIR}"
-          cp -R "${BUILD_DIR}_not_strip" "${PACKAGE_NOTSTRIP_DIR}"
-          /usr/bin/zip -r -9 "${COIN_NAME}-${MACOS_LABEL}-${ARCH_TYPE}-notstrip-${{ needs.get-version.outputs.version }}.zip" "${PACKAGE_NOTSTRIP_DIR}"
-          rm -rf "${PACKAGE_NOTSTRIP_DIR}"
-    
-          mkdir -p "${COMPRESS_DIR}"
-          mv ./*.zip "${COMPRESS_DIR}/"
-    
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.zip; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "openssl-sha256: $(openssl sha256 "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.MACOS_LABEL }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
-
-      - name: Generate macOS dmg files
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          make deploy
-          mkdir -p macos-dmg
-
-          DMG_FILE=$(find . -maxdepth 1 -type f -name "*.dmg" -print -quit)
-          if [ -z "$DMG_FILE" ]; then
-            echo "No dmg file was generated by make deploy."
-            exit 1
-          fi
-
-          mv "$DMG_FILE" "macos-dmg/Yerbas-Qt-${MACOS_LABEL}-${ARCH_TYPE}.dmg"
-
-          pushd macos-dmg
-          {
-            for f in *.dmg; do
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "openssl-sha256: $(openssl sha256 "$f")"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload dmg file
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.MACOS_LABEL }}-${{ env.ARCH_TYPE }}-dmg-${{ needs.get-version.outputs.version }}
-          path: macos-dmg
-
-  build-macos-15-x86:
-    name: macOS 15 x86 Build
-    needs: get-version
-    runs-on: macos-15-intel
-    env:
-      MACOS_LABEL: macOS15
-      ARCH_TYPE: x86
-      OSX_HOST: x86_64-apple-darwin24
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Required Packages
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          for pkg in automake libtool pkg-config miniupnpc librsvg libnatpmp zeromq python; do
-            if ! brew list --versions "$pkg" >/dev/null 2>&1; then
-              echo "Installing $pkg..."
-              brew install "$pkg"
-            else
-              echo "$pkg already installed, skipping."
-            fi
-          done
-
-          python3 -m venv .venv
-          source .venv/bin/activate
-          python -m pip install -U pip setuptools
-          python -m pip install ds_store mac_alias
-          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-
-      - name: Build Depends
-        shell: bash
-        run: |
-          set -euo pipefail
-          clang++ --version
-          xcodebuild -version
-          sw_vers
-          echo "building with $(sysctl -n hw.ncpu) threads"
-          echo "using FALLBACK_DOWNLOAD_PATH=${FALLBACK_DOWNLOAD_PATH}"
-          make -C depends -j$(sysctl -n hw.ncpu) HOST=${OSX_HOST}
-
-      - name: Configure
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./autogen.sh
-          ./configure \
-            CXXFLAGS="-Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION" \
-            --prefix=$(pwd)/depends/${OSX_HOST} \
-            --disable-bench || {
-              echo "===== config.log boost/thread lines ====="
-              grep -n -i "boost\|thread\|sleep\|chrono\|unary_function\|enum-constexpr" config.log || true
-              exit 1
-            }
-
-      - name: Build Binaries
-        shell: bash
-        run: |
-          set -euo pipefail
-          make -j$(sysctl -n hw.ncpu)
-
-          mkdir -p "${BUILD_DIR}" "${BUILD_DIR}_not_strip"
-
-          found=0
-          for f in src/yerbas-cli src/yerbasd src/yerbas-tx src/qt/yerbas-qt; do
-            if [ -f "$f" ]; then
-              cp "$f" "${BUILD_DIR}/"
-              cp "$f" "${BUILD_DIR}_not_strip/"
-              found=1
-            else
-              echo "Optional binary not found, skipping: $f"
-            fi
-          done
-
-          if [ "$found" -eq 0 ]; then
-            echo "No Yerbas binaries were found to package."
-            exit 1
-          fi
-
-          for f in "${BUILD_DIR}"/*; do
-            if [ -f "$f" ]; then
-              xcrun strip -x "$f" || true
-            fi
-          done
-
-          ls -l "${BUILD_DIR}"
-          ls -l "${BUILD_DIR}_not_strip"
-
-      - name: Generate Checksum and Compress
-        shell: bash
-        run: |
-          set -euo pipefail
-    
-          PACKAGE_DIR="${COIN_NAME}-v${{ needs.get-version.outputs.version }}"
-          PACKAGE_NOTSTRIP_DIR="${COIN_NAME}-v${{ needs.get-version.outputs.version }}-notstrip"
-    
-          pushd "${BUILD_DIR}"
-          {
-            echo "sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              shasum -a 256 "$f"
-            done
-            echo "openssl-sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              openssl sha256 "$f"
-            done
-          } > checksums.txt
-          popd
-    
-          rm -rf "${PACKAGE_DIR}"
-          cp -R "${BUILD_DIR}" "${PACKAGE_DIR}"
-          /usr/bin/zip -r -9 "${COIN_NAME}-${MACOS_LABEL}-${ARCH_TYPE}-release-${{ needs.get-version.outputs.version }}.zip" "${PACKAGE_DIR}"
-          rm -rf "${PACKAGE_DIR}"
-    
-          pushd "${BUILD_DIR}_not_strip"
-          {
-            echo "sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              shasum -a 256 "$f"
-            done
-            echo "openssl-sha256:"
-            for f in *; do
-              [ "$f" = "checksums.txt" ] && continue
-              openssl sha256 "$f"
-            done
-          } > checksums.txt
-          popd
-    
-          rm -rf "${PACKAGE_NOTSTRIP_DIR}"
-          cp -R "${BUILD_DIR}_not_strip" "${PACKAGE_NOTSTRIP_DIR}"
-          /usr/bin/zip -r -9 "${COIN_NAME}-${MACOS_LABEL}-${ARCH_TYPE}-notstrip-${{ needs.get-version.outputs.version }}.zip" "${PACKAGE_NOTSTRIP_DIR}"
-          rm -rf "${PACKAGE_NOTSTRIP_DIR}"
-    
-          mkdir -p "${COMPRESS_DIR}"
-          mv ./*.zip "${COMPRESS_DIR}/"
-    
-          pushd "${COMPRESS_DIR}"
-          {
-            echo "Checksums for release archives:"
-            echo "------------------------------------"
-            for f in *.zip; do
-              echo "$f"
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "openssl-sha256: $(openssl sha256 "$f")"
-              echo "------------------------------------"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.MACOS_LABEL }}-${{ env.ARCH_TYPE }}-${{ needs.get-version.outputs.version }}
-          path: ${{ env.COMPRESS_DIR }}
-
-      - name: Generate macOS dmg files
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          make deploy
-          mkdir -p macos-dmg
-
-          DMG_FILE=$(find . -maxdepth 1 -type f -name "*.dmg" -print -quit)
-          if [ -z "$DMG_FILE" ]; then
-            echo "No dmg file was generated by make deploy."
-            exit 1
-          fi
-
-          mv "$DMG_FILE" "macos-dmg/Yerbas-Qt-${MACOS_LABEL}-${ARCH_TYPE}.dmg"
-
-          pushd macos-dmg
-          {
-            for f in *.dmg; do
-              echo "sha256: $(shasum -a 256 "$f")"
-              echo "openssl-sha256: $(openssl sha256 "$f")"
-            done
-          } > checksums.txt
-          cat checksums.txt
-          popd
-
-
-      - name: Upload dmg file
-        uses: actions/upload-artifact@v6
-        with:
-          name: ${{ env.COIN_NAME }}-${{ env.MACOS_LABEL }}-${{ env.ARCH_TYPE }}-dmg-${{ needs.get-version.outputs.version }}
-          path: macos-dmg
+          name: yerbas-${{ matrix.platform.id }}-test-results
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 14
