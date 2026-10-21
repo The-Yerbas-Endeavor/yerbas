@@ -47,3 +47,30 @@ explicit directory, the installation prefix and automatic `depends/bdb`
 detection. Missing directories and wrong-version headers were rejected.
 Autotools regeneration and generated shell syntax checks passed. No full
 Yerbas rebuild or existing-wallet migration was performed.
+
+## Modern compiler warnings
+
+Both the local helper and the depends recipe explicitly compile Berkeley DB's
+C sources as GNU C17. GCC 15 defaults to C23, which removed the K&R function
+definitions used throughout this legacy library. Choosing its supported C
+language mode avoids those default-mode warnings without rewriting database
+logic or disabling the old-style-definition warning globally. C++ stays at C++17.
+The existing implicit-function-declaration error downgrade remains necessary
+for old configure probes; compiler warnings remain visible.
+
+The shared `format-security.patch` changes both transaction allocation error
+messages to `__db_errx(env, "%s", TxnAlloc)`, preserving the message while using
+a literal format string. Both build paths apply the same patch. Berkeley DB
+remains pinned to 4.8.30.NC; these changes do not alter its file format.
+
+After pulling the changes, rerun `sh contrib/build-bdb.sh` to replace the local
+libraries with a freshly patched build. The helper always rebuilds from the
+checksum-verified archive; no sudo or manual deletion is needed.
+
+Validation on Ubuntu 26.04 / GCC 15.2: a fresh build of both static libraries
+completed with zero warnings in the build output, and the C++ write/close/reopen/
+read smoke test passed against the new libraries. The depends recipe flag/patch
+expansion and helper shell syntax checks also passed.
+
+The local installation ignore rule is anchored to `depends/bdb/` so new patches
+in `depends/patches/bdb/` are tracked normally.

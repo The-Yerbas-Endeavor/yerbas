@@ -1,0 +1,20 @@
+--- a/txn/txn.c
++++ b/txn/txn.c
+@@ -168,7 +168,7 @@
+ 
+ 	*txnpp = NULL;
+ 	if ((ret = __os_calloc(env, 1, sizeof(DB_TXN), &txn)) != 0) {
+-		__db_errx(env, TxnAlloc);
++		__db_errx(env, "%s", TxnAlloc);
+ 		return (ret);
+ 	}
+ 
+@@ -315,7 +315,7 @@
+ 	int ret;
+ 
+ 	if ((ret = __os_calloc(env, 1, sizeof(DB_TXN), &txn)) != 0) {
+-		__db_errx(env, TxnAlloc);
++		__db_errx(env, "%s", TxnAlloc);
+ 		return (ret);
+ 	}
+ 

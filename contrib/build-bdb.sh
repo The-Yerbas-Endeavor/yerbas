@@ -35,11 +35,13 @@ tar -xzf "$sources/$archive" -C "$work"
 source="$work/db-$version.NC"
 # Oracle ships read-only source files; these extracted files belong to this user.
 chmod -R u+w "$source"
-(cd "$source" && patch -p1 < "$repo/depends/patches/bdb/clang_cxx_11.patch")
+for patch_name in clang_cxx_11.patch format-security.patch; do
+    (cd "$source" && patch -p1 < "$repo/depends/patches/bdb/$patch_name")
+done
 cp "$repo/depends/config.guess" "$repo/depends/config.sub" "$source/dist/"
 cd "$source/build_unix"
 CC=${CC:-cc} CXX=${CXX:-c++} \
-CFLAGS="${CFLAGS:--O2} -fPIC -Wno-error=implicit-function-declaration" \
+CFLAGS="${CFLAGS:--O2} -fPIC -std=gnu17 -Wno-error=implicit-function-declaration" \
 CXXFLAGS="${CXXFLAGS:--O2} -fPIC -std=c++17" \
 ../dist/configure --prefix="$prefix" --disable-shared --enable-cxx --disable-replication
 make -j"$jobs" libdb_cxx-4.8.a libdb-4.8.a
