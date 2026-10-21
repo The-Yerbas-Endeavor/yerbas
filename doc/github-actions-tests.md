@@ -134,3 +134,10 @@ produces `libminiupnpc.a`. The recipe now selects the correct platform path for
 both building and staging. A fresh patched Linux archive build passed (14 object
 files); Windows/macOS compilation remains for platform validation. CI currently
 uses `NO_UPNP=1`, so its dependency step did not exercise this recipe.
+
+MiniUPnPc's URL parser now preserves const input pointers through its private
+helper and callers. Absolute-URL construction uses a separate const pointer when
+searching the input, retaining a writable pointer for its allocated output. This
+fixes GCC's discarded-qualifier warnings without casts or warning suppression.
+The patched Linux static library rebuilt without warnings using `-Wall -Wextra
+-Werror=discarded-qualifiers`. No full application rebuild was run for this fix.
