@@ -176,6 +176,9 @@ jobs:
           path: |
             ci-logs/
             config.log
+            depends/work/**/cmake_bootstrap.log
+            depends/work/**/config.log
+            depends/work/**/CMakeConfigureLog.yaml
           if-no-files-found: warn
           retention-days: 14
 

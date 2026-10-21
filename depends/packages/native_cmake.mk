@@ -5,7 +5,10 @@ $(package)_file_name=cmake-$($(package)_version).tar.gz
 $(package)_sha256_hash=bd24c30d80a7744ae84b845ff080cc8453b06c622ef01066564108e9cefc44cf
 
 define $(package)_config_cmds
-  CC="$($(package)_cc)" CXX="$($(package)_cxx)" ./bootstrap --prefix=$(build_prefix) -- -DCMAKE_USE_OPENSSL=OFF
+  CC="$($(package)_cc)" CXX="$($(package)_cxx)" \
+  CFLAGS="$($(package)_cflags)" CXXFLAGS="$($(package)_cxxflags)" LDFLAGS="$($(package)_ldflags)" \
+  ./bootstrap --prefix=$(build_prefix) -- -DCMAKE_USE_OPENSSL=OFF || \
+  { status=$$$$?; cat Bootstrap.cmk/cmake_bootstrap.log >&2; exit $$$$status; }
 endef
 
 define $(package)_build_cmds

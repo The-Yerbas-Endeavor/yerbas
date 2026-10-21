@@ -1,5 +1,10 @@
-build_darwin_CC:= $(shell xcrun -f clang)
-build_darwin_CXX:= $(shell xcrun -f clang++)
+# Native tools also need the SDK when invoking Apple Clang directly.
+build_darwin_SDK:=$(shell xcrun --sdk macosx --show-sdk-path)
+build_darwin_CFLAGS=-isysroot $(build_darwin_SDK)
+build_darwin_CXXFLAGS=$(build_darwin_CFLAGS)
+build_darwin_LDFLAGS=$(build_darwin_CFLAGS)
+build_darwin_CC:= $(shell xcrun --sdk macosx -f clang)
+build_darwin_CXX:= $(shell xcrun --sdk macosx -f clang++)
 build_darwin_AR:= $(shell xcrun -f ar)
 build_darwin_RANLIB:= $(shell xcrun -f ranlib)
 build_darwin_STRIP:= $(shell xcrun -f strip)

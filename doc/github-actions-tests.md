@@ -31,7 +31,9 @@ Artifacts are kept for 14 days:
 - `yerbas-<platform>-binaries`: an archive, commit/version information, and SHA-256
   checksums. Windows binaries are packaged as ZIP; Linux and macOS binaries as tar.gz.
 - `yerbas-<platform>-test-executable`: the unit-test binary used by the test job.
-- `yerbas-<platform>-build-logs`: dependency, configure, and compiler output.
+- `yerbas-<platform>-build-logs`: dependency, configure, and compiler output,
+  including dependency Autoconf logs, CMake bootstrap logs, and CMake configure
+  diagnostics when present.
 - `yerbas-<platform>-test-results`: JUnit XML, per-suite logs, JSON results, and a
   Markdown summary. A suite-by-suite table also appears in the Actions summary.
 
@@ -87,3 +89,23 @@ This workflow runs native C++ unit tests. The Python functional/P2P suite is a
 separate next step: it still needs its inherited chain assumptions and hash
 adapter reconciled with Yerbas before it can provide reliable coverage. Merely
 installing Dash's hash adapter would not validate Yerbas GhostRider blocks.
+
+## macOS native CMake bootstrap
+
+Run `39552959987` failed while bootstrapping pinned CMake 4.4.4 with
+“Cannot find appropriate C compiler on this system,” before building Yerbas.
+The original artifacts omitted the detailed compiler probe log, so the exact
+compiler diagnostic could not be recovered from that run.
+
+The Darwin builder now resolves the macOS SDK explicitly with
+`xcrun --sdk macosx --show-sdk-path` and supplies `-isysroot` to native C and
+C++ compilation and linking. The native CMake recipe now forwards the build
+machine's compiler/linker flags to bootstrap. These are build-machine settings:
+Linux-to-Windows and Linux-to-Darwin cross builds do not acquire macOS SDK flags.
+CMake bootstrap failures print their detailed log and preserve the failing exit
+status; CI also uploads the dependency configure logs.
+
+Make-variable and bootstrap failure-path checks can run on Linux, but they do
+not establish macOS compatibility. The SDK correction addresses a missing
+native-toolchain setting; a successful hosted macOS build is still required to
+confirm that it resolves the reported failure.
