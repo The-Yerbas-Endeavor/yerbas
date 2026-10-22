@@ -11,7 +11,7 @@ from pathlib import Path
 SYSTEM_DLLS = set('''advapi32 authz avrt bcrypt bcryptprimitives cfgmgr32 comctl32
 comdlg32 crypt32 cryptbase cryptnet cryptsp d2d1 d3d9 d3d11 d3d12 dbghelp dnsapi
  dwmapi dwrite dxgi dxguid gdi32 glu32 imm32 iphlpapi kernel32 mpr msimg32 msvcrt
- netapi32 ntdll ole32 oleacc oleaut32 opengl32 powrprof propsys psapi rasapi32
+ ncrypt netapi32 ntdll ole32 oleacc oleaut32 opengl32 powrprof propsys psapi rasapi32
  rpcrt4 runtimeobject secur32 setupapi shell32 shcore shlwapi sspicli ucrtbase
  user32 userenv usp10 uxtheme version windowscodecs winhttp wininet winmm
  winspool wintrust ws2_32 wtsapi32 wldap32 normaliz'''.split())

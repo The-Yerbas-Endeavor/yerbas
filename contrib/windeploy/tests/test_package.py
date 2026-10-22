@@ -34,6 +34,18 @@ class RuntimePackagingTests(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in dest.glob('*.dll')),
                              ['Qt6Core.dll', 'Qt6Gui.dll', 'libstdc++-6.dll'])
 
+    def test_schannel_uses_windows_ncrypt_without_bundling_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugin = root / 'plugins/tls/qschannelbackend.dll'
+            plugin.parent.mkdir(parents=True)
+            plugin.touch()
+            with patch.object(package, 'imports', return_value=['ncrypt.dll', 'NCRYPT.DLL']), \
+                 patch.object(package.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'ncrypt.dll')) as compiler:
+                package.copy_runtime(root / 'sdk', root, 'compiler', 'objdump')
+            compiler.assert_not_called()
+            self.assertEqual(list(root.glob('*.dll')), [])
+
     def test_missing_dependency_is_fatal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
