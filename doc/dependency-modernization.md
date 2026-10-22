@@ -295,3 +295,14 @@ The checksum-verified Qt 6.12.0 Core5Compat archive already contains both
 CVE-2026-101201 fixes (overflow-safe bounds arithmetic and size_t comparisons),
 including upstream regression tests. Removed redundant downstream patches that
 would otherwise fail during depends preprocessing.
+
+
+### macOS 15 dependency fetch fix (2026-10-21)
+
+The macOS 15 job completed its Boost build, then failed fetching GMP 6.3.0: the
+`ftp.gnu.org` connection timed out three times and the shared Bitcoin depends
+fallback returned 404. The GMP recipe now fetches the same pinned archive from
+GMP's official HTTPS download server. The downloaded archive's SHA-256 matches
+the unchanged pin (`ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb`).
+The package version and contents are unchanged. A hosted rerun is required to
+confirm macOS completes its dependency and application builds.
