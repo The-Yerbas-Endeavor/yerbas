@@ -22,6 +22,7 @@
 #endif
 
 #include <QApplication>
+#include <QDir>
 #include <QObject>
 #include <QTest>
 
@@ -49,6 +50,20 @@ Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin);
 #endif
 
 extern void noui_connect();
+
+static int RunQtTest(QObject* test)
+{
+    // GUI executables may not expose stdout on Windows. Keep a separate report
+    // for every suite so CI artifacts retain failures from all qExec calls.
+    QDir reports("test-results");
+    if (!reports.mkpath(".")) {
+        qCritical("Cannot create Qt test report directory");
+        return 1;
+    }
+    const QString base = reports.filePath(QString("qt-%1").arg(test->metaObject()->className()));
+    return QTest::qExec(test, QStringList{QCoreApplication::applicationName(),
+        "-o", "-,txt", "-o", base + ".log,txt", "-o", base + ".xml,junitxml"});
+}
 
 // This is all you need to run all the tests
 int main(int argc, char *argv[])
@@ -81,35 +96,35 @@ int main(int argc, char *argv[])
     SSL_library_init();
 
     AssetViewTests assetViewTests;
-    fInvalid |= QTest::qExec(&assetViewTests);
+    fInvalid |= RunQtTest(&assetViewTests);
 
     URITests test1;
-    if (QTest::qExec(&test1) != 0) {
+    if (RunQtTest(&test1) != 0) {
         fInvalid = true;
     }
 #ifdef ENABLE_WALLET
     PaymentServerTests test2;
-    if (QTest::qExec(&test2) != 0) {
+    if (RunQtTest(&test2) != 0) {
         fInvalid = true;
     }
 #endif
     RPCNestedTests test3;
-    if (QTest::qExec(&test3) != 0) {
+    if (RunQtTest(&test3) != 0) {
         fInvalid = true;
     }
     CompatTests test4;
-    if (QTest::qExec(&test4) != 0) {
+    if (RunQtTest(&test4) != 0) {
         fInvalid = true;
     }
 #ifdef ENABLE_WALLET
     WalletTests test5;
-    if (QTest::qExec(&test5) != 0) {
+    if (RunQtTest(&test5) != 0) {
         fInvalid = true;
     }
 #endif
 
     TrafficGraphDataTests test6;
-    if (QTest::qExec(&test6) != 0)
+    if (RunQtTest(&test6) != 0)
         fInvalid = true;
     return fInvalid;
 }
