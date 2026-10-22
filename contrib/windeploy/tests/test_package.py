@@ -46,6 +46,38 @@ class RuntimePackagingTests(unittest.TestCase):
             compiler.assert_not_called()
             self.assertEqual(list(root.glob('*.dll')), [])
 
+    def test_windows_platform_color_management_is_system_supplied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugin = root / 'plugins/platforms/qwindows.dll'
+            plugin.parent.mkdir(parents=True)
+            plugin.touch()
+            # System imports declared by Qt 6.12's Windows platform plugin.
+            system_imports = [name + '.dll' for name in (
+                'advapi32 comdlg32 d3d9 dwmapi gdi32 imm32 mscms ole32 '
+                'oleaut32 runtimeobject setupapi shcore shell32 shlwapi '
+                'user32 uxtheme winmm winspool wtsapi32').split()]
+            system_imports.append('MSCMS.DLL')
+            with patch.object(package, 'imports', return_value=system_imports), \
+                 patch.object(package.subprocess, 'run') as compiler:
+                package.copy_runtime(root / 'sdk', root, 'compiler', 'objdump')
+            compiler.assert_not_called()
+            self.assertEqual(list(root.glob('*.dll')), [])
+
+    def test_reports_all_unresolved_imports_across_binaries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'wallet.exe').touch()
+            (root / 'plugin.dll').touch()
+            graph = {'wallet.exe': ['first.dll', 'second.dll'],
+                     'plugin.dll': ['third.dll']}
+            with patch.object(package, 'imports', side_effect=lambda p, _: graph[p.name]), \
+                 patch.object(package.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'missing.dll')):
+                with self.assertRaises(RuntimeError) as error:
+                    package.copy_runtime(root / 'sdk', root, 'compiler', 'objdump')
+            for name in ('first.dll', 'second.dll', 'third.dll'):
+                self.assertIn('Unresolved DLL ' + name, str(error.exception))
+
     def test_missing_dependency_is_fatal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

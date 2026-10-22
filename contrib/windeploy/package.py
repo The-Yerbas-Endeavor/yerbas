@@ -10,7 +10,7 @@ from pathlib import Path
 # compiler; silently omitting one would produce a ZIP that cannot start.
 SYSTEM_DLLS = set('''advapi32 authz avrt bcrypt bcryptprimitives cfgmgr32 comctl32
 comdlg32 crypt32 cryptbase cryptnet cryptsp d2d1 d3d9 d3d11 d3d12 dbghelp dnsapi
- dwmapi dwrite dxgi dxguid gdi32 glu32 imm32 iphlpapi kernel32 mpr msimg32 msvcrt
+ dwmapi dwrite dxgi dxguid gdi32 glu32 imm32 iphlpapi kernel32 mpr mscms msimg32 msvcrt
  ncrypt netapi32 ntdll ole32 oleacc oleaut32 opengl32 powrprof propsys psapi rasapi32
  rpcrt4 runtimeobject secur32 setupapi shell32 shcore shlwapi sspicli ucrtbase
  user32 userenv usp10 uxtheme version windowscodecs winhttp wininet winmm
@@ -32,6 +32,7 @@ def copy_runtime(prefix, destination, compiler, objdump):
     available = {p.name.lower(): p for p in (prefix / 'bin').glob('*.dll')}
     pending = list(destination.rglob('*.exe')) + list(destination.rglob('*.dll'))
     checked = set()
+    unresolved = set()
     copied = {p.name.lower(): p for p in destination.glob('*.dll')}
     while pending:
         binary = pending.pop()
@@ -53,12 +54,15 @@ def copy_runtime(prefix, destination, compiler, objdump):
                 if candidate.is_absolute() and candidate.is_file():
                     source = candidate
             if source is None:
-                raise RuntimeError(f'Unresolved DLL {name}, required by {binary.name}')
+                unresolved.add(f'Unresolved DLL {name}, required by {binary.name}')
+                continue
             target = destination / source.name
             shutil.copy2(source, target)
             copied[name.lower()] = target
             pending.append(target)
 
+    if unresolved:
+        raise RuntimeError('\n'.join(sorted(unresolved)))
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
