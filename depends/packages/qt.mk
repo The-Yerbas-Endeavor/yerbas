@@ -35,6 +35,7 @@ define $(package)_config_cmds
     -DFEATURE_openssl=OFF \
     -DFEATURE_schannel=ON \
     -DFEATURE_opengl=OFF \
+    -DINPUT_opengl=no \
     -DFEATURE_system_freetype=OFF \
     -DFEATURE_system_harfbuzz=OFF \
     -DFEATURE_system_png=OFF \
