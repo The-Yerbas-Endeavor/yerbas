@@ -82,6 +82,13 @@ jobs:
             sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
           fi
 
+      - name: Install Ubuntu Qt development tools
+        if: matrix.platform.id == 'ubuntu26'
+        run: |
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools qt6-5compat-dev \
+            qt6-tools-dev-tools qt6-qpa-plugins libgl-dev
+          pkg-config --atleast-version=6.8 Qt6Core Qt6Core5Compat Qt6Test
+
       - name: Install macOS build tools
         if: runner.os == 'macOS'
         run: |
@@ -112,7 +119,9 @@ jobs:
           if [[ "$RUNNER_OS" == macOS ]]; then
             extra_args+=(OSX_MIN_VERSION=11.0)
           fi
-          if [[ "$PLATFORM_ID" != win64 ]]; then
+          if [[ "$PLATFORM_ID" == ubuntu26 ]]; then
+            extra_args+=(USE_SYSTEM_QT=1)
+          elif [[ "$PLATFORM_ID" != win64 ]]; then
             extra_args+=(NO_QT=1)
           fi
           make -C depends -j"$BUILD_JOBS" HOST="$HOST_TRIPLE" NO_UPNP=1 "${extra_args[@]}" \
@@ -125,7 +134,7 @@ jobs:
             export CXXFLAGS="-O2 -g1 -Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
           fi
           gui_args=(--without-gui)
-          if [[ "$PLATFORM_ID" == win64 ]]; then
+          if [[ "$PLATFORM_ID" == win64 || "$PLATFORM_ID" == ubuntu26 ]]; then
             gui_args=(--with-gui=qt6 --with-qrencode --with-qtdbus=no)
           fi
           ./autogen.sh 2>&1 | tee ci-logs/autogen.log
@@ -151,6 +160,19 @@ jobs:
               install -m755 "src/${name}${BINARY_EXTENSION}" package/bin/
             done
             install -m755 "src/test/test_yerbas${BINARY_EXTENSION}" test-binaries/
+            if [[ "$PLATFORM_ID" == ubuntu26 ]]; then
+              # Copy real executables when libtool generated launcher scripts.
+              for entry in "src/qt/yerbas-qt:package/bin" "src/qt/test/test_yerbas-qt:test-binaries"; do
+                source="${entry%%:*}"
+                destination="${entry#*:}"
+                real="$(dirname "$source")/.libs/$(basename "$source")"
+                if [[ -f "$real" ]]; then source="$real"; fi
+                install -m755 "$source" "$destination/"
+              done
+              printf '%s\n' 'Ubuntu 26 Qt wallet: requires the Ubuntu Qt 6 runtime.' \
+                'Install: sudo apt-get install libqt6widgets6 libqt6network6 libqt6core5compat6 qt6-qpa-plugins' \
+                > package/README-Qt.txt
+            fi
           fi
           {
             echo "commit=$GITHUB_SHA"
@@ -246,6 +268,13 @@ jobs:
           name: yerbas-${{ matrix.platform.id }}-test-executable
           path: test-binaries
 
+      - name: Install Ubuntu Qt test runtime
+        if: matrix.platform.id == 'ubuntu26'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libqt6widgets6 libqt6network6 libqt6core5compat6 libqt6test6 qt6-qpa-plugins
+
       - name: Restore executable permission
         if: runner.os != 'Windows'
         shell: bash
@@ -254,6 +283,18 @@ jobs:
       - name: Run every enabled unit suite
         shell: bash
         run: python ci/run-unit-tests.py "test-binaries/${{ matrix.platform.binary }}" --output test-results --timeout 180
+
+      - name: Run Ubuntu Qt wallet and asset viewer tests
+        timeout-minutes: 10
+        if: ${{ !cancelled() && matrix.platform.id == 'ubuntu26' }}
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: minimal
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          chmod +x test-binaries/test_yerbas-qt
+          ./test-binaries/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
 
       - name: Run Windows Qt and asset viewer tests
         timeout-minutes: 10
