@@ -64,6 +64,13 @@ def copy_runtime(prefix, destination, compiler, objdump):
     if unresolved:
         raise RuntimeError('\n'.join(sorted(unresolved)))
 
+
+def built_executable(path):
+    """Prefer the real PE executable over libtool's build-tree launcher."""
+    real = path.parent / '.libs' / path.name
+    return real if real.is_file() else path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--depends', required=True, type=Path)
@@ -81,7 +88,7 @@ def main():
     bin_dir.mkdir(parents=True, exist_ok=True)
     tests.mkdir(parents=True, exist_ok=True)
     for binary in ('yerbasd.exe', 'yerbas-cli.exe', 'qt/yerbas-qt.exe'):
-        shutil.copy2(build / 'src' / binary, bin_dir / Path(binary).name)
+        shutil.copy2(built_executable(build / 'src' / binary), bin_dir / Path(binary).name)
     for group in ('platforms', 'imageformats', 'tls', 'styles'):
         plugins = prefix / 'plugins' / group
         if plugins.exists():
@@ -98,7 +105,7 @@ def main():
     copy_runtime(prefix, bin_dir, args.host + '-g++', args.host + '-objdump')
     shutil.copytree(bin_dir, tests, dirs_exist_ok=True)
     for binary in ('test/test_yerbas.exe', 'qt/test/test_yerbas-qt.exe'):
-        shutil.copy2(build / 'src' / binary, tests / Path(binary).name)
+        shutil.copy2(built_executable(build / 'src' / binary), tests / Path(binary).name)
     copy_runtime(prefix, tests, args.host + '-g++', args.host + '-objdump')
     shutil.copytree(prefix / 'share/licenses', output / 'licenses')
     notices = output / 'licenses/toolchain'

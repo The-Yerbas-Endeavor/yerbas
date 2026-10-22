@@ -78,6 +78,17 @@ class RuntimePackagingTests(unittest.TestCase):
             for name in ('first.dll', 'second.dll', 'third.dll'):
                 self.assertIn('Unresolved DLL ' + name, str(error.exception))
 
+    def test_real_libtool_executable_is_packaged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wrapper = root / 'wallet.exe'
+            wrapper.write_bytes(b'launcher')
+            self.assertEqual(package.built_executable(wrapper), wrapper)
+            real = root / '.libs/wallet.exe'
+            real.parent.mkdir()
+            real.write_bytes(b'real executable')
+            self.assertEqual(package.built_executable(wrapper), real)
+
     def test_missing_dependency_is_fatal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -15,6 +15,8 @@
 
 #include <atomic>
 #include <map>
+#include <memory>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,7 @@ static const bool DEFAULT_WALLET_PRIVDB = true;
 class CDBEnv
 {
 private:
+    std::unique_ptr<FILE, decltype(&std::fclose)> errorFile{nullptr, &std::fclose};
     bool fDbEnvInit;
     bool fMockDb;
     // Don't change into fs::path, as that can result in

@@ -67,6 +67,7 @@ void CDBEnv::EnvShutdown()
 
     fDbEnvInit = false;
     int ret = dbenv->close(0);
+    errorFile.reset();
     if (ret != 0)
         LogPrintf("CDBEnv::EnvShutdown: Error %d shutting down database environment: %s\n", ret, DbEnv::strerror(ret));
     if (!fMockDb)
@@ -76,6 +77,7 @@ void CDBEnv::EnvShutdown()
 void CDBEnv::Reset()
 {
     delete dbenv;
+    errorFile.reset();
     dbenv = new DbEnv(DB_CXX_NO_EXCEPTIONS);
     fDbEnvInit = false;
     fMockDb = false;
@@ -121,7 +123,8 @@ bool CDBEnv::Open(const fs::path& pathIn)
     dbenv->set_lg_max(1048576);
     dbenv->set_lk_max_locks(40000);
     dbenv->set_lk_max_objects(40000);
-    dbenv->set_errfile(fsbridge::fopen(pathErrorFile, "a")); /// debug
+    errorFile.reset(fsbridge::fopen(pathErrorFile, "a"));
+    dbenv->set_errfile(errorFile.get());
     dbenv->set_flags(DB_AUTO_COMMIT, 1);
     dbenv->set_flags(DB_TXN_WRITE_NOSYNC, 1);
     dbenv->log_set_config(DB_LOG_AUTO_REMOVE, 1);
@@ -137,6 +140,7 @@ bool CDBEnv::Open(const fs::path& pathIn)
                          S_IRUSR | S_IWUSR);
     if (ret != 0) {
         dbenv->close(0);
+        errorFile.reset();
         return error("CDBEnv::Open: Error %d opening database environment: %s\n", ret, DbEnv::strerror(ret));
     }
 

@@ -16,6 +16,15 @@ UniValue resumerewarddistribution(const JSONRPCRequest& request);
 
 BOOST_FIXTURE_TEST_SUITE(asset_wallet_tests, TestingSetup)
 
+BOOST_AUTO_TEST_CASE(database_close_releases_error_log)
+{
+    CDBEnv env;
+    BOOST_REQUIRE(env.Open(GetDataDir()));
+    env.Close();
+    // Windows refuses this removal while the application's FILE handle is open.
+    BOOST_CHECK(fs::remove(GetDataDir() / "db.log"));
+}
+
 static std::unique_ptr<CWallet> OpenAssetTestWallet(CDBEnv& env, const std::string& name)
 {
     std::unique_ptr<CWallet> wallet(new CWallet(std::unique_ptr<CWalletDBWrapper>(new CWalletDBWrapper(&env, name))));
