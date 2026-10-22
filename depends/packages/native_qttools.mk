@@ -10,10 +10,11 @@ define $(package)_config_cmds
   $(build_prefix)/bin/cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_PREFIX=$(build_prefix) \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_SHARED_LIBS=ON \
     -DQT_BUILD_TESTS=OFF \
     -DQT_BUILD_EXAMPLES=OFF \
     -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_INSTALL_RPATH=$(build_prefix)/lib \
     -DCMAKE_C_COMPILER="$(build_CC)" \
     -DCMAKE_CXX_COMPILER="$(build_CXX)" \
     -DCMAKE_PREFIX_PATH=$(build_prefix) \

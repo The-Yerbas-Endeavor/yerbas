@@ -8,7 +8,8 @@ Qt itself is not downloaded or installed: provide Qt 6.8+ development packages
 (including Core5Compat) before configuring the application. Headless builds require
 `NO_QT=1`. A Windows Qt cross-build dependency path is being restored for
 `HOST=x86_64-w64-mingw32`; its full build and runtime packaging are not yet verified.
-The existing Windows CI still selects headless dependencies.
+The Windows CI job now selects GUI dependencies and packages the Qt wallet; see
+[Windows builds](../doc/build-windows.md). Hosted validation remains pending.
 
 For the current headless CI dependency pins, validation status, and manual
 rebuild commands, see [dependency updates](../doc/dependency-updates.md).

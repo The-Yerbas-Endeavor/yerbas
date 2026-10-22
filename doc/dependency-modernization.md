@@ -269,3 +269,29 @@ viewer runtime validation has been performed. The Windows CI still explicitly
 builds headless targets. Runtime DLL/plugin packaging and Windows GUI CI validation
 remain unfinished. These changes are committed as build infrastructure work in progress and must not
 be represented as a working Windows wallet release.
+
+
+### Windows GUI CI and packaging (2026-10-21)
+
+The existing Windows job now cross-builds the Qt wallet on Ubuntu 26.04, with a
+240-minute allowance for a cold dependency build. Matching host Qt tools use shared
+Qt, as recommended upstream, and have an installation RPATH to their native SDK
+libraries. Other platform jobs keep their existing headless configuration.
+
+Windows packaging follows PE imports recursively, copies required Qt/compiler
+DLLs, checks required platform/image/Schannel plugins, and includes licenses,
+toolchain versions and checksums. Missing non-system DLLs fail packaging. The
+Windows runner receives the same runtime and runs core suites, Qt/asset tests and
+a wallet version-dialog startup check. It does not open a wallet for the startup
+check. This supersedes the earlier note that Windows CI remains headless.
+
+Local validation: host Qt configure succeeds; packaging regression tests cover
+recursive imports, plugins, case-insensitive DLL names, compiler runtime lookup,
+and missing-DLL failure. Workflow YAML and shell syntax are checked. Full Windows
+compile and runtime validation belong to the new hosted run; no full local build
+was launched. See build-windows.md for artifact and manual-build instructions.
+
+The checksum-verified Qt 6.12.0 Core5Compat archive already contains both
+CVE-2026-101201 fixes (overflow-safe bounds arithmetic and size_t comparisons),
+including upstream regression tests. Removed redundant downstream patches that
+would otherwise fail during depends preprocessing.

@@ -1,68 +1,54 @@
-WINDOWS BUILD NOTES
-====================
+# Windows Qt wallet builds
 
-Below are some notes on how to build Yerbas Core for Windows.
+GitHub Actions cross-compiles the Windows x86_64 Qt wallet from Linux using the
+existing depends and Autotools build. The Windows job in
+`.github/workflows/build.yaml` uses Ubuntu 26.04 and MinGW's POSIX-thread compiler.
+Matching Qt 6.12.0 Linux tools and Windows shared libraries are built from pinned
+sources. The wallet includes the existing asset viewer.
 
-The options known to work for building Yerbas Core on Windows are:
+## GitHub build and download
 
-* On Linux, using the [Mingw-w64](https://mingw-w64.org/doku.php) cross compiler tool chain. Ubuntu Bionic 18.04 is required
-and is the platform used to build the Yerbas Core Windows release binaries.
-* On Windows, using [Windows
-Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about) and the Mingw-w64 cross compiler tool chain.
-* On Windows, using a native compiler tool chain such as [Visual Studio](https://www.visualstudio.com).
+Push to dev or manually run **Yerbas Build and Tests**. Windows selects GUI
+dependencies and `--with-gui=qt6`; other platform jobs retain headless builds.
+The `yerbas-win64-binaries` artifact contains a ZIP with `bin/yerbas-qt.exe`, daemon,
+CLI, required DLLs/plugins, checksums, licenses and build information. Extract the
+whole ZIP and launch `bin/yerbas-qt.exe`. Packaging fails on missing non-system
+DLLs or required plugins.
 
-Other options which may work, but which have not been extensively tested are (please contribute instructions):
+The Windows test job runs every enabled core suite, Qt tests including the asset
+viewer, and checks that the wallet version dialog opens. Logs are retained on
+failure. The version-dialog check does not validate transactions or asset usage.
 
-* On Windows, using a POSIX compatibility layer application such as [cygwin](https://www.cygwin.com/) or [msys2](https://www.msys2.org/).
+## Equivalent manual Linux cross-build
 
-Installing Windows Subsystem for Linux
----------------------------------------
+GitHub is the primary build route. For a manual build, install the same tools
+listed in the workflow, including the POSIX MinGW compiler pair. Do not reuse
+native Linux object files: run `make distclean` before switching an already
+configured checkout, preserving any local configuration first. Build dependencies
+and the application without sudo.
 
-With Windows 10, Microsoft has released a new feature named the [Windows
-Subsystem for Linux (WSL)](https://docs.microsoft.com/windows/wsl/about). This
-feature allows you to run a bash shell directly on Windows in an Ubuntu-based
-environment. Within this environment you can cross compile for Windows without
-the need for a separate Linux VM or server. Note that while WSL can be installed with
-other Linux variants, such as OpenSUSE, the following instructions have only been
-tested with Ubuntu.
+```bash
+make -C depends -j2 HOST=x86_64-w64-mingw32 NO_UPNP=1
+./autogen.sh
+./configure --prefix="$PWD/depends/x86_64-w64-mingw32" \
+  --with-gui=qt6 --with-qrencode --with-qtdbus=no \
+  --without-miniupnpc --disable-bench --enable-wallet --enable-tests
+make -j2
+python3 contrib/windeploy/package.py --depends depends/x86_64-w64-mingw32 \
+  --output windows-package --tests-output windows-tests
+```
 
-This feature is not supported in versions of Windows prior to Windows 10 or on
-Windows Server SKUs. In addition, it is available [only for 64-bit versions of
-Windows](https://docs.microsoft.com/windows/wsl/install-win10).
+Packaging output directories must be empty. GitHub additionally creates the ZIP
+and checksums. Native Linux GUI builds still use system Qt; Windows builds need
+matching host tools from depends rather than the system's Qt version.
 
-Full instructions to install WSL are available on the above link.
-To install WSL on Windows 10 with Fall Creators Update installed (version >= 16215.0) do the following:
+## Validation status
 
-1. Enable the Windows Subsystem for Linux feature
-  * Open the Windows Features dialog (`OptionalFeatures.exe`)
-  * Enable 'Windows Subsystem for Linux'
-  * Click 'OK' and restart if necessary
-2. Install Ubuntu
-  * Open Microsoft Store and search for "Ubuntu 18.04" or use [this link](https://www.microsoft.com/store/productId/9N9TNGVNDL3Q)
-  * Click Install
-3. Complete Installation
-  * Open a cmd prompt and type "Ubuntu1804"
-  * Create a new UNIX user account (this is a separate account from your Windows account)
+Qt host configuration and focused package checks pass locally. Complete Windows
+compilation, packaging and runtime tests require the hosted run. No complete local
+Windows build was launched for this change.
 
-After the bash shell is active, you can follow the instructions below, starting
-with the "Cross-compilation" section. Compiling the 64-bit version is
-recommended, but it is possible to compile the 32-bit version.
-
-Cross-compilation
--------------------
-
-Follow the instructions for Windows in [build-cross](build-cross.md)
-
-Installation
--------------
-
-After building using the Windows subsystem it can be useful to copy the compiled
-executables to a directory on the Windows drive in the same directory structure
-as they appear in the release `.zip` archive. This can be done in the following
-way. This will install to `c:\workspace\yerbas`, for example:
-
-    make install DESTDIR=/mnt/c/workspace/yerbas
-
-You can also create an installer using:
-
-    make deploy
+Upstream references: [cross-compilation](https://doc.qt.io/qt-6/cross-compiling-qt.html)
+and [Windows](https://doc.qt.io/qt-6/windows.html). Ubuntu's MinGW compiler is
+Yerbas source-build coverage, not a claim that it matches Qt's officially tested
+binary-distribution toolchain.

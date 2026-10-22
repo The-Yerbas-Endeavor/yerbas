@@ -22,7 +22,7 @@ jobs:
   build:
     name: ${{ matrix.platform.name }} Build
     runs-on: ${{ matrix.platform.runner }}
-    timeout-minutes: 120
+    timeout-minutes: ${{ matrix.platform.id == 'win64' && 240 || 120 }}
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +54,7 @@ jobs:
             extension: ''
           - name: Windows 64-bit
             id: win64
-            runner: ubuntu-22.04
+            runner: ubuntu-26.04
             host: x86_64-w64-mingw32
             extension: .exe
     env:
@@ -90,6 +90,10 @@ jobs:
             echo "$(brew --prefix "$formula")/libexec/gnubin" >> "$GITHUB_PATH"
           done
 
+      - name: Check Windows packaging logic
+        if: matrix.platform.id == 'win64'
+        run: python3 -m unittest discover -s contrib/windeploy/tests -v
+
       - name: Cache dependency sources and packages
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -108,7 +112,10 @@ jobs:
           if [[ "$RUNNER_OS" == macOS ]]; then
             extra_args+=(OSX_MIN_VERSION=11.0)
           fi
-          make -C depends -j"$BUILD_JOBS" HOST="$HOST_TRIPLE" NO_QT=1 NO_UPNP=1 "${extra_args[@]}" \
+          if [[ "$PLATFORM_ID" != win64 ]]; then
+            extra_args+=(NO_QT=1)
+          fi
+          make -C depends -j"$BUILD_JOBS" HOST="$HOST_TRIPLE" NO_UPNP=1 "${extra_args[@]}" \
             2>&1 | tee ci-logs/depends.log
 
       - name: Configure with wallet and tests enabled
@@ -117,9 +124,13 @@ jobs:
           if [[ "$RUNNER_OS" == macOS ]]; then
             export CXXFLAGS="-O2 -g1 -Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
           fi
+          gui_args=(--without-gui)
+          if [[ "$PLATFORM_ID" == win64 ]]; then
+            gui_args=(--with-gui=qt6 --with-qrencode --with-qtdbus=no)
+          fi
           ./autogen.sh 2>&1 | tee ci-logs/autogen.log
           ./configure --prefix="$PWD/depends/$HOST_TRIPLE" \
-            --without-gui --without-miniupnpc --disable-bench --enable-wallet --enable-tests \
+            "${gui_args[@]}" --without-miniupnpc --disable-bench --enable-wallet --enable-tests \
             2>&1 | tee ci-logs/configure.log
 
       - name: Build binaries and unit tests
@@ -130,11 +141,17 @@ jobs:
       - name: Collect binaries and checksums
         run: |
           set -euo pipefail
-          mkdir -p artifacts package/bin test-binaries
-          for name in yerbasd yerbas-cli; do
-            install -m755 "src/${name}${BINARY_EXTENSION}" package/bin/
-          done
-          install -m755 "src/test/test_yerbas${BINARY_EXTENSION}" test-binaries/
+          mkdir -p artifacts
+          if [[ "$PLATFORM_ID" == win64 ]]; then
+            python3 contrib/windeploy/package.py --depends "depends/$HOST_TRIPLE" \
+              --output package --tests-output test-binaries
+          else
+            mkdir -p package/bin test-binaries
+            for name in yerbasd yerbas-cli; do
+              install -m755 "src/${name}${BINARY_EXTENSION}" package/bin/
+            done
+            install -m755 "src/test/test_yerbas${BINARY_EXTENSION}" test-binaries/
+          fi
           {
             echo "commit=$GITHUB_SHA"
             cat build.properties
@@ -142,7 +159,7 @@ jobs:
           } > package/build-info.txt
           (
             cd package
-            sha256sum bin/* build-info.txt > SHA256SUMS
+            find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
           )
           archive="yerbas-${PLATFORM_ID}-${GITHUB_SHA}"
           if [[ "$BINARY_EXTENSION" == .exe ]]; then
@@ -237,6 +254,38 @@ jobs:
       - name: Run every enabled unit suite
         shell: bash
         run: python ci/run-unit-tests.py "test-binaries/${{ matrix.platform.binary }}" --output test-results --timeout 180
+
+      - name: Run Windows Qt and asset viewer tests
+        timeout-minutes: 10
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          ./test-binaries/test_yerbas-qt.exe 2>&1 | tee test-results/qt-tests.log
+
+      - name: Check Windows wallet opens its version dialog
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force test-results | Out-Null
+          $walletProcess = Start-Process ./test-binaries/yerbas-qt.exe -ArgumentList '-version','-lang=en' -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(45)
+            do {
+              Start-Sleep -Milliseconds 500
+              $walletProcess.Refresh()
+              if ($walletProcess.HasExited) { throw "Wallet exited before opening: $($walletProcess.ExitCode)" }
+              if ($walletProcess.MainWindowTitle -like 'About Yerbas*') {
+                "Opened $($walletProcess.MainWindowTitle)" | Tee-Object test-results/qt-startup.log
+                break
+              }
+            } while ((Get-Date) -lt $deadline)
+            if ($walletProcess.MainWindowTitle -notlike 'About Yerbas*') { throw 'Wallet version dialog did not open' }
+          } finally {
+            if (-not $walletProcess.HasExited) { Stop-Process -Id $walletProcess.Id -Force }
+          }
 
       - name: Upload test reports and logs
         if: always()

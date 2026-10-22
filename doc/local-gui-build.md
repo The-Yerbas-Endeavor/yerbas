@@ -8,8 +8,8 @@ release; a full 6.12 build has not been validated here.
 
 The bundled Qt 5 build path is retired. `depends` automatically selects `USE_SYSTEM_QT=1`
 for a native Linux GUI when you run plain `make`. Use `NO_QT=1` for headless builds.
-This builds the other dependencies; it does not install Qt itself. Cross-platform GUI
-release packaging is not supported by this migration. Headless CI remains enabled.
+This builds the other dependencies; it does not install Qt itself. Windows GUI builds and ZIP packaging run in GitHub Actions; see
+[Windows build instructions](build-windows.md). Other CI platforms remain headless.
 
 ## Features and compatibility
 

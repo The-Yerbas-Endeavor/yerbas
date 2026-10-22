@@ -6,12 +6,7 @@ $(package)_file_name=qt5compat-everywhere-src-$($(package)_version).tar.xz
 $(package)_sha256_hash=78cf1c283795312a7fa31c73eb7f7f556b48374adc484f10ad5a3c0bcb59264e
 $(package)_dependencies=qt
 
-$(package)_patches=CVE-2026-101201-0001.patch CVE-2026-101201-0002.patch
-
-define $(package)_preprocess_cmds
-  patch -p1 < $($(package)_patch_dir)/CVE-2026-101201-0001.patch && \
-  patch -p1 < $($(package)_patch_dir)/CVE-2026-101201-0002.patch
-endef
+# Qt 6.12.0 already contains both CVE-2026-101201 corrections.
 
 define $(package)_config_cmds
   $(build_prefix)/bin/cmake -S . -B build -G "Unix Makefiles" \
