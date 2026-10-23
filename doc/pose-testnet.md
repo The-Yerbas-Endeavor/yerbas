@@ -94,5 +94,23 @@ The existing C++ fixture/replay tests use constructed commitments; this campaign
 must supply real distributed DKG and active-smartnode RPC signing coverage.
 Automated RC reachability scanning is not implemented. RC signing is explicit.
 
+## Local active-identity RPC test
+
+The serial regtest harness exercises `request`, `sign`, `merge`, `maketx`, wallet
+funding/signing, submission and mining. It restarts one isolated daemon under
+generated registered operator identities. It does not simulate independent
+operators, distributed DKG or external reachability. Generate both fixture files
+in the same run of the native test, using absolute paths:
+
+    umask 077
+    YERBAS_RC_FIXTURE=/tmp/yerbas-rc-blocks.txt YERBAS_RC_RPC_KEYS=/tmp/yerbas-rc-keys.json src/test/test_yerbas --run_test=recovery_consensus_lifecycle
+    python3 contrib/pose/recovery_rpc_test.py --bin-dir src --fixture /tmp/yerbas-rc-blocks.txt --keys /tmp/yerbas-rc-keys.json --workdir /tmp/yerbas-rc-rpc
+
+The keys file contains generated regtest operator and funding secrets. Keep it
+local, never commit or publish it, and never use these keys on public networks.
+The daemon binds only localhost, disables discovery and outgoing connections,
+and stops on completion or a test failure. Each run creates a fresh node datadir.
+This supplements the consensus replay test in `recovery_daemon_test.py`.
+
 Mainnet keeps its separate schedule: 1,212,840 warm-up and 1,214,280 RC authority,
 projected January 23 and January 25, 2027. Testnet setup does not activate mainnet.

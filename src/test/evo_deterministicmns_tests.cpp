@@ -744,6 +744,26 @@ BOOST_FIXTURE_TEST_CASE(recovery_consensus_lifecycle, FundedDIP3Setup)
         }
         BOOST_REQUIRE(out.good());
     }
+    // Optional local-only RPC fixture secrets. Never use these generated keys
+    // outside the isolated regtest campaign or publish the resulting file.
+    if (const char* path=std::getenv("YERBAS_RC_RPC_KEYS")) {
+        UniValue metadata(UniValue::VOBJ), signers(UniValue::VARR);
+        metadata.pushKV("fundingKey", CBitcoinSecret(coinbaseKey).ToString());
+        auto addIdentity = [&](const uint256& id) {
+            UniValue identity(UniValue::VOBJ);
+            identity.pushKV("proTxHash", id.ToString());
+            identity.pushKV("key", operatorKeys.at(id).ToString());
+            identity.pushKV("service", after.GetMN(id)->pdmnState->addr.ToString());
+            return identity;
+        };
+        for (const auto& member : roster.members) signers.push_back(addIdentity(member.proTxHash));
+        metadata.pushKV("signers", signers);
+        metadata.pushKV("nonmember", addIdentity(target));
+        std::ofstream out(path);
+        BOOST_REQUIRE(out.good());
+        out << metadata.write() << '\n';
+        BOOST_REQUIRE(out.good());
+    }
     mineTo(1800);
     BOOST_CHECK(llmq::GetRecoveryState(chainActive.Tip()).frozenRoster==state.frozenRoster);
     mineTo(1878);
