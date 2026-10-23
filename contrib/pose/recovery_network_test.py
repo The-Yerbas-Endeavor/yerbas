@@ -17,10 +17,18 @@ import subprocess
 import time
 
 
+_allocated_ports = set()
+
+
 def free_port():
-    with socket.socket() as sock:
-        sock.bind(('127.0.0.1', 0))
-        return sock.getsockname()[1]
+    # Keep process-local allocations distinct even before daemons bind them.
+    while True:
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1', 0))
+            port = sock.getsockname()[1]
+        if port not in _allocated_ports:
+            _allocated_ports.add(port)
+            return port
 
 
 def wait_for(predicate, timeout=120):
@@ -33,11 +41,15 @@ def wait_for(predicate, timeout=120):
 
 
 class Node:
-    def __init__(self, root, name, binary, identity=None):
+    def __init__(self, root, name, binary, identity=None, extra_config="", maxconnections=32, wallet_broadcast=False, smartnode_connections=False):
         self.data = root / name
         self.data.mkdir()
         self.binary = binary
         self.identity = identity
+        self.extra_config = extra_config
+        self.smartnode_connections = smartnode_connections
+        self.wallet_broadcast = wallet_broadcast
+        self.maxconnections = maxconnections
         self.rpcport = free_port()
         self.port = int(identity['service'].split(':')[1]) if identity else free_port()
         if identity:
@@ -61,12 +73,15 @@ class Node:
     def start(self):
         config = (f'regtest=1\nlisten=1\nport={self.port}\nbind=127.0.0.1:{self.port}\n'
                   f'rpcport={self.rpcport}\nconnect=0\ndnsseed=0\ndiscover=0\nupnp=0\n'
-                  'persistmempool=0\nwalletbroadcast=0\nprinttoconsole=0\n'
-                  'dbcache=16\nmaxconnections=32\npar=1\n'
+                  f'persistmempool=0\nwalletbroadcast={int(self.wallet_broadcast)}\nprinttoconsole=0\n'
+                  f'dbcache=16\nmaxconnections={self.maxconnections}\npar=1\n'
                   'poseactivationheight=600\nrecoveryactivationheight=600\n')
         if self.identity:
             config += (f"externalip={self.identity['service']}\n"
                        f"smartnodeblsprivkey={self.identity['key']}\n")
+        if self.smartnode_connections:
+            config = config.replace("connect=0\n", "")
+        config += self.extra_config
         conf = self.data / 'yerbas.conf'
         conf.touch(mode=0o600)
         conf.write_text(config)

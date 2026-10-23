@@ -127,3 +127,36 @@ DKG, independent operators, external reachability, or automatic failure detectio
 
 Mainnet keeps its separate schedule: 1,212,840 warm-up and 1,214,280 RC authority,
 projected January 23 and January 25, 2027. Testnet setup does not activate mainnet.
+
+
+## Fresh 100-smartnode DKG campaign
+
+Run the actual distributed key-generation test locally with:
+
+    python3 contrib/pose/dkg_network_test.py --bin-dir src --workdir /tmp/yerbas-dkg-100
+
+Use a new directory and a machine with capacity for 101 daemon processes. The
+harness creates 100 registrations through wallet RPC from a fresh regtest chain,
+uses separately confirmed funding outputs, and batches registration outside the
+legacy quorum mining window. It keeps the production type-4 size/minimum/signing
+thresholds of 100/80/67. Regtest collateral and difficulty overrides remain local.
+No constructed quorum commitments or imported participation history are used.
+
+The coordinator enables the existing regtest DKG spork with the public regtest
+key from the functional framework. All registered services bind localhost. DNS
+seeding and discovery are disabled. Unlike the RC replay harness, this campaign
+must omit `connect=0`: Yerbas disables automatic smartnode quorum connections
+when that option is present. The campaign keeps allocated local ports distinct.
+
+It waits for all 100 contributions and premature commitments before advancing
+phases, then verifies the mined type-4 quorum on every daemon. All daemons are
+stopped on exit; generated wallets and test identities must remain private and
+must not be reused on public networks. Results and public quorum details are
+written to `dkg-results.json` and `quorum-info.json` in the campaign directory.
+
+This checks one successful distributed session on one host. It does not yet
+establish repeated DKG participation for RC selection, three real failures and
+RC intervention, two successful sessions restoring normal operation, or behavior
+across independently operated hosts. Registration during a legacy commitment
+window produced `bad-qc-invalid-null` during setup and remains a separate issue
+for investigation; batching registrations avoids that issue in this campaign.
