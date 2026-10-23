@@ -296,7 +296,7 @@ jobs:
 
       - name: Run every enabled unit suite
         shell: bash
-        run: python ci/run-unit-tests.py "test-binaries/${{ matrix.platform.binary }}" --output test-results --timeout 180
+        run: python ci/run-unit-tests.py "test-binaries/${{ matrix.platform.binary }}" --output test-results --timeout 180 --no-step-summary
 
       - name: Run Ubuntu Qt wallet and asset viewer tests
         timeout-minutes: 10
@@ -360,3 +360,31 @@ jobs:
           path: test-results/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload compact unit summary
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yerbas-${{ matrix.platform.id }}-unit-summary
+          path: test-results/summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  summary:
+    name: Test summary
+    needs: test
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout summary renderer
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Download compact unit summaries
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: yerbas-*-unit-summary
+          path: summaries
+      - name: Publish one platform comparison
+        if: always()
+        run: python3 ci/summarize-unit-tests.py summaries >> "$GITHUB_STEP_SUMMARY"

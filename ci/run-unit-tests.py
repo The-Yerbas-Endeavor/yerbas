@@ -31,6 +31,8 @@ def main():
     parser.add_argument('--timeout', type=int, default=180,
                         help='Maximum seconds per suite (default: 180)')
     parser.add_argument('--suite', action='append', help='Run only a named suite; repeatable')
+    parser.add_argument('--no-step-summary', action='store_true',
+                        help='Keep reports in artifacts; let the workflow publish one combined summary')
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error('--timeout must be positive')
@@ -38,6 +40,7 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     (output / 'discovery.xml').unlink(missing_ok=True)
+    (output / 'summary.json').unlink(missing_ok=True)
     try:
         listed = subprocess.run([str(binary), '--list_content=HRF', '--color_output=no'],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -123,7 +126,7 @@ def main():
                     'JUnit reports and individual suite logs are in the test-results artifact.', ''])
     report = '\n'.join(summary)
     (output / 'summary.md').write_text(report, encoding='utf-8')
-    if os.environ.get('GITHUB_STEP_SUMMARY'):
+    if not args.no_step_summary and os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as handle:
             handle.write(report)
     print('{} suites passed; {} failed'.format(len(results) - failed, failed), flush=True)
