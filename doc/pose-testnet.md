@@ -148,15 +148,33 @@ seeding and discovery are disabled. Unlike the RC replay harness, this campaign
 must omit `connect=0`: Yerbas disables automatic smartnode quorum connections
 when that option is present. The campaign keeps allocated local ports distinct.
 
-It waits for all 100 contributions and premature commitments before advancing
-phases, then verifies the mined type-4 quorum on every daemon. All daemons are
-stopped on exit; generated wallets and test identities must remain private and
-must not be reused on public networks. Results and public quorum details are
-written to `dkg-results.json` and `quorum-info.json` in the campaign directory.
+It waits for real contributions and premature commitments before advancing
+successful sessions. Four successful sessions establish participation history.
+The campaign then isolates 21 non-RC smartnodes, retaining all 15 selected RC
+members. It checks that three failed sessions activate recovery, collects 11
+actual RPC approvals, mines a penalty, reconnects the fleet, and checks that two
+successful sessions restore normal mode. No synthetic commitments are used.
 
-This checks one successful distributed session on one host. It does not yet
-establish repeated DKG participation for RC selection, three real failures and
-RC intervention, two successful sessions restoring normal operation, or behavior
-across independently operated hosts. Registration during a legacy commitment
-window produced `bad-qc-invalid-null` during setup and remains a separate issue
-for investigation; batching registrations avoids that issue in this campaign.
+All daemons stop on exit. Generated wallets and test identities must remain
+private and must not be reused on public networks. Results are written to
+`dkg-results.json`, session status to `rc-session-history.json`, and successful
+quorum details to `quorum-<height>.json` in the campaign directory.
+
+These tests run on one host and do not establish independent operators or
+external reachability judgments. The campaign's disconnections are intentional
+test inputs, not proof that an arbitrary unreachable public node misbehaved.
+
+## First-registration mining-window regression
+
+The initial regtest legacy type-1 quorum now uses the same three-member sizing
+as the adaptive zero-smartnode configuration. Previously it began at 50 members:
+constructing a candidate containing the first registration could resize it to
+three while checking a 50-bit null commitment, producing `bad-qc-invalid-null`.
+Public-network initialization and commitment validation are unchanged.
+
+    python3 contrib/pose/registration_window_test.py --bin-dir src --workdir /tmp/yerbas-registration-window
+
+This reproduces the first registration at height 401 inside the legacy mining
+window, verifies it mines, disconnects/reconnects it, and restarts the daemon.
+Use a fresh directory with the rebuilt binary. Existing regtest histories made
+with the earlier initial quorum sizing should be regenerated for these tests.

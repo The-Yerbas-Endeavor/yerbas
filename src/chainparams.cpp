@@ -980,7 +980,10 @@ public:
         auto regtestQuorum = llmq3_60;
         regtestQuorum.type = Consensus::LLMQ_5_60;
         consensus.llmqs[Consensus::LLMQ_5_60] = regtestQuorum;
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        // Match the initial zero-smartnode parameters used by the adaptive
+        // updater. Otherwise the first registration can resize a null commitment
+        // from 50 to 3 bits while its candidate block is being assembled.
+        consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
         auto poseTestQuorum = llmq100_67;
         poseTestQuorum.type = Consensus::LLMQ_POSE_TEST;
         poseTestQuorum.name = "llmq_pose_test";

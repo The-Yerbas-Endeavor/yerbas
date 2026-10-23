@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 import shutil
 import time
-from recovery_network_test import Node, free_port, wait_for
+from recovery_network_test import Node, free_port, wait_for, _allocated_ports
 
 # Public regtest-only spork key already used by the functional test framework.
 REGTEST_SPORK_KEY = 'cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK'
@@ -20,15 +20,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bin-dir', type=Path, required=True)
     parser.add_argument('--workdir', type=Path, required=True)
+    parser.add_argument('--bootstrap-from', type=Path, help='Stopped local campaign with private resume-identities.json')
     args = parser.parse_args()
     root = args.workdir.resolve()
     root.mkdir(parents=True, exist_ok=False)
     root.chmod(0o700)
+    if args.bootstrap_from:
+        for identity in json.loads((args.bootstrap_from / 'resume-identities.json').read_text()):
+            _allocated_ports.add(int(identity['service'].split(':')[1]))
     binary = (args.bin_dir / 'yerbasd').resolve()
     coordinator = Node(root, 'coordinator', binary,
                        extra_config=f'sporkkey={REGTEST_SPORK_KEY}\n', maxconnections=160, wallet_broadcast=True, smartnode_connections=True)
     nodes = [coordinator]
     results = []
+    active = nodes
+    offline = []
+    quorum_hash = None
+    snapshots = []
 
     def record(case):
         results.append({'case': case, 'passed': True})
@@ -36,10 +44,10 @@ def main():
 
     def sync():
         tip = coordinator.rpc('getbestblockhash')
-        wait_for(lambda: all(n.rpc('getbestblockhash') == tip for n in nodes), timeout=180)
+        wait_for(lambda: all(n.rpc('getbestblockhash') == tip for n in active), timeout=180)
 
     def sessions():
-        return [n.rpc('quorum', 'dkgstatus')['session'].get('llmq_100_67', {}) for n in nodes[1:]]
+        return [n.rpc('quorum', 'dkgstatus')['session'].get('llmq_100_67', {}) for n in active if n is not coordinator]
 
     def phase(number, field=None, minimum=0):
         def ready():
@@ -51,38 +59,116 @@ def main():
         except Exception:
             (root / 'dkg-phase-diagnostics.json').write_text(json.dumps(sessions(), indent=2))
             raise
-        print(f'DKG phase {number}: all 100 participants ready' + (f', {field}>={minimum}' if field else ''), flush=True)
+        print(f'DKG phase {number}: all {len(active)-1} online participants ready' + (f', {field}>={minimum}' if field else ''), flush=True)
+
+    def mine_to(height):
+        count = height - coordinator.rpc('getblockcount')
+        assert count >= 0
+        if count:
+            coordinator.rpc('generatetoaddress', count, address)
+            sync()
+
+    def run_session(start, succeeds=True, split=False):
+        nonlocal active, offline, quorum_hash
+        mine_to(start - 1)
+        mine_to(start)
+        quorum_hash = coordinator.rpc('getbestblockhash')
+        if split:
+            roster = coordinator.rpc('recovery', 'status')
+            assert roster['qualified'] == 100 and len(roster['members']) == 15
+            members = {m['proTxHash'] for m in roster['members']}
+            offline = [n for n in nodes[1:] if n.identity['proTxHash'] not in members][:21]
+            assert len(offline) == 21
+            for node in offline:
+                node.rpc('setnetworkactive', False)
+            wait_for(lambda: all(n.rpc('getconnectioncount') == 0 for n in offline))
+            active = [n for n in nodes if n not in offline]
+            record('real participation history selects 15 RC members; 21 nonmembers isolated')
+        phase(1)
+        members = active[1].rpc('quorum', 'dkgstatus', 2)['session']['llmq_100_67']['allMembers']
+        online_ids = {n.identity['proTxHash'] for n in active[1:]}
+        required = {}
+        for node in active[1:]:
+            i = members.index(node.identity['proTxHash'])
+            required[node] = {members[(i+gap) % len(members)] for gap in (1,2,4,8,16,32)} & online_ids
+        def connected():
+            return all(required[n] <= {p.get('verified_proregtx_hash') for p in n.rpc('getpeerinfo')} for n in active[1:])
+        wait_for(connected, timeout=180)
+        print('Authenticated quorum connections ready', flush=True)
+        for number, field, count in [(2, 'receivedContributions', len(active)-1),
+                                      (3, 'receivedComplaints' if not succeeds else None, len(active)-1),
+                                      (4, None, 0), (5, 'receivedPrematureCommitments' if succeeds else 'badMembers', 100 if succeeds else 21),
+                                      (6, None, 0)]:
+            coordinator.rpc('generatetoaddress', 2, address)
+            sync()
+            phase(number, field, count)
+        if succeeds:
+            def final_commitment_ready():
+                qc = coordinator.rpc('quorum', 'dkgstatus')['minableCommitments'].get('llmq_100_67', {})
+                return qc.get('quorumHash') == quorum_hash and qc.get('validMembersCount') == 100 and qc.get('signersCount') == 100
+            wait_for(final_commitment_ready, timeout=240)
+            coordinator.rpc('generatetoaddress', 1, address)
+            sync()
+            info = coordinator.rpc('quorum', 'info', 4, quorum_hash)
+            assert len(info['members']) == 100 and sum(m['valid'] for m in info['members']) == 100
+            assert all(quorum_hash in n.rpc('quorum', 'list').get('llmq_100_67', []) for n in active)
+            (root / f'quorum-{start}.json').write_text(json.dumps(info, indent=2)+'\n')
+        mine_to(start + 18)
+        if not succeeds:
+            assert all(quorum_hash not in n.rpc('quorum', 'list').get('llmq_100_67', []) for n in active)
+        status = coordinator.rpc('recovery', 'status')
+        snapshots.append({'session': start, 'succeeded': succeeds, 'status': status})
+        print(f'Session {start}: success={succeeds}, RC={status["mode"]}, failures={status["failures"]}, successes={status["successes"]}', flush=True)
+        return status
 
     try:
-        coordinator.start()
-        address = coordinator.rpc('getnewaddress')
-        coordinator.rpc('generatetoaddress', 420, address)
-        funding = [coordinator.rpc('getnewaddress') for _ in range(100)]
-        coordinator.rpc('sendmany', '', {a: 11 for a in funding})
-        coordinator.rpc('generatetoaddress', 1, address)
-        identities = []
-        ports = set()
-        for i in range(100):
-            port = free_port()
-            while port in ports or port == coordinator.port:
+        if args.bootstrap_from:
+            source = args.bootstrap_from.resolve()
+            shutil.copytree(source / 'coordinator' / 'regtest', coordinator.data / 'regtest',
+                            ignore=shutil.ignore_patterns('.cookie', '.lock', 'debug.log', 'db.log', '*.pid', 'peers.dat', 'mempool.dat'))
+            coordinator.start()
+            if coordinator.rpc('getblockcount') >= 1200:
+                coordinator.rpc('invalidateblock', coordinator.rpc('getblockhash', 1200))
+            assert coordinator.rpc('getblockcount') == 1199
+            address = coordinator.rpc('getnewaddress')
+            identities = json.loads((source / 'resume-identities.json').read_text())
+            registered = coordinator.rpc('protx', 'list', 'valid', True)
+            by_service = {entry['state']['service']: entry['proTxHash'] for entry in registered}
+            for identity in identities:
+                identity['proTxHash'] = by_service[identity['service']]
+        else:
+            coordinator.start()
+            address = coordinator.rpc('getnewaddress')
+            coordinator.rpc('generatetoaddress', 420, address)
+            funding = [coordinator.rpc('getnewaddress') for _ in range(100)]
+            coordinator.rpc('sendmany', '', {a: 11 for a in funding})
+            coordinator.rpc('generatetoaddress', 1, address)
+            identities = []
+            ports = set()
+            for i in range(100):
                 port = free_port()
-            ports.add(port)
-            key = coordinator.rpc('bls', 'generate')
-            owner = coordinator.rpc('getnewaddress')
-            collateral = coordinator.rpc('getnewaddress')
-            service = f'127.0.0.1:{port}'
-            protx = coordinator.rpc('protx', 'register_fund', collateral, 10, service,
-                                    owner, key['public'], owner, 0, address, funding[i])
-            identities.append({'proTxHash': protx, 'key': key['secret'], 'service': service})
-            if (i + 1) % 20 == 0:
-                print(f'Registered {i + 1}/100 smartnodes through RPC', flush=True)
-        # Register in one block outside legacy quorum commitment windows.
-        coordinator.rpc('generatetoaddress', 1, address)
-        coordinator.rpc('generatetoaddress', 1199 - coordinator.rpc('getblockcount'), address)
-        assert len(coordinator.rpc('protx', 'list', 'valid')) == 100
-        assert coordinator.rpc('quorum', 'list').get('llmq_100_67', []) == []
-        assert coordinator.rpc('spork', 'SPORK_17_QUORUM_DKG_ENABLED', 0) == 'success'
+                while port in ports or port == coordinator.port:
+                    port = free_port()
+                ports.add(port)
+                key = coordinator.rpc('bls', 'generate')
+                owner = coordinator.rpc('getnewaddress')
+                collateral = coordinator.rpc('getnewaddress')
+                service = f'127.0.0.1:{port}'
+                protx = coordinator.rpc('protx', 'register_fund', collateral, 10, service,
+                                        owner, key['public'], owner, 0, address, funding[i])
+                identities.append({'proTxHash': protx, 'key': key['secret'], 'service': service})
+                if (i + 1) % 20 == 0:
+                    print(f'Registered {i + 1}/100 smartnodes through RPC', flush=True)
+            # Register in one block outside legacy quorum commitment windows.
+            coordinator.rpc('generatetoaddress', 1, address)
+            coordinator.rpc('generatetoaddress', 1199 - coordinator.rpc('getblockcount'), address)
+            assert len(coordinator.rpc('protx', 'list', 'valid')) == 100
+            assert coordinator.rpc('quorum', 'list').get('llmq_100_67', []) == []
+            assert coordinator.rpc('spork', 'SPORK_17_QUORUM_DKG_ENABLED', 0) == 'success'
         coordinator.stop()
+        private_metadata = root / 'resume-identities.json'
+        private_metadata.touch(mode=0o600)
+        private_metadata.write_text(json.dumps(identities))
         for i, identity in enumerate(identities):
             node = Node(root, f'smartnode{i}', binary, identity, smartnode_connections=True)
             nodes.append(node)
@@ -104,29 +190,60 @@ def main():
         sync()
         assert all(n.rpc('spork', 'show')['SPORK_17_QUORUM_DKG_ENABLED'] == 0 for n in nodes)
         record('100 active smartnodes connected and DKG enabled')
-        coordinator.rpc('generatetoaddress', 1, address)
+        for height in (1200, 1260, 1320, 1380):
+            run_session(height)
+        record('four real successful DKG sessions establish consistent on-chain participation')
+        for i, height in enumerate((1440, 1500, 1560), 1):
+            state = run_session(height, succeeds=False, split=(i == 1))
+            assert state['failures'] == i
+            assert state['mode'] == ('recovery' if i == 3 else 'normal')
+        assert state['canAuthorize'] and state['eligibleSigners'] == 15
+        record('three real failed sessions activate the selected 11-of-15 RC')
+        trigger = state['triggerHeight']
+        mine_to(trigger + 21)
+        candidates = [(n, coordinator.rpc('protx', 'info', n.identity['proTxHash'])) for n in offline]
+        target = next(n for n, info in candidates if info['state']['PoSeBanHeight'] == -1 and info['state']['PoSePenalty'] == 0)
+        target_id = target.identity['proTxHash']
+        request = coordinator.rpc('recovery', 'request', target_id, str(trigger+1), str(trigger+21))
+        roster_ids = {m['proTxHash'] for m in state['members']}
+        signers = [n for n in active[1:] if n.identity['proTxHash'] in roster_ids][:11]
+        assert len(signers) == 11
+        certificate = request
+        for node in signers:
+            certificate = coordinator.rpc('recovery', 'merge', certificate, node.rpc('recovery', 'sign', request))
+        raw = coordinator.rpc('recovery', 'maketx', certificate)
+        funded = coordinator.rpc('fundrawtransaction', raw)
+        signed = coordinator.rpc('signrawtransaction', funded['hex'])
+        assert signed['complete']
+        old_penalty = coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty']
+        txid = coordinator.rpc('sendrawtransaction', signed['hex'])
+        block = coordinator.rpc('generatetoaddress', 1, address)[0]
         sync()
-        quorum_hash = coordinator.rpc('getbestblockhash')
-        phase(1)
-        for number, field, count in [(2, 'receivedContributions', 100),
-                                      (3, None, 0), (4, None, 0),
-                                      (5, 'receivedPrematureCommitments', 100), (6, None, 0)]:
-            coordinator.rpc('generatetoaddress', 2, address)
-            sync()
-            phase(number, field, count)
-        wait_for(lambda: 'llmq_100_67' in coordinator.rpc('quorum', 'dkgstatus')['minableCommitments'], timeout=180)
-        coordinator.rpc('generatetoaddress', 1, address)
+        assert txid in coordinator.rpc('getblock', block)['tx']
+        assert all(n.rpc('recovery', 'status')['consumed'] == 1 for n in active)
+        assert coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty'] > old_penalty
+        record('11 selected active signers authorize a mined RC penalty after the real failures')
+        for node in offline:
+            node.rpc('setnetworkactive', True)
+            node.connect(coordinator)
+        active = nodes
         sync()
-        info = coordinator.rpc('quorum', 'info', 4, quorum_hash)
-        assert len(info['members']) == 100 and sum(m['valid'] for m in info['members']) >= 80
-        assert all(quorum_hash in n.rpc('quorum', 'list').get('llmq_100_67', []) for n in nodes)
-        record('real type-4 DKG commitment mined and accepted across all 101 daemons')
-        (root / 'quorum-info.json').write_text(json.dumps(info, indent=2) + '\n')
+        for node in nodes:
+            for _ in range(10):
+                if node.rpc('mnsync', 'status')['IsSynced']:break
+                node.rpc('mnsync', 'next')
+        state = run_session(1620)
+        assert state['mode'] == 'recovery' and state['successes'] == 1
+        state = run_session(1680)
+        assert state['mode'] == 'normal'
+        assert all(n.rpc('recovery', 'status')['mode'] == 'normal' for n in nodes)
+        record('two real successful sessions restore normal operation on all 101 daemons')
     finally:
         with ThreadPoolExecutor(max_workers=8) as pool:
             list(pool.map(lambda n: n.stop(), nodes))
         for node in nodes:
             (node.data / 'yerbas.conf').write_text('regtest=1\nlisten=0\nconnect=0\n')
+        (root / 'rc-session-history.json').write_text(json.dumps(snapshots, indent=2)+'\n')
         (root / 'dkg-results.json').write_text(json.dumps(results, indent=2) + '\n')
     print(json.dumps(results, indent=2))
 

@@ -21,6 +21,7 @@ BOOST_FIXTURE_TEST_SUITE(chainparams_tests, RegtestChainParamsSetup)
 BOOST_AUTO_TEST_CASE(regtest_null_quorum_commitments)
 {
     const auto& consensus = Params().GetConsensus();
+    BOOST_CHECK_EQUAL(consensus.llmqs.at(Consensus::LLMQ_50_60).size, 3);
     BOOST_CHECK_EQUAL(consensus.llmqTypeChainLocks, Consensus::LLMQ_5_60);
     BOOST_CHECK_EQUAL(consensus.llmqTypeInstantSend, Consensus::LLMQ_5_60);
     BOOST_CHECK_EQUAL(consensus.llmqs.at(Consensus::LLMQ_5_60).size, 3);
