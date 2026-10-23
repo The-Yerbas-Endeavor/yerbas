@@ -76,8 +76,9 @@ Independent consensus review and separately hosted tests remain necessary before
 release. Follow-up localhost campaigns now cover an interrupted real-DKG recovery streak
 and stopped RC signer processes; see `pose-testnet.md` for results. Tests across
 independent hosts must still cover asymmetric connectivity and intermittent
-failures. Additional work includes reorganization
-boundaries around activation, roster selection and timeout. Prior local replay
-and partition tests provide coverage but do not establish those external-network
-properties. On-chain validation cannot establish that a reachability accusation
+failures. The boundary replay campaign also passed activation, trigger, roster-selection,
+rotation and timeout rollback/restart/competing-block tests, including a deeper
+rollback spanning rotation and timeout. These RPC-driven local reorganizations
+and partition tests do not establish peer-driven fork behavior across independent
+hosts. On-chain validation cannot establish that a reachability accusation
 is true; signers still need an explicit evidence and signing procedure.

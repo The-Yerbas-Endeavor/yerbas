@@ -219,3 +219,28 @@ succeeded but retained recovery; and session 1800 succeeded and restored normal
 mode on every daemon. It reused the prior real-DKG history and mined penalty,
 then performed these four sessions anew. All campaign daemons stopped on exit.
 These tests use localhost, not independent hosts or asymmetric Internet paths.
+
+## Recovery boundary reorganizations
+
+Run the daemon replay with the matching native fixture:
+
+    python3 contrib/pose/recovery_daemon_test.py --bin-dir src --fixture /tmp/yerbas-rc-blocks.txt --workdir /tmp/yerbas-rc-boundaries
+
+The harness checks activation (600), initial recovery triggering (738), qualified
+committee selection (1440), qualified recovery triggering (1518), scheduled
+rotation during recovery (1800), and the timeout transition (1877). At each
+boundary it disconnects the original block, compares the complete RC status with
+the previous state, restarts, mines a competing block, and restores the original
+branch. Trigger-block replacements must produce different recovery epochs.
+Restoring the original block must restore its complete original RC status.
+
+A deeper rollback crosses both the scheduled rotation and timeout, then reconnects
+to the saved locked tip and checks that roster reconstruction and enforcement
+state agree. Existing penalty rollback, persistence, full reindex, and public
+configuration rejection checks remain part of the campaign. Fixture commitments
+are constructed; these tests exercise daemon consensus and database undo/rebuild,
+not distributed DKG or peer-driven fork selection. Forks are deliberately selected
+using invalidateblock/reconsiderblock RPCs in an isolated regtest daemon.
+
+Validation on October 23, 2026: all 19 daemon scenarios passed, including the
+seven new boundary/deep-rollback checks. The campaign daemon stopped on exit.

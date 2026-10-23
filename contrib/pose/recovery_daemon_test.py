@@ -65,13 +65,44 @@ def record(name):
 
 def status():return rpc('recovery','status')
 
+
+def boundary_reorg(height, before, name):
+    """Replace a boundary block briefly, restart, then restore the original branch."""
+    assert rpc('getblockcount') == height
+    original = rpc('getbestblockhash')
+    after = status()
+    rpc('invalidateblock', original)
+    assert rpc('getblockcount') == height - 1 and status() == before
+    stop(); start()
+    assert rpc('getblockcount') == height - 1 and status() == before
+    alternate = rpc('generatetoaddress', 1, rpc('getnewaddress'))[0]
+    assert alternate != original and rpc('getblockcount') == height
+    alternate_state = status()
+    assert alternate_state['enabled'] == after['enabled']
+    assert alternate_state['mode'] == after['mode']
+    assert alternate_state['failures'] == after['failures']
+    assert alternate_state['successes'] == after['successes']
+    assert alternate_state['consumed'] == after['consumed']
+    if after['triggerHeight'] == height:
+        assert alternate_state['epoch'] != after['epoch']
+    rpc('invalidateblock', alternate)
+    assert status() == before
+    rpc('reconsiderblock', original)
+    assert rpc('getbestblockhash') == original and status() == after
+    record(name)
+
 try:
     start()
     assert status()['enabled'] is False
     record('inactive before activation, no appointed keys configured')
+    boundaries = {600: 'activation', 738: 'initial recovery trigger',
+                  1440: 'committee selection', 1518: 'qualified recovery trigger'}
     for height,block in enumerate(blocks,1):
+        before = status() if height in boundaries else None
         result=rpc('submitblock',block)
         assert result is None,(height,result)
+        if height in boundaries:
+            boundary_reorg(height, before, boundaries[height] + ' survives rollback, restart, competing block and original-branch restoration')
         if height==738:
             s=status()
             assert s['mode']=='recovery' and not s['canAuthorize'] and s['members']==[],s
@@ -112,11 +143,25 @@ try:
     assert status()['consumed']==1
     record('full reindex independently reconstructs participation, selection and enforcement')
     address=rpc('getnewaddress')
-    rpc('generatetoaddress',260,address)
+    rpc('generatetoaddress',259,address)
+    before=status()
+    rpc('generatetoaddress',1,address)
+    boundary_reorg(1800,before,'scheduled rotation during recovery survives a competing block and restart')
     assert status()['committeeHash']==expected['committee']
     record('scheduled rotation does not replace the active recovery roster')
-    rpc('generatetoaddress',78,address)
+    rpc('generatetoaddress',76,address)
+    before=status();assert before['mode']=='recovery'
+    rpc('generatetoaddress',1,address)
+    boundary_reorg(1877,before,'timeout boundary rolls back to recovery and reconnects to locked state')
     assert status()['mode']=='locked'
+    locked=status();locked_tip=rpc('getbestblockhash')
+    rotated=rpc('getblockhash',1800)
+    rpc('invalidateblock',rotated)
+    assert rpc('getblockcount')==1799 and status()['mode']=='recovery'
+    rpc('reconsiderblock',rotated)
+    assert rpc('getbestblockhash')==locked_tip and status()==locked
+    record('deep rollback across rotation and timeout reconstructs the scheduled roster and locked state')
+    rpc('generatetoaddress',1,address)
     rpc('generatetoaddress',120,address)
     assert status()['mode']=='locked'
     record('expiry locks authority without automatic renewal')
