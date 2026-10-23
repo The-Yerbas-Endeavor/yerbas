@@ -7,6 +7,7 @@
 #define RAVEN_QT_ASSETTABLEMODEL_H
 
 #include "amount.h"
+#include "assetrecord.h"
 
 #include <QAbstractTableModel>
 #include <QStringList>
@@ -47,7 +48,8 @@ public:
         /** YERB or name of an asset */
             AssetIPFSHashRole = 104,
         /** IPFS Decoration Role */
-            AssetIPFSHashDecorationRole = 105
+            AssetIPFSHashDecorationRole = 105,
+            BalanceStatusRole = 106
     };
 
     int rowCount(const QModelIndex &parent) const;
@@ -63,6 +65,8 @@ public:
     void checkBalanceChanged();
 
 private:
+    void applySnapshot(const QList<AssetRecord>& snapshot);
+    friend class AssetViewTests;
     WalletModel *walletModel;
     QStringList columns;
     AssetTablePriv *priv;

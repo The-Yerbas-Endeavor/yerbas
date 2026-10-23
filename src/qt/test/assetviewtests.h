@@ -10,6 +10,9 @@ private Q_SLOTS:
     void contentUrls();
     void filteringAndSorting();
     void quantities();
+    void incrementalBalances();
+    void imageExport();
+    void walletRecovery();
     void detailsWithoutContent();
     void imagePreview_data();
     void imagePreview();

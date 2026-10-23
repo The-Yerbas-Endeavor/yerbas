@@ -44,6 +44,7 @@ public:
         if (currentActiveAssetCache) {
             {
                 std::map<std::string, CAmount> balances;
+                std::map<std::string, AssetRecord> categories;
                 std::map<std::string, std::vector<COutput> > outputs;
                 CWallet* wallet = parent->walletModel ? parent->walletModel->getWallet() : nullptr;
                 if (!wallet) {
@@ -52,11 +53,31 @@ public:
                 }
                 LOCK(wallet->cs_wallet);
                 wallet->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY);
-                for (const auto& entry : outputs) {
-                    for (const auto& output : entry.second) {
+                std::set<COutPoint> available;
+                for (const auto& entry : outputs)
+                    for (const auto& output : entry.second)
+                        if (output.fSpendable && output.tx->GetDepthInMainChain() > 0)
+                            available.emplace(output.tx->GetHash(), output.i);
+                // Ownership survives a freeze or coin lock. Include pending receipts,
+                // but exclude abandoned/conflicted transactions and spent outputs.
+                for (const auto& item : wallet->mapWallet) {
+                    const CWalletTx& tx = item.second;
+                    const int depth = tx.GetDepthInMainChain();
+                    if (depth < 0 || !CheckFinalTx(*tx.tx) || (depth == 0 && !tx.InMempool()))
+                        continue;
+                    for (unsigned int i = 0; i < tx.tx->vout.size(); ++i) {
+                        const CTxOut& out = tx.tx->vout[i];
                         CAssetOutputEntry data;
-                        if (GetAssetData(output.tx->tx->vout[output.i].scriptPubKey, data))
-                            balances[entry.first] += data.nAmount;
+                        if (wallet->IsSpent(tx.GetHash(), i) || !(wallet->IsMine(out) & ISMINE_SPENDABLE)
+                            || !GetAssetData(out.scriptPubKey, data)) continue;
+                        balances[data.assetName] += data.nAmount;
+                        auto& amounts = categories[data.assetName];
+                        if (depth == 0) amounts.pending += data.nAmount;
+                        else if (IsAssetNameAnRestricted(data.assetName) && (currentActiveAssetCache->CheckForGlobalRestriction(data.assetName, true)
+                            || currentActiveAssetCache->CheckForAddressRestriction(data.assetName, EncodeDestination(data.destination), true)))
+                            amounts.restricted += data.nAmount;
+                        else if (available.count(COutPoint(tx.GetHash(), i))) amounts.available += data.nAmount;
+                        else amounts.locked += data.nAmount;
                     }
                 }
                 std::set<std::string> setAssetsToSkip;
@@ -95,7 +116,13 @@ public:
                             continue;
                         }
                     }
-                    cachedBalances.append(AssetRecord(bal->first, bal->second, units, fIsAdministrator, EncodeAssetData(ipfsHash)));
+                    AssetRecord record(bal->first, bal->second, units, fIsAdministrator, EncodeAssetData(ipfsHash));
+                    const auto& amounts = categories[bal->first];
+                    record.available = amounts.available;
+                    record.pending = amounts.pending;
+                    record.restricted = amounts.restricted;
+                    record.locked = amounts.locked;
+                    cachedBalances.append(record);
                 }
             }
         }
@@ -133,13 +160,37 @@ AssetTableModel::~AssetTableModel()
 };
 
 void AssetTableModel::checkBalanceChanged() {
-    qDebug() << "AssetTableModel::CheckBalanceChanged";
-    // TODO: optimize by 1) updating cache incrementally; and 2) emitting more specific dataChanged signals
-    beginResetModel();
 #ifdef ENABLE_WALLET
-    priv->refreshWallet();
+    AssetTablePriv snapshot(this);
+    snapshot.refreshWallet();
+    applySnapshot(snapshot.cachedBalances);
 #endif
-    endResetModel();
+}
+
+void AssetTableModel::applySnapshot(const QList<AssetRecord>& snapshot)
+{
+    int row = 0;
+    for (const auto& record : snapshot) {
+        while (row < priv->cachedBalances.size() && priv->cachedBalances[row].name < record.name) {
+            beginRemoveRows(QModelIndex(), row, row);
+            priv->cachedBalances.removeAt(row);
+            endRemoveRows();
+        }
+        if (row == priv->cachedBalances.size() || priv->cachedBalances[row].name != record.name) {
+            beginInsertRows(QModelIndex(), row, row);
+            priv->cachedBalances.insert(row, record);
+            endInsertRows();
+        } else if (!(priv->cachedBalances[row] == record)) {
+            priv->cachedBalances[row] = record;
+            Q_EMIT dataChanged(index(row, 0), index(row, columns.size() - 1));
+        }
+        ++row;
+    }
+    if (row < priv->cachedBalances.size()) {
+        beginRemoveRows(QModelIndex(), row, priv->cachedBalances.size() - 1);
+        while (priv->cachedBalances.size() > row) priv->cachedBalances.removeLast();
+        endRemoveRows();
+    }
 }
 
 int AssetTableModel::rowCount(const QModelIndex &parent) const
@@ -161,6 +212,12 @@ QVariant AssetTableModel::data(const QModelIndex &index, int role) const
 
     switch (role)
     {
+        case BalanceStatusRole:
+            return tr("Available: %1\nPending: %2\nRestricted: %3\nLocked or otherwise unavailable: %4")
+                .arg(QString::fromStdString(rec->formattedAmount(rec->available)),
+                     QString::fromStdString(rec->formattedAmount(rec->pending)),
+                     QString::fromStdString(rec->formattedAmount(rec->restricted)),
+                     QString::fromStdString(rec->formattedAmount(rec->locked)));
         case AmountRole:
             return QVariant::fromValue<qlonglong>(rec->quantity);
         case AssetNameRole:
@@ -212,7 +269,7 @@ QVariant AssetTableModel::data(const QModelIndex &index, int role) const
                 return QString::fromStdString(rec->formattedQuantity());
         }
         case Qt::ToolTipRole:
-            return formatTooltip(rec);
+            return formatTooltip(rec) + "\n" + data(index, BalanceStatusRole).toString();
         case Qt::TextAlignmentRole:
         {
             if (index.column() == Quantity) {
@@ -254,7 +311,7 @@ QModelIndex AssetTableModel::index(int row, int column, const QModelIndex &paren
     AssetRecord *data = priv->index(row);
     if(data)
     {
-        QModelIndex idx = createIndex(row, column, priv->index(row));
+        QModelIndex idx = createIndex(row, column);
         return idx;
     }
 

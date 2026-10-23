@@ -87,7 +87,7 @@ def main():
     bin_dir = output / 'bin'
     bin_dir.mkdir(parents=True, exist_ok=True)
     tests.mkdir(parents=True, exist_ok=True)
-    for binary in ('yerbasd.exe', 'yerbas-cli.exe', 'qt/yerbas-qt.exe'):
+    for binary in ('yerbasd.exe', 'yerbas-cli.exe', 'yerbas-tx.exe', 'qt/yerbas-qt.exe'):
         shutil.copy2(built_executable(build / 'src' / binary), bin_dir / Path(binary).name)
     for group in ('platforms', 'imageformats', 'tls', 'styles'):
         plugins = prefix / 'plugins' / group

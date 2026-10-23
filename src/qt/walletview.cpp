@@ -368,7 +368,7 @@ void WalletView::backupWallet()
             CClientUIInterface::MSG_ERROR);
         }
     else {
-        Q_EMIT message(tr("Backup Successful"), tr("The wallet data was successfully saved to %1.").arg(filename),
+        Q_EMIT message(tr("Backup Successful"), tr("The wallet data was successfully saved to %1. Keep this file and its encryption passphrase safe. On a new installation, synchronize and rescan to recover coins and assets belonging to its keys. External asset images are not included. Create a new backup after importing keys or changing encryption.").arg(filename),
             CClientUIInterface::MSG_INFORMATION);
     }
 }

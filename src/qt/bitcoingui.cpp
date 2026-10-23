@@ -6,6 +6,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <QFile>
+#include <QFileDialog>
+#include "walletrecovery.h"
 #include <QActionGroup>
 #include <boost/bind/bind.hpp>
 #if defined(HAVE_CONFIG_H)
@@ -569,6 +571,26 @@ void BitcoinGUI::createMenuBar()
     {
         file->addAction(openAction);
         file->addAction(backupWalletAction);
+        auto* restore = file->addAction(tr("Restore wallet backup…"));
+        restore->setEnabled(backupWalletAction->isEnabled());
+        connect(backupWalletAction, &QAction::changed, restore, [this, restore] {
+            restore->setEnabled(backupWalletAction->isEnabled());
+        });
+        connect(restore, &QAction::triggered, this, [this] {
+            if (ShutdownRequested()) return;
+            const QString source = QFileDialog::getOpenFileName(this, tr("Select wallet backup"), QString(), tr("Wallet Data (*.dat)"));
+            if (source.isEmpty()) return;
+            if (QMessageBox::question(this, tr("Restore wallet backup"),
+                tr("Yerbas will copy this backup to a new wallet file and restart to rescan it. Your current wallet file will be retained. The backup is validated on restart.\n\n"
+                   "Keep the original backup and encryption passphrase. Coins and assets appear as the blockchain synchronizes and rescans; external asset images are not included. A pruned node may need to download the blockchain again.\n\nContinue?"),
+                QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
+            const QString name = WalletRecovery::copyBackup(source, GUIUtil::boostPathToQString(GetDataDir()));
+            if (name.isEmpty()) {
+                QMessageBox::warning(this, tr("Restore failed"), tr("The backup could not be copied. Check the file and available disk space."));
+                return;
+            }
+            handleRestart(WalletRecovery::restartArguments(QCoreApplication::arguments(), name));
+        });
         file->addAction(signMessageAction);
         file->addAction(verifyMessageAction);
         file->addSeparator();

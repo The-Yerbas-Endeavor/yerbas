@@ -150,6 +150,7 @@ BITCOIN_QT_H = \
   qt/assetfilterproxy.h \
   qt/assetdetailsdialog.h \
   qt/assetrecord.h \
+  qt/walletrecovery.h \
   qt/assetsdialog.h \
   qt/assettablemodel.h \
   qt/createassetdialog.h \

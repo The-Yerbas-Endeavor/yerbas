@@ -3,6 +3,9 @@
 #include "assetdetailsdialog.h"
 
 #include <QBuffer>
+#include <QFileDialog>
+#include <QSaveFile>
+#include <QMessageBox>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QImageReader>
@@ -16,6 +19,12 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <memory>
+
+bool AssetDetailsDialog::saveImage(const QImage& image, const QString& filename)
+{
+    QSaveFile file(filename);
+    return !image.isNull() && file.open(QIODevice::WriteOnly) && image.save(&file, "PNG") && file.commit();
+}
 
 QUrl AssetDetailsDialog::contentUrl(const QString& hash, const QString& gateway)
 {
@@ -41,6 +50,9 @@ AssetDetailsDialog::AssetDetailsDialog(const QString& details, const QString& ha
     auto* text = new QPlainTextEdit(details, this);
     text->setReadOnly(true);
     layout->addWidget(text);
+    auto* notice = new QLabel(tr("Asset ownership is recorded on the blockchain. Images are external content and are not included in wallet.dat backups. Export an image to keep a local copy."), this);
+    notice->setWordWrap(true);
+    layout->addWidget(notice);
     const QUrl url = contentUrl(hash, gateway);
     auto* status = new QLabel(url.isEmpty() ? tr("No supported IPFS image reference or gateway.")
         : tr("Loading a preview contacts %1 using your network proxy settings.").arg(url.host()), this);
@@ -63,6 +75,15 @@ AssetDetailsDialog::AssetDetailsDialog(const QString& details, const QString& ha
     fullSize->setEnabled(false);
     layout->addWidget(fullSize);
     auto pixmap = std::make_shared<QPixmap>();
+    auto* save = new QPushButton(tr("Export image…"), this);
+    save->setObjectName("exportImage");
+    save->setEnabled(false);
+    layout->addWidget(save);
+    connect(save, &QPushButton::clicked, this, [this, pixmap] {
+        const QString path = QFileDialog::getSaveFileName(this, tr("Export asset image"), "asset.png", tr("PNG image (*.png)"));
+        if (!path.isEmpty() && !saveImage(pixmap->toImage(), path))
+            QMessageBox::warning(this, tr("Export failed"), tr("The image could not be saved."));
+    });
     connect(fullSize, &QPushButton::clicked, this, [this, pixmap] {
         QDialog viewer(this);
         viewer.setWindowTitle(tr("Asset image"));
@@ -125,6 +146,7 @@ AssetDetailsDialog::AssetDetailsDialog(const QString& details, const QString& ha
             *pixmap = QPixmap::fromImage(decoded);
             image->setPixmap(pixmap->scaled(560, 260, Qt::KeepAspectRatio, Qt::SmoothTransformation));
             fullSize->setEnabled(true);
+            save->setEnabled(true);
             status->setText(tr("Image loaded (%1 × %2). Preview content is not verified by the wallet.")
                 .arg(decoded.width()).arg(decoded.height()));
         });

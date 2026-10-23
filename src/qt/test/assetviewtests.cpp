@@ -1,3 +1,7 @@
+#include "walletrecovery.h"
+#include <QTemporaryDir>
+#include <QSignalSpy>
+#include <QPersistentModelIndex>
 // Copyright (c) 2026 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying COPYING file.
 #include "assetviewtests.h"
@@ -69,7 +73,7 @@ void AssetViewTests::detailsWithoutContent()
     int disabled = 0;
     for (auto* button : dialog.findChildren<QPushButton*>())
         if (!button->isEnabled()) ++disabled;
-    QCOMPARE(disabled, 2); // No preview request and no full-size image.
+    QCOMPARE(disabled, 3); // No preview request and no full-size image.
 }
 
 void AssetViewTests::imagePreview_data()
@@ -118,4 +122,65 @@ void AssetViewTests::imagePreview()
     QTRY_VERIFY(load->isEnabled());
     QCOMPARE(requests, 1);
     QCOMPARE(fullSize->isEnabled(), !redirect);
+}
+
+void AssetViewTests::incrementalBalances()
+{
+    AssetTableModel model;
+    QSignalSpy resets(&model, &QAbstractItemModel::modelReset);
+    QSignalSpy changes(&model, &QAbstractItemModel::dataChanged);
+    AssetRecord a("AAA", 4 * COIN, 2, false, ""), b("BBB", COIN, 0, true, "");
+    a.available = a.pending = a.restricted = a.locked = COIN;
+    model.applySnapshot({a, b});
+    QPersistentModelIndex selected(model.index(1, 0));
+    model.applySnapshot({a, b});
+    QCOMPARE(changes.count(), 0);
+    a.quantity += COIN;
+    a.restricted += COIN;
+    model.applySnapshot({a, b});
+    QCOMPARE(changes.count(), 1);
+    QVERIFY(model.index(0, 0).data(AssetTableModel::BalanceStatusRole).toString().contains("Restricted: 2"));
+    model.applySnapshot({b});
+    QVERIFY(selected.isValid());
+    QCOMPARE(selected.row(), 0);
+    QCOMPARE(selected.data().toString(), QString("BBB"));
+    model.applySnapshot({a, b});
+    QCOMPARE(selected.row(), 1);
+    QCOMPARE(resets.count(), 0);
+    model.applySnapshot({});
+    QVERIFY(!selected.isValid());
+}
+
+void AssetViewTests::imageExport()
+{
+    QTemporaryDir dir;
+    QImage image(2, 3, QImage::Format_RGB32);
+    image.fill(Qt::green);
+    const QString path = dir.filePath("preview.png");
+    QVERIFY(AssetDetailsDialog::saveImage(image, path));
+    QCOMPARE(QImage(path), image);
+    QVERIFY(!AssetDetailsDialog::saveImage(QImage(), path));
+    QCOMPARE(QImage(path), image);
+    QVERIFY(!AssetDetailsDialog::saveImage(image, dir.filePath("missing/image.png")));
+}
+
+void AssetViewTests::walletRecovery()
+{
+    QTemporaryDir dir;
+    QFile original(dir.filePath("wallet.dat"));
+    QVERIFY(original.open(QIODevice::WriteOnly));
+    original.write("original wallet bytes");
+    original.close();
+    const QString first = WalletRecovery::copyBackup(original.fileName(), dir.path());
+    const QString second = WalletRecovery::copyBackup(original.fileName(), dir.path());
+    QVERIFY(!first.isEmpty());
+    QVERIFY(first != second);
+    QFile restored(dir.filePath(first));
+    QVERIFY(restored.open(QIODevice::ReadOnly));
+    QCOMPARE(restored.readAll(), QByteArray("original wallet bytes"));
+    QVERIFY(original.open(QIODevice::ReadOnly));
+    QCOMPARE(original.readAll(), QByteArray("original wallet bytes"));
+    QVERIFY(WalletRecovery::copyBackup(dir.filePath("absent"), dir.path()).isEmpty());
+    const QStringList args = WalletRecovery::restartArguments({"yerbas-qt", "-testnet", "-wallet=old.dat", "--wallet=other.dat", "-zapwallettxes=1", "-rescan=0", "-proxy=127.0.0.1:9050"}, first);
+    QCOMPARE(args, QStringList({"-testnet", "-proxy=127.0.0.1:9050", "-wallet=" + first, "-rescan=1"}));
 }

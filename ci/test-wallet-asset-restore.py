@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.error
 
 
 def wait_for(check, description, timeout=90):
@@ -43,7 +44,11 @@ class Node:
         request.add_header('Authorization', 'Basic ' + base64.b64encode(b'restore-test:isolated-test-only').decode())
         # Ignore desktop HTTP proxy settings for these loopback-only requests.
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(request, timeout=180 if method == 'generate' else 10) as response:
+        try:
+            response = opener.open(request, timeout=600 if method == 'generate' else 30)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        with response:
             result = json.load(response)
         if result['error']:
             raise RuntimeError(str(result['error']))
@@ -76,9 +81,9 @@ class Node:
             self.log.close()
 
 
-def run(binary, root):
+def run(binary, root, encrypted=False, source_binary=None):
     issuer = Node(binary, root / 'issuer')
-    recipient = Node(binary, root / 'recipient')
+    recipient = Node(source_binary or binary, root / 'recipient')
     nodes = [issuer, recipient]
     asset, nft = 'RESTORETEST', 'RESTORETEST#ART001'
     cid = 'QmTqu3Lk3gmTsQVtjU7rYYM37EAW4xNmbuEAp2Mjr4AV7E'
@@ -97,13 +102,22 @@ def run(binary, root):
     try:
         issuer.start()
         recipient.start()
-        issuer.rpc('generate', 130)
+        if encrypted:
+            recipient.rpc('encryptwallet', 'public-regtest-passphrase')
+            recipient.process.wait(timeout=30)
+            recipient.log.close()
+            recipient.start()
+            recipient.rpc('walletpassphrase', 'public-regtest-passphrase', 600)
+        # Mature enough rewards for two root issuance fees and a restricted issuance.
+        issuer.rpc('generate', 170)
         connect(recipient)
         sync(recipient)
         addresses = [recipient.rpc('getnewaddress') for _ in range(4)]
         backup = root / 'wallet-backup.dat'
         recipient.rpc('backupwallet', str(backup))
         assert backup.is_file()
+        if encrypted:
+            recipient.rpc('walletlock')
         print('Backed up keys before receiving any coins or assets.', flush=True)
         confirm(issuer.rpc('sendtoaddress', addresses[0], 2))
         confirm(issuer.rpc('issue', asset, 100, '', '', 2, True)[0])
@@ -111,6 +125,11 @@ def run(binary, root):
         confirm(issuer.rpc('transfer', asset, 12.34, addresses[1])[0])
         confirm(issuer.rpc('transfer', nft, 1, addresses[2])[0])
         confirm(issuer.rpc('transfer', asset + '!', 1, addresses[3])[0])
+        # Restricted ownership must survive wallet-only recovery while frozen.
+        confirm(issuer.rpc('issue', 'LOCKTEST', 1)[0])
+        confirm(issuer.rpc('issuerestrictedasset', '$LOCKTEST', 5, 'true', addresses[1])[0])
+        confirm(issuer.rpc('freezeaddress', '$LOCKTEST', addresses[1])[0])
+        assert recipient.rpc('checkaddressrestriction', addresses[1], '$LOCKTEST')
         expected = {asset: 12.34, nft: 1, asset + '!': 1}
         assert balances(recipient) == expected
         recipient.stop()
@@ -132,14 +151,32 @@ def run(binary, root):
         restored.start(rescan=True)
         connect(restored)
         assert balances(restored) == expected
-        for name, amount in [(asset, 12.34), (nft, 1), (asset + '!', 1)]:
+        if encrypted:
+            assert restored.rpc('getwalletinfo')['unlocked_until'] == 0
+            try:
+                restored.rpc('walletpassphrase', 'wrong-passphrase', 60)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('Incorrect passphrase accepted')
+            restored.rpc('walletpassphrase', 'public-regtest-passphrase', 600)
+        assert restored.rpc('checkaddressrestriction', addresses[1], '$LOCKTEST')
+        try:
+            restored.rpc('transfer', '$LOCKTEST', 5, issuer.rpc('getnewaddress'))
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('Frozen restricted asset was spendable')
+        confirm(issuer.rpc('unfreezeaddress', '$LOCKTEST', addresses[1])[0])
+        wait_for(lambda: balances(restored).get('$LOCKTEST') == 5, 'unfrozen restored balance')
+        for name, amount in [(asset, 12.34), (nft, 1), (asset + '!', 1), ('$LOCKTEST', 5)]:
             txid = restored.rpc('transfer', name, amount, issuer.rpc('getnewaddress'))[0]
             wait_for(lambda: txid in issuer.rpc('getrawmempool'), 'restored transfer relay')
             issuer.rpc('generate', 1)
             sync(restored)
             assert restored.rpc('gettransaction', txid)['confirmations'] > 0
         assert not balances(restored)
-        assert balances(issuer) == {asset: 100, nft: 1, asset + '!': 1}
+        assert balances(issuer) == {asset: 100, nft: 1, asset + '!': 1, 'LOCKTEST': 1, 'LOCKTEST!': 1, '$LOCKTEST': 5}
         print('PASS: wallet.dat-only recovery and rescan; all recovered asset types transferred successfully.', flush=True)
     finally:
         shutdown_errors = []
@@ -159,10 +196,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary', type=Path)
     parser.add_argument('--workdir', type=Path, help='New directory in which to retain test logs')
+    parser.add_argument('--encrypted', action='store_true', help='Back up and restore an encrypted wallet')
+    parser.add_argument('--source-binary', type=Path, help='Older daemon used to create the source wallet (upgrade regression)')
     args = parser.parse_args()
     if args.workdir:
         args.workdir.mkdir(parents=True, exist_ok=False)
-        run(args.binary.resolve(), args.workdir.resolve())
+        run(args.binary.resolve(), args.workdir.resolve(), args.encrypted, args.source_binary.resolve() if args.source_binary else None)
     else:
         with tempfile.TemporaryDirectory(prefix='yerbas-asset-restore-') as directory:
-            run(args.binary.resolve(), Path(directory))
+            run(args.binary.resolve(), Path(directory), args.encrypted, args.source_binary.resolve() if args.source_binary else None)

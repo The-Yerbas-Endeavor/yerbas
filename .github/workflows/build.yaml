@@ -2,7 +2,7 @@ name: Yerbas Build and Tests
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev, main, '4.X', '4.*']
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -149,11 +149,17 @@ jobs:
 
       - name: Test wallet.dat-only asset recovery
         if: matrix.platform.id == 'ubuntu26'
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           set -euo pipefail
           python3 ci/test-wallet-asset-restore.py "$PWD/src/yerbasd" \
             --workdir "$PWD/ci-logs/asset-restore" 2>&1 | tee ci-logs/asset-restore.log
+
+      - name: Test transaction utility
+        if: matrix.platform.id != 'win64'
+        run: |
+          python3 test/util/bitcoin-util-test.py --binary "$PWD/src/yerbas-tx"
+          python3 ci/test-yerbas-tx.py "$PWD/src/yerbas-tx"
 
       - name: Collect binaries and checksums
         run: |
@@ -164,7 +170,7 @@ jobs:
               --output package --tests-output test-binaries
           else
             mkdir -p package/bin test-binaries
-            for name in yerbasd yerbas-cli; do
+            for name in yerbasd yerbas-cli yerbas-tx; do
               install -m755 "src/${name}${BINARY_EXTENSION}" package/bin/
             done
             install -m755 "src/test/test_yerbas${BINARY_EXTENSION}" test-binaries/
@@ -312,6 +318,16 @@ jobs:
           set -euo pipefail
           mkdir -p test-results
           ./test-binaries/test_yerbas-qt.exe 2>&1 | tee test-results/qt-tests.log
+
+      - name: Test Windows transaction utility and wallet recovery
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          python test/util/bitcoin-util-test.py --binary "$PWD/test-binaries/yerbas-tx.exe"
+          python ci/test-yerbas-tx.py "$PWD/test-binaries/yerbas-tx.exe"
+          python ci/test-wallet-asset-restore.py "$PWD/test-binaries/yerbasd.exe" --encrypted --workdir "$PWD/test-results/asset-restore"
 
       - name: Check Windows wallet opens its version dialog
         if: ${{ !cancelled() && runner.os == 'Windows' }}

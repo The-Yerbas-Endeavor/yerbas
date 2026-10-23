@@ -180,6 +180,9 @@ public:
         QRect amountRect(gradientRect.left() + xspace, gradientRect.top()+ypad+(halfheight/2), gradientRect.width() - xspace - 24, halfheight);
         QRect ipfsLinkRect(QPoint(gradientRect.right() - nIconSize/2, gradientRect.top() + halfheight/1.5), QSize(nIconSize/2, nIconSize/2));
 
+        assetNameRect.moveTop(gradientRect.top() + ypad);
+        amountRect.moveTop(gradientRect.top() + ypad);
+
         // Create the gradient for the asset items
         QLinearGradient gradient(mainRect.topLeft(), mainRect.bottomRight());
 
@@ -268,12 +271,20 @@ public:
         painter->setFont(amountFont);
         painter->drawText(amountRect, Qt::AlignRight|Qt::AlignVCenter, amountText);
 
+        QFont statusFont = amountFont;
+        statusFont.setPixelSize(11);
+        painter->setFont(statusFont);
+        const QString status = index.data(AssetTableModel::BalanceStatusRole).toString().replace("\n", " · ");
+        const QRect statusRect(assetNameRect.left(), gradientRect.top() + halfheight + ypad,
+                               amountRect.right() - assetNameRect.left(), halfheight);
+        painter->drawText(statusRect, Qt::AlignLeft | Qt::AlignVCenter,
+                          painter->fontMetrics().elidedText(status, Qt::ElideRight, statusRect.width()));
         painter->restore();
     }
 
     inline QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
     {
-        return QSize(42, 42);
+        return QSize(42, 62);
     }
 
     int unit;
@@ -1043,6 +1054,7 @@ void OverviewPage::showAssetDetails(const QModelIndex& index)
     QString details = tr("Name: %1\nWallet quantity: %2\nAdministrator: %3")
         .arg(name, index.data(AssetTableModel::FormattedAmountRole).toString(),
              index.data(AssetTableModel::AdministratorRole).toBool() ? tr("Yes") : tr("No"));
+    details += "\n" + index.data(AssetTableModel::BalanceStatusRole).toString();
     AssetType assetType = AssetType::INVALID;
     IsAssetNameValid(name.toStdString(), assetType);
     QString type = tr("Unknown");

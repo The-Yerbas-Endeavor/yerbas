@@ -7,12 +7,15 @@
 #include <QNetworkProxy>
 #include <QUrl>
 
+class QImage;
+
 // Read-only metadata snapshot. No network activity until Load preview is clicked.
 class AssetDetailsDialog : public QDialog
 {
 public:
     AssetDetailsDialog(const QString& details, const QString& hash, const QString& gateway,
                        const QNetworkProxy& proxy, QWidget* parent = nullptr);
+    static bool saveImage(const QImage& image, const QString& filename);
     static QUrl contentUrl(const QString& hash, const QString& gateway);
 };
 #endif

@@ -29,6 +29,10 @@ public:
     }
 
     std::string formattedQuantity() const {
+        return formattedAmount(quantity);
+    }
+
+    std::string formattedAmount(CAmount quantity) const {
         bool sign = quantity < 0;
         // Avoid signed overflow for INT64_MIN and floating-point formatting.
         const uint64_t n_abs = sign ? uint64_t(-(quantity + 1)) + 1 : uint64_t(quantity);
@@ -50,6 +54,14 @@ public:
       @{*/
     std::string name;
     CAmount quantity;
+    CAmount available{0}, pending{0}, restricted{0}, locked{0};
+
+    bool operator==(const AssetRecord& other) const {
+        return name == other.name && quantity == other.quantity && units == other.units
+            && fIsAdministrator == other.fIsAdministrator && ipfshash == other.ipfshash
+            && available == other.available && pending == other.pending
+            && restricted == other.restricted && locked == other.locked;
+    }
     int units;
     bool fIsAdministrator;
     std::string ipfshash;
