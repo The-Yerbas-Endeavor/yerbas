@@ -558,7 +558,9 @@ void BitcoinApplication::initializeResult(bool success)
 
 void BitcoinApplication::shutdownResult()
 {
-    quit(); // Exit main loop after shutdown finished
+    // The shutdown window rejects close events while cleanup is in progress.
+    // Backend cleanup has completed; exit without requesting window closure.
+    QCoreApplication::exit(0);
 }
 
 void BitcoinApplication::handleRunawayException(const QString &message)
