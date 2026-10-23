@@ -244,3 +244,8 @@ using invalidateblock/reconsiderblock RPCs in an isolated regtest daemon.
 
 Validation on October 23, 2026: all 19 daemon scenarios passed, including the
 seven new boundary/deep-rollback checks. The campaign daemon stopped on exit.
+
+## Multi-host handoff and evidence
+
+See `rc-release-handoff.md` for independent review scope, host information,
+read-only evidence collection, and the multi-host acceptance matrix.
