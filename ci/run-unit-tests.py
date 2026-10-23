@@ -106,11 +106,21 @@ def main():
     (output / 'summary.json').write_text(json.dumps(results, indent=2) + '\n', encoding='utf-8')
     failed = sum(not result['passed'] for result in results)
     summary = ['## Yerbas unit tests', '',
-               '{} Boost suites: {} passed, {} failed.'.format(len(results), len(results) - failed, failed),
-               '', '| Suite | Result | Seconds |', '| --- | --- | --- |']
+               '**{} passed · {} failed** — {} suites, {:.1f}s total.'.format(
+                   len(results) - failed, failed, len(results),
+                   sum(r['seconds'] for r in results)), '']
+    if failed:
+        summary.extend(['### Failed suites', '',
+                        '| Suite | Result | Seconds |', '| --- | --- | --- |'])
+        summary.extend('| {} | FAIL | {} |'.format(r['suite'], r['seconds'])
+                       for r in results if not r['passed'])
+        summary.append('')
+    summary.extend(['<details>', '<summary>Show all suite results</summary>', '',
+                    '| Suite | Result | Seconds |', '| --- | --- | --- |'])
     summary.extend('| {} | {} | {} |'.format(r['suite'], 'PASS' if r['passed'] else 'FAIL', r['seconds'])
                    for r in results)
-    summary.extend(['', 'JUnit reports and individual suite logs are in the test-results artifact.', ''])
+    summary.extend(['', '</details>', '',
+                    'JUnit reports and individual suite logs are in the test-results artifact.', ''])
     report = '\n'.join(summary)
     (output / 'summary.md').write_text(report, encoding='utf-8')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
