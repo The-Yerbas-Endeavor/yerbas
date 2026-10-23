@@ -101,7 +101,7 @@ static void SignTransaction(CMutableTransaction& tx, const CKey& coinbaseKey)
     }
 }
 
-static CMutableTransaction CreateProRegTx(SimpleUTXOMap& utxos, int port, const CScript& scriptPayout, const CKey& coinbaseKey, CKey& ownerKeyRet, CBLSSecretKey& operatorKeyRet)
+static CMutableTransaction CreateProRegTx(SimpleUTXOMap& utxos, int port, const CScript& scriptPayout, const CKey& coinbaseKey, CKey& ownerKeyRet, CBLSSecretKey& operatorKeyRet, const char* host = "1.1.1.1")
 {
     ownerKeyRet.MakeNewKey(true);
     operatorKeyRet.MakeNewKey();
@@ -110,7 +110,7 @@ static CMutableTransaction CreateProRegTx(SimpleUTXOMap& utxos, int port, const 
 
     CProRegTx proTx;
     proTx.collateralOutpoint.n = 0;
-    proTx.addr = LookupNumeric("1.1.1.1", port);
+    proTx.addr = LookupNumeric(host, port);
     proTx.keyIDOwner = ownerKeyRet.GetPubKey().GetID();
     proTx.pubKeyOperator = operatorKeyRet.GetPublicKey();
     proTx.keyIDVoting = ownerKeyRet.GetPubKey().GetID();
@@ -623,7 +623,7 @@ BOOST_FIXTURE_TEST_CASE(recovery_consensus_lifecycle, FundedDIP3Setup)
     std::vector<CMutableTransaction> registrations;
     for(int i=0;i<80;++i){
         CKey owner; CBLSSecretKey op;
-        auto tx=CreateProRegTx(utxos,i+1,GenerateRandomAddress(),coinbaseKey,owner,op);
+        auto tx=CreateProRegTx(utxos,25000+i,GenerateRandomAddress(),coinbaseKey,owner,op,"127.0.0.1");
         target=tx.GetHash();operatorKeys.emplace(target,op);
         CValidationState registrationState;
         BOOST_REQUIRE_MESSAGE(CheckSpecialTx(CTransaction(tx),chainActive.Tip(),registrationState),

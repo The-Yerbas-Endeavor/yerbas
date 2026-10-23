@@ -112,5 +112,18 @@ The daemon binds only localhost, disables discovery and outgoing connections,
 and stops on completion or a test failure. Each run creates a fresh node datadir.
 This supplements the consensus replay test in `recovery_daemon_test.py`.
 
+The simultaneous local campaign uses the same freshly generated loopback fixture:
+
+    python3 contrib/pose/recovery_network_test.py --bin-dir src --fixture /tmp/yerbas-rc-blocks.txt --keys /tmp/yerbas-rc-keys.json --workdir /tmp/yerbas-rc-network
+
+Use a new output directory. This starts 15 selected smartnodes and one wallet
+coordinator, with small database caches and localhost service ports from the
+fixture (25000–25079). Those selected service ports must be available. It checks
+P2P synchronization, an 8/7 split, refusal by lagging and competing-branch signers,
+11 approvals after partial reconnection, a propagated penalty, and convergence
+after full reconnection. Every daemon is stopped on exit. The starting history
+still contains constructed quorum commitments; this does not test distributed
+DKG, independent operators, external reachability, or automatic failure detection.
+
 Mainnet keeps its separate schedule: 1,212,840 warm-up and 1,214,280 RC authority,
 projected January 23 and January 25, 2027. Testnet setup does not activate mainnet.
