@@ -101,8 +101,6 @@ EXTRA_LIBRARIES += \
 lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
 
 bin_PROGRAMS =
-# Retain the explicit make target without adding it to default builds.
-EXTRA_PROGRAMS = yerbas-tx
 noinst_PROGRAMS =
 TESTS =
 BENCHMARKS =
@@ -112,7 +110,7 @@ if BUILD_BITCOIND
 endif
 
 if BUILD_BITCOIN_UTILS
-  bin_PROGRAMS += yerbas-cli #yerbas-tx
+  bin_PROGRAMS += yerbas-cli yerbas-tx
 endif
 
 .PHONY: FORCE check-symbols check-security
@@ -692,15 +690,10 @@ if TARGET_WINDOWS
 yerbas_tx_SOURCES += yerbas-tx-res.rc
 endif
 
-yerbas_tx_LDADD = \
-  $(LIBUNIVALUE) \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CONSENSUS) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBSECP256K1)
+# Asset-aware transaction decoding and coin views now depend on server code.
+# Start with common to resolve its asset references against the node libraries.
+yerbas_tx_LDADD = $(LIBBITCOIN_COMMON) $(yerbasd_LDADD)
 
-yerbas_tx_LDADD += $(BACKTRACE_LIB) $(BOOST_LIBS) $(CRYPTO_LIBS) $(BLS_LIBS)
 #
 
 # yerbasconsensus library #
