@@ -4,6 +4,7 @@
 
 #include "chainparams.h"
 #include "llmq/quorums_commitment.h"
+#include "llmq/quorums_recovery.h"
 #include "streams.h"
 #include "version.h"
 
@@ -61,6 +62,48 @@ BOOST_AUTO_TEST_CASE(public_network_small_quorum_parameters)
             BOOST_CHECK_EQUAL(quorum.threshold, 2);
         }
     }
+}
+
+BOOST_AUTO_TEST_CASE(mainnet_pose_recovery_activation_schedule)
+{
+    const auto main = CreateChainParams(CBaseChainParams::MAIN);
+    const auto& p = main->GetConsensus();
+    const auto& q = p.llmqs.at(Consensus::LLMQ_100_67);
+    BOOST_CHECK_EQUAL(q.size, 100);
+    BOOST_CHECK_EQUAL(q.minSize, 80);
+    BOOST_CHECK_EQUAL(q.threshold, 67);
+    BOOST_CHECK_EQUAL(p.llmqTypePoSe, Consensus::LLMQ_100_67);
+    BOOST_CHECK_EQUAL(p.nPoSeQuorumActivationHeight, 1212840);
+    BOOST_CHECK_EQUAL(p.nRecoveryActivationHeight, 1214280);
+    BOOST_CHECK_EQUAL(p.nRecoveryActivationHeight-p.nPoSeQuorumActivationHeight, llmq::RECOVERY_HISTORY);
+    BOOST_CHECK_EQUAL(p.nRecoveryActivationHeight % llmq::RECOVERY_ROTATION, 0);
+    BOOST_CHECK(!p.IsLLMQEnabled(Consensus::LLMQ_100_67, 1212839));
+    BOOST_CHECK(p.IsLLMQEnabled(Consensus::LLMQ_100_67, 1212840));
+    BOOST_CHECK(!llmq::RecoveryEnabled(p, 1214279));
+    BOOST_CHECK(llmq::RecoveryEnabled(p, 1214280));
+    BOOST_CHECK_EQUAL(llmq::RECOVERY_SIZE, 15U);
+    BOOST_CHECK_EQUAL(llmq::RECOVERY_THRESHOLD, 11U);
+
+}
+
+BOOST_AUTO_TEST_CASE(testnet_pose_recovery_activation_schedule)
+{
+    const auto test = CreateChainParams(CBaseChainParams::TESTNET);
+    const auto& p = test->GetConsensus();
+    const auto& q = p.llmqs.at(Consensus::LLMQ_100_67);
+    BOOST_CHECK_EQUAL(q.size, 100);
+    BOOST_CHECK_EQUAL(q.minSize, 80);
+    BOOST_CHECK_EQUAL(q.threshold, 67);
+    BOOST_CHECK_EQUAL(p.nPoSeQuorumActivationHeight, 4320);
+    BOOST_CHECK_EQUAL(p.nRecoveryActivationHeight, 8640);
+    BOOST_CHECK(!p.IsLLMQEnabled(Consensus::LLMQ_100_67, 4319));
+    BOOST_CHECK(p.IsLLMQEnabled(Consensus::LLMQ_100_67, 4320));
+    BOOST_CHECK(!llmq::RecoveryEnabled(p, 8639));
+    BOOST_CHECK(llmq::RecoveryEnabled(p, 8640));
+    BOOST_CHECK_EQUAL(p.nRecoveryActivationHeight % llmq::RECOVERY_ROTATION, 0);
+    BOOST_CHECK_GE(p.nRecoveryActivationHeight-p.nPoSeQuorumActivationHeight, llmq::RECOVERY_HISTORY);
+    BOOST_CHECK_EQUAL(p.nPowTargetSpacing, 60);
+    BOOST_CHECK_EQUAL(p.nCollaterals.getCollateral(4320), 4000 * COIN);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -665,6 +665,10 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-minsporkkeys=<n>", strprintf(_("Overrides minimum spork signers to change spork value. Only useful for regtest and devnet. Using this on mainnet or testnet will ban you.")));
 
     strUsage += HelpMessageGroup(_("Smartnode options:"));
+    strUsage += HelpMessageOpt("-posemonitorpubkey=<hex>", _("Trusted evidence monitor BLS public key (repeatable; evidence does not authorize bans)"));
+    strUsage += HelpMessageOpt("-posemonitorprivkey=<hex>", _("Evidence-only monitor BLS private key; configure in yerbas.conf, never on the command line"));
+    strUsage += HelpMessageOpt("-recoveryactivationheight=<n>", _("Regtest-only rotating recovery activation; requires PoSe activation"));
+    strUsage += HelpMessageOpt("-poseactivationheight=<n>", _("Regtest-only PoSe quorum activation height; mainnet/testnet use fixed release heights"));
     strUsage += HelpMessageOpt("-smartnodeblsprivkey=<hex>", _("Set the smartnode BLS private key and enable the client to act as a smartnode"));
 
 #ifdef ENABLE_WALLET
@@ -1163,6 +1167,12 @@ bool AppInitBasicSetup()
 
 bool AppInitParameterInteraction()
 {
+    if (gArgs.IsArgSet("-recoverypubkey") || gArgs.IsArgSet("-recoveryprivkey"))
+        return InitError(_("Fixed recovery keys are unsupported; RC members are selected from smartnodes."));
+    if (gArgs.IsArgSet("-recoveryactivationheight") && Params().NetworkIDString() != CBaseChainParams::REGTEST)
+        return InitError(_("recoveryactivationheight is regtest-only."));
+    if (gArgs.IsArgSet("-poseactivationheight") && Params().NetworkIDString() != CBaseChainParams::REGTEST)
+        return InitError(_("poseactivationheight is regtest-only; public-network activation requires a coordinated release."));
     const CChainParams& chainparams = Params();
     // ********************************************************* Step 2: parameter interactions
 

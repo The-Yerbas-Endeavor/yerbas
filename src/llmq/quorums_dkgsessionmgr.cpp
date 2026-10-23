@@ -99,6 +99,10 @@ void CDKGSessionManager::ProcessMessage(CNode* pfrom, const std::string& strComm
         return;
     }
 
+    {
+        LOCK(cs_main);
+        if (!Params().GetConsensus().IsLLMQEnabled(llmqType, chainActive.Height())) return;
+    }
     dkgSessionHandlers.at(llmqType).ProcessMessage(pfrom, strCommand, vRecv, connman);
 }
 

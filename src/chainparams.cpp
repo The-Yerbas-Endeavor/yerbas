@@ -13,6 +13,7 @@
 #include "utilstrencodings.h"
 
 #include "arith_uint256.h"
+#include <set>
 
 #include <assert.h>
 
@@ -356,6 +357,22 @@ static Consensus::LLMQParams llmq50_60 = {
         .keepOldConnections = 25,
 };
 
+// Yerbas has a two-minute target: 60 blocks is approximately two hours.
+static Consensus::LLMQParams llmq100_67 = {
+        .type = Consensus::LLMQ_100_67,
+        .name = "llmq_100_67",
+        .size = 100,
+        .minSize = 80,
+        .threshold = 67,
+        .dkgInterval = 60,
+        .dkgPhaseBlocks = 2,
+        .dkgMiningWindowStart = 10,
+        .dkgMiningWindowEnd = 18,
+        .dkgBadVotesThreshold = 80,
+        .signingActiveQuorumCount = 12,
+        .keepOldConnections = 13,
+};
+
 static Consensus::LLMQParams llmq400_60 = {
         .type = Consensus::LLMQ_400_60,
         .name = "llmq_400_60",
@@ -511,6 +528,17 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
         //vFixedSeeds = std::vector<SeedSpec6>();
+        consensus.llmqs[Consensus::LLMQ_100_67] = llmq100_67;
+        consensus.llmqTypePoSe = Consensus::LLMQ_100_67;
+        // Mainnet rollout: 1,440 blocks of participation indexing before RC.
+        // RC height projects to Jan 25, 2027 (Pacific) at 120 seconds/block,
+        // from block 1,146,197, timestamp 1792733476. Heights are consensus;
+        // projected dates are estimates. Both heights align to 360-block epochs.
+        consensus.nPoSeQuorumActivationHeight = 1212840;
+        consensus.nRecoveryActivationHeight = 1214280;
+        // RC remains 11 approvals from 15 selected smartnodes (quorums_recovery.h).
+
+
         // long living quorum params
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
         consensus.llmqs[Consensus::LLMQ_400_60] = llmq20_60;
@@ -644,6 +672,15 @@ public:
 
         // Testnet Yerbas BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 10227;
+
+        consensus.llmqs[Consensus::LLMQ_100_67] = llmq100_67;
+        // Fresh coordinated testnet: allow funding/registration, then collect
+        // production participation before RC authority. Do not reuse old chains
+        // that crossed these heights under different consensus rules.
+        consensus.llmqTypePoSe = Consensus::LLMQ_100_67;
+        consensus.nPoSeQuorumActivationHeight = 4320;
+        consensus.nRecoveryActivationHeight = 8640;
+
 
         // long living quorum params
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
@@ -785,6 +822,8 @@ public:
 
         // Testnet Yerbas BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 1;
+
+        consensus.llmqs[Consensus::LLMQ_100_67] = llmq100_67;
 
         // long living quorum params
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
@@ -942,6 +981,40 @@ public:
         regtestQuorum.type = Consensus::LLMQ_5_60;
         consensus.llmqs[Consensus::LLMQ_5_60] = regtestQuorum;
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        auto poseTestQuorum = llmq100_67;
+        poseTestQuorum.type = Consensus::LLMQ_POSE_TEST;
+        poseTestQuorum.name = "llmq_pose_test";
+        poseTestQuorum.size = 3;
+        poseTestQuorum.minSize = 3;
+        poseTestQuorum.threshold = 2;
+        poseTestQuorum.dkgInterval = 30;
+        poseTestQuorum.dkgBadVotesThreshold = 2;
+        consensus.llmqs.erase(Consensus::LLMQ_100_67);
+        consensus.llmqs[Consensus::LLMQ_POSE_TEST] = poseTestQuorum;
+        consensus.llmqTypePoSe = Consensus::LLMQ_POSE_TEST;
+        // Opt in only on regtest; existing regtest fixtures remain unchanged.
+        if (gArgs.IsArgSet("-poseactivationheight")) {
+            int32_t height;
+            if (!ParseInt32(gArgs.GetArg("-poseactivationheight", ""), &height) || height < 0)
+                throw std::runtime_error("Invalid regtest poseactivationheight");
+            consensus.nPoSeQuorumActivationHeight = height;
+        }
+        if (gArgs.IsArgSet("-recoveryactivationheight")) {
+            int32_t height;
+            if (!ParseInt32(gArgs.GetArg("-recoveryactivationheight", ""), &height) || height < 1 ||
+                consensus.nPoSeQuorumActivationHeight > height)
+                throw std::runtime_error("Invalid regtest recovery activation (requires PoSe activation first)");
+            consensus.nRecoveryActivationHeight = height;
+            // Isolated recovery regtests need affordable registrations and fixed
+            // difficulty. These settings never apply to a public network.
+            consensus.nCollaterals = SmartnodeCollaterals({{INT_MAX, 10 * COIN}}, {{INT_MAX, 20}});
+            consensus.nSmartnodePaymentsStartBlock = 1;
+            consensus.nPowDGWHeight = INT_MAX;
+            // Recovery tests exercise the actual production type and thresholds.
+            consensus.llmqs.erase(Consensus::LLMQ_POSE_TEST);
+            consensus.llmqs[Consensus::LLMQ_100_67] = llmq100_67;
+            consensus.llmqTypePoSe = Consensus::LLMQ_100_67;
+        }
         consensus.llmqTypeChainLocks = Consensus::LLMQ_5_60;
         consensus.llmqTypeInstantSend = Consensus::LLMQ_5_60;
     }
@@ -1012,7 +1085,7 @@ bool IsMiningPhase(Consensus::LLMQParams params, int nHeight)
 
 bool IsLLMQsMiningPhase(int nHeight) {
 	for(auto& it : globalChainParams->GetConsensus().llmqs) {
-		if(IsMiningPhase(it.second, nHeight)) {
+		if(globalChainParams->GetConsensus().IsLLMQEnabled(it.first, nHeight) && IsMiningPhase(it.second, nHeight)) {
 			return true;
 		}
 	}

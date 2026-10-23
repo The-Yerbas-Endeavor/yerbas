@@ -5,6 +5,7 @@
 
 #include "deterministicmns.h"
 #include "specialtx.h"
+#include "llmq/quorums_recovery.h"
 
 #include "base58.h"
 #include "chainparams.h"
@@ -633,6 +634,7 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
 {
     AssertLockHeld(cs);
     int nHeight = pindexPrev->nHeight + 1;
+    if (!llmq::CheckRecoveryBlock(block, pindexPrev, _state)) return false;
     CDeterministicMNList oldList = GetListForBlock(pindexPrev);
     CDeterministicMNList newList = oldList;
     newList.SetBlockHash(uint256()); // we can't know the final block hash, so better not return a (invalid) block hash
@@ -833,6 +835,10 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
                 LogPrintf("CDeterministicMNManager::%s -- MN %s revoked operator key at height %d: %s\n",
                     __func__, proTx.proTxHash.ToString(), nHeight, proTx.ToString());
             }
+        } else if (tx.nType == TRANSACTION_RECOVERY_PENALTY) {
+            llmq::CRecoveryCertificate cert;
+            if (!GetTxPayload(tx, cert)) return false;
+            newList.PoSePunish(cert.target, newList.CalcPenalty(66), debugLogs);
         } else if (tx.nType == TRANSACTION_QUORUM_COMMITMENT) {
             llmq::CFinalCommitmentTxPayload qc;
             if (!GetTxPayload(tx, qc)) {
