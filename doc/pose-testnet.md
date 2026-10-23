@@ -119,9 +119,12 @@ The simultaneous local campaign uses the same freshly generated loopback fixture
 Use a new output directory. This starts 15 selected smartnodes and one wallet
 coordinator, with small database caches and localhost service ports from the
 fixture (25000–25079). Those selected service ports must be available. It checks
-P2P synchronization, an 8/7 split, refusal by lagging and competing-branch signers,
+P2P synchronization, five stopped signer processes (ten approvals), restart of
+one signer (eleven approvals), validity and expiry of previously collected
+signatures during an outage, an 8/7 split, refusal by lagging and competing-branch signers,
 11 approvals after partial reconnection, a propagated penalty, and convergence
-after full reconnection. Every daemon is stopped on exit. The starting history
+after full reconnection. The coordinator disables the RPC safe-mode gate for
+the deliberate expiry-test rewind. Every daemon is stopped on exit. The starting history
 still contains constructed quorum commitments; this does not test distributed
 DKG, independent operators, external reachability, or automatic failure detection.
 
@@ -164,6 +167,29 @@ These tests run on one host and do not establish independent operators or
 external reachability judgments. The campaign's disconnections are intentional
 test inputs, not proof that an arbitrary unreachable public node misbehaved.
 
+## Interrupted recovery DKG campaign
+
+Add `--interrupt-recovery` to the fresh DKG command to insert a failed session
+between recovery successes. After the penalty, session 1620 succeeds, 21 non-RC
+nodes disconnect for session 1680, and all nodes reconnect for sessions 1740 and
+1800. The failed session must reset the success count to zero while retaining
+recovery authority and the consumed penalty. One fresh success must leave
+recovery active; only the next consecutive success restores normal mode.
+
+To reuse a completed, stopped local real-DKG campaign without repeating its
+eligibility and penalty setup:
+
+    python3 contrib/pose/dkg_network_test.py --bin-dir src --workdir /tmp/yerbas-dkg-interrupted --bootstrap-from /tmp/yerbas-dkg-100 --resume-after-penalty --interrupt-recovery
+
+The source must contain its private `resume-identities.json` and coordinator
+chain/wallet. The harness copies that state into a new private directory and
+rewinds the copy to height 1619, verifying active recovery with one consumed
+penalty. The source is unchanged. The resumed regtest copy disables the RPC safe-mode
+gate because it retains a known longer discarded branch; synchronization and
+consensus checks still run. This mode inherits previously recorded real
+DKG history; it does not claim to recreate that history in the resumed run.
+Never use public-network datadirs or publish generated test keys.
+
 ## First-registration mining-window regression
 
 The initial regtest legacy type-1 quorum now uses the same three-member sizing
@@ -178,3 +204,18 @@ This reproduces the first registration at height 401 inside the legacy mining
 window, verifies it mines, disconnects/reconnects it, and restarts the daemon.
 Use a fresh directory with the rebuilt binary. Existing regtest histories made
 with the earlier initial quorum sizing should be regenerated for these tests.
+
+## October 23, 2026 fault-campaign results
+
+The refreshed native lifecycle fixture passed. The 16-daemon RC network campaign
+passed all eight scenarios, including five stopped processes, ten-signature
+rejection, restart to eleven signatures, and certificate expiry during an outage.
+The existing partition, competing-branch, propagated-penalty and convergence
+checks also passed.
+
+The resumed 101-daemon real-DKG campaign recorded session 1620 successful with
+recovery success count one; session 1680 failed and reset it to zero; session 1740
+succeeded but retained recovery; and session 1800 succeeded and restored normal
+mode on every daemon. It reused the prior real-DKG history and mined penalty,
+then performed these four sessions anew. All campaign daemons stopped on exit.
+These tests use localhost, not independent hosts or asymmetric Internet paths.

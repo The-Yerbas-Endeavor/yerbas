@@ -73,8 +73,10 @@ not a rerun of network fault scenarios in this review.
 ## Remaining acceptance work
 
 Independent consensus review and separately hosted tests remain necessary before
-release. In particular, test asymmetric connectivity and intermittent DKG failures
-on the network, signer outages while collecting approvals, and reorganization
+release. Follow-up localhost campaigns now cover an interrupted real-DKG recovery streak
+and stopped RC signer processes; see `pose-testnet.md` for results. Tests across
+independent hosts must still cover asymmetric connectivity and intermittent
+failures. Additional work includes reorganization
 boundaries around activation, roster selection and timeout. Prior local replay
 and partition tests provide coverage but do not establish those external-network
 properties. On-chain validation cannot establish that a reachability accusation

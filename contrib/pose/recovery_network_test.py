@@ -135,12 +135,16 @@ def main():
     args = parser.parse_args()
     root = args.workdir.resolve()
     root.mkdir(parents=True, exist_ok=False)
+    root.chmod(0o700)
     secrets = json.loads(args.keys.read_text())
+    for identity in secrets['signers']:
+        _allocated_ports.add(int(identity['service'].split(':')[1]))
     lines = args.fixture.read_text().splitlines()
     expected, blocks = json.loads(lines[0]), lines[1:]
     assert len(blocks) == 1540 and len(secrets['signers']) == 15
     binary = (args.bin_dir / 'yerbasd').resolve()
-    coordinator = Node(root, 'coordinator', binary)
+    # The expiry scenario intentionally mines and discards a longer local branch.
+    coordinator = Node(root, 'coordinator', binary, extra_config='disablesafemode=1\n')
     nodes = [coordinator]
     results = []
 
@@ -174,6 +178,45 @@ def main():
         sync(signers)
         assert all(n.rpc('recovery', 'status')['committeeHash'] == expected['committee'] for n in nodes)
         record('15 simultaneous active smartnodes agree on roster and tip over localhost P2P')
+
+        # Actual process outages: only ten signers can supply fresh approvals.
+        stopped = signers[10:]
+        for node in stopped:
+            node.stop()
+            assert node.process is None and not (node.data / 'regtest' / '.cookie').exists()
+        request = coordinator.rpc('recovery', 'request', expected['target'], '1519', '1539')
+        certificate = request
+        for node in signers[:10]:
+            certificate = coordinator.rpc('recovery', 'merge', certificate,
+                                          node.rpc('recovery', 'sign', request))
+        rejects(coordinator, 'bad-recovery-signatures', 'recovery', 'maketx', certificate)
+        assert coordinator.rpc('recovery', 'status')['consumed'] == 0
+        record('five stopped RC processes leave ten fresh approvals and cannot authorize a penalty')
+        stopped[0].start()
+        stopped[0].connect(coordinator)
+        sync([stopped[0]])
+        certificate = coordinator.rpc('recovery', 'merge', certificate,
+                                      stopped[0].rpc('recovery', 'sign', request))
+        assert coordinator.rpc('recovery', 'maketx', certificate)
+        record('restarting one RC process restores the eleven-signature authorization threshold')
+        stopped[0].stop()
+        assert coordinator.rpc('recovery', 'maketx', certificate)
+        for node in signers[:10]:
+            node.rpc('setnetworkactive', False)
+        wait_for(lambda: all(n.rpc('getconnectioncount') == 0 for n in signers[:10]))
+        coordinator.rpc('generatetoaddress', 30, coordinator.rpc('getnewaddress'))
+        rejects(coordinator, 'bad-recovery-window', 'recovery', 'maketx', certificate)
+        record('previously collected approvals survive a signer outage but expire at the certificate deadline')
+        # Return to the shared fixture tip before running the independent partition scenario.
+        coordinator.rpc('invalidateblock', coordinator.rpc('getblockhash', 1540))
+        assert coordinator.rpc('getblockcount') == 1539
+        for node in stopped:
+            node.start()
+            node.connect(coordinator)
+        for node in signers[:10]:
+            node.rpc('setnetworkactive', True)
+            node.connect(coordinator)
+        sync(signers)
 
         online, isolated = signers[:8], signers[8:]
         for node in isolated:

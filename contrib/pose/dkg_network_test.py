@@ -21,7 +21,11 @@ def main():
     parser.add_argument('--bin-dir', type=Path, required=True)
     parser.add_argument('--workdir', type=Path, required=True)
     parser.add_argument('--bootstrap-from', type=Path, help='Stopped local campaign with private resume-identities.json')
+    parser.add_argument('--interrupt-recovery', action='store_true', help='Insert a real failed DKG between recovery successes')
+    parser.add_argument('--resume-after-penalty', action='store_true', help='Reuse a completed local real-DKG campaign, rewound before session 1620')
     args = parser.parse_args()
+    if args.resume_after_penalty and not (args.bootstrap_from and args.interrupt_recovery):
+        parser.error('--resume-after-penalty requires --bootstrap-from and --interrupt-recovery')
     root = args.workdir.resolve()
     root.mkdir(parents=True, exist_ok=False)
     root.chmod(0o700)
@@ -29,8 +33,11 @@ def main():
         for identity in json.loads((args.bootstrap_from / 'resume-identities.json').read_text()):
             _allocated_ports.add(int(identity['service'].split(':')[1]))
     binary = (args.bin_dir / 'yerbasd').resolve()
+    # Intentional rewind retains a known longer discarded branch in the copied DB.
+    # Bypass only its RPC safe-mode gate; synchronization and consensus still apply.
+    resume_config = 'disablesafemode=1\n' if args.resume_after_penalty else ''
     coordinator = Node(root, 'coordinator', binary,
-                       extra_config=f'sporkkey={REGTEST_SPORK_KEY}\n', maxconnections=160, wallet_broadcast=True, smartnode_connections=True)
+                       extra_config=f'sporkkey={REGTEST_SPORK_KEY}\n' + resume_config, maxconnections=160, wallet_broadcast=True, smartnode_connections=True)
     nodes = [coordinator]
     results = []
     active = nodes
@@ -127,9 +134,13 @@ def main():
             shutil.copytree(source / 'coordinator' / 'regtest', coordinator.data / 'regtest',
                             ignore=shutil.ignore_patterns('.cookie', '.lock', 'debug.log', 'db.log', '*.pid', 'peers.dat', 'mempool.dat'))
             coordinator.start()
-            if coordinator.rpc('getblockcount') >= 1200:
-                coordinator.rpc('invalidateblock', coordinator.rpc('getblockhash', 1200))
-            assert coordinator.rpc('getblockcount') == 1199
+            rewind = 1620 if args.resume_after_penalty else 1200
+            if coordinator.rpc('getblockcount') >= rewind:
+                coordinator.rpc('invalidateblock', coordinator.rpc('getblockhash', rewind))
+            assert coordinator.rpc('getblockcount') == rewind - 1
+            if args.resume_after_penalty:
+                resumed = coordinator.rpc('recovery', 'status')
+                assert resumed['mode'] == 'recovery' and resumed['consumed'] == 1 and resumed['successes'] == 0
             address = coordinator.rpc('getnewaddress')
             identities = json.loads((source / 'resume-identities.json').read_text())
             registered = coordinator.rpc('protx', 'list', 'valid', True)
@@ -170,12 +181,12 @@ def main():
         private_metadata.touch(mode=0o600)
         private_metadata.write_text(json.dumps(identities))
         for i, identity in enumerate(identities):
-            node = Node(root, f'smartnode{i}', binary, identity, smartnode_connections=True)
+            node = Node(root, f'smartnode{i}', binary, identity, extra_config=resume_config, smartnode_connections=True)
             nodes.append(node)
             shutil.copytree(coordinator.data / 'regtest', node.data / 'regtest',
                             ignore=shutil.ignore_patterns('wallet.dat', '.cookie', '.lock',
                                                          'debug.log', 'db.log', '*.pid', 'peers.dat', 'mempool.dat'))
-        record('100 registrations created and confirmed from genesis without constructed commitments')
+        record('reused real-DKG chain and mined penalty, rewound before recovery sessions' if args.resume_after_penalty else '100 registrations created and confirmed from genesis without constructed commitments')
         with ThreadPoolExecutor(max_workers=4) as pool:
             list(pool.map(lambda n: n.start(), nodes))
         for node in nodes:
@@ -190,51 +201,72 @@ def main():
         sync()
         assert all(n.rpc('spork', 'show')['SPORK_17_QUORUM_DKG_ENABLED'] == 0 for n in nodes)
         record('100 active smartnodes connected and DKG enabled')
-        for height in (1200, 1260, 1320, 1380):
-            run_session(height)
-        record('four real successful DKG sessions establish consistent on-chain participation')
-        for i, height in enumerate((1440, 1500, 1560), 1):
-            state = run_session(height, succeeds=False, split=(i == 1))
-            assert state['failures'] == i
-            assert state['mode'] == ('recovery' if i == 3 else 'normal')
-        assert state['canAuthorize'] and state['eligibleSigners'] == 15
-        record('three real failed sessions activate the selected 11-of-15 RC')
-        trigger = state['triggerHeight']
-        mine_to(trigger + 21)
-        candidates = [(n, coordinator.rpc('protx', 'info', n.identity['proTxHash'])) for n in offline]
-        target = next(n for n, info in candidates if info['state']['PoSeBanHeight'] == -1 and info['state']['PoSePenalty'] == 0)
-        target_id = target.identity['proTxHash']
-        request = coordinator.rpc('recovery', 'request', target_id, str(trigger+1), str(trigger+21))
-        roster_ids = {m['proTxHash'] for m in state['members']}
-        signers = [n for n in active[1:] if n.identity['proTxHash'] in roster_ids][:11]
-        assert len(signers) == 11
-        certificate = request
-        for node in signers:
-            certificate = coordinator.rpc('recovery', 'merge', certificate, node.rpc('recovery', 'sign', request))
-        raw = coordinator.rpc('recovery', 'maketx', certificate)
-        funded = coordinator.rpc('fundrawtransaction', raw)
-        signed = coordinator.rpc('signrawtransaction', funded['hex'])
-        assert signed['complete']
-        old_penalty = coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty']
-        txid = coordinator.rpc('sendrawtransaction', signed['hex'])
-        block = coordinator.rpc('generatetoaddress', 1, address)[0]
-        sync()
-        assert txid in coordinator.rpc('getblock', block)['tx']
-        assert all(n.rpc('recovery', 'status')['consumed'] == 1 for n in active)
-        assert coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty'] > old_penalty
-        record('11 selected active signers authorize a mined RC penalty after the real failures')
-        for node in offline:
-            node.rpc('setnetworkactive', True)
-            node.connect(coordinator)
-        active = nodes
-        sync()
-        for node in nodes:
-            for _ in range(10):
-                if node.rpc('mnsync', 'status')['IsSynced']:break
-                node.rpc('mnsync', 'next')
+        if not args.resume_after_penalty:
+            for height in (1200, 1260, 1320, 1380):
+                run_session(height)
+            record('four real successful DKG sessions establish consistent on-chain participation')
+            for i, height in enumerate((1440, 1500, 1560), 1):
+                state = run_session(height, succeeds=False, split=(i == 1))
+                assert state['failures'] == i
+                assert state['mode'] == ('recovery' if i == 3 else 'normal')
+            assert state['canAuthorize'] and state['eligibleSigners'] == 15
+            record('three real failed sessions activate the selected 11-of-15 RC')
+            trigger = state['triggerHeight']
+            mine_to(trigger + 21)
+            candidates = [(n, coordinator.rpc('protx', 'info', n.identity['proTxHash'])) for n in offline]
+            target = next(n for n, info in candidates if info['state']['PoSeBanHeight'] == -1 and info['state']['PoSePenalty'] == 0)
+            target_id = target.identity['proTxHash']
+            request = coordinator.rpc('recovery', 'request', target_id, str(trigger+1), str(trigger+21))
+            roster_ids = {m['proTxHash'] for m in state['members']}
+            signers = [n for n in active[1:] if n.identity['proTxHash'] in roster_ids][:11]
+            assert len(signers) == 11
+            certificate = request
+            for node in signers:
+                certificate = coordinator.rpc('recovery', 'merge', certificate, node.rpc('recovery', 'sign', request))
+            raw = coordinator.rpc('recovery', 'maketx', certificate)
+            funded = coordinator.rpc('fundrawtransaction', raw)
+            signed = coordinator.rpc('signrawtransaction', funded['hex'])
+            assert signed['complete']
+            old_penalty = coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty']
+            txid = coordinator.rpc('sendrawtransaction', signed['hex'])
+            block = coordinator.rpc('generatetoaddress', 1, address)[0]
+            sync()
+            assert txid in coordinator.rpc('getblock', block)['tx']
+            assert all(n.rpc('recovery', 'status')['consumed'] == 1 for n in active)
+            assert coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty'] > old_penalty
+            record('11 selected active signers authorize a mined RC penalty after the real failures')
+            for node in offline:
+                node.rpc('setnetworkactive', True)
+                node.connect(coordinator)
+            active = nodes
+            sync()
+            for node in nodes:
+                for _ in range(10):
+                    if node.rpc('mnsync', 'status')['IsSynced']:break
+                    node.rpc('mnsync', 'next')
         state = run_session(1620)
         assert state['mode'] == 'recovery' and state['successes'] == 1
-        state = run_session(1680)
+        if args.interrupt_recovery:
+            state = run_session(1680, succeeds=False, split=True)
+            assert state['mode'] == 'recovery' and state['successes'] == 0
+            assert state['consumed'] == 1
+            record('a real failed DKG between successes resets restoration progress and preserves the penalty')
+            for node in offline:
+                node.rpc('setnetworkactive', True)
+                node.connect(coordinator)
+            active = nodes
+            sync()
+            for node in nodes:
+                for _ in range(10):
+                    if node.rpc('mnsync', 'status')['IsSynced']: break
+                    node.rpc('mnsync', 'next')
+            state = run_session(1740)
+            assert state['mode'] == 'recovery' and state['successes'] == 1
+            assert all(n.rpc('recovery', 'status')['mode'] == 'recovery' for n in nodes)
+            record('the first fresh success after interruption does not restore normal mode')
+            state = run_session(1800)
+        else:
+            state = run_session(1680)
         assert state['mode'] == 'normal'
         assert all(n.rpc('recovery', 'status')['mode'] == 'normal' for n in nodes)
         record('two real successful sessions restore normal operation on all 101 daemons')
