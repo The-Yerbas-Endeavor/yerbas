@@ -137,6 +137,17 @@ BOOST_AUTO_TEST_CASE(recovery_threshold_and_replay_domains)
     auto bad=c; bad.signatures[10].first=9; BOOST_CHECK(!bad.VerifySignatures(p,roster));
     bad=c; bad.target=uint256S("03"); BOOST_CHECK(!bad.VerifySignatures(p,roster));
     bad=c; bad.version=1; BOOST_CHECK(!bad.VerifySignatures(p,roster));
+    for(auto field:{&llmq::CRecoveryCertificate::committee,&llmq::CRecoveryCertificate::epoch,
+                    &llmq::CRecoveryCertificate::stateHash,&llmq::CRecoveryCertificate::startHash,
+                    &llmq::CRecoveryCertificate::endHash}) {
+        bad=c;bad.*field=uint256S("99");BOOST_CHECK(!bad.VerifySignatures(p,roster));
+    }
+    for(auto field:{&llmq::CRecoveryCertificate::start,&llmq::CRecoveryCertificate::end,
+                    &llmq::CRecoveryCertificate::expiry}) {
+        bad=c;++(bad.*field);BOOST_CHECK(!bad.VerifySignatures(p,roster));
+    }
+    bad=c;bad.signatures.back().first=255;BOOST_CHECK(!bad.VerifySignatures(p,roster));
+    bad=c;std::reverse(bad.signatures.begin(),bad.signatures.end());BOOST_CHECK(!bad.VerifySignatures(p,roster));
     auto other=p; other.hashGenesisBlock=uint256S("05"); BOOST_CHECK(!c.VerifySignatures(other,roster));
     auto changed=roster; changed.members[14]=changed.members[0];
     bad=c;bad.committee=changed.GetHash(p);bad.signatures.clear();
@@ -197,5 +208,61 @@ BOOST_AUTO_TEST_CASE(recovery_state_boundaries)
     timeout.Advance(738,uint256(),true,true,100,60); BOOST_CHECK_EQUAL(timeout.mode,0);
     s.Advance(258,uint256(),true,true,100,60); BOOST_CHECK_EQUAL(s.mode,1);
     s.Advance(318,uint256(),true,true,100,60); BOOST_CHECK_EQUAL(s.mode,0);
+}
+// A successful session between failures must break both consecutive counters.
+BOOST_AUTO_TEST_CASE(recovery_interrupted_sessions_and_frozen_authority)
+{
+    llmq::CRecoveryState s;
+    s.scheduledRoster=uint256S("11");
+    s.Advance(78,uint256S("01"),true,false,79,60);
+    s.Advance(138,uint256S("02"),true,false,79,60);
+    s.Advance(198,uint256S("03"),true,true,79,60);
+    BOOST_CHECK_EQUAL(s.failures,0);
+    for(int h:{258,318,378})s.Advance(h,uint256S("04"),true,false,79,60);
+    BOOST_REQUIRE_EQUAL(s.mode,1);
+    BOOST_CHECK_EQUAL(s.budget,7);
+    auto epoch=s.epoch;auto roster=s.frozenRoster;
+    s.consumed.insert(uint256S("55"));
+    s.scheduledRoster=uint256S("22");
+    s.Advance(438,uint256(),true,true,200,60);
+    BOOST_CHECK_EQUAL(s.successes,1);
+    s.Advance(498,uint256(),true,false,200,60);
+    BOOST_CHECK_EQUAL(s.successes,0);
+    BOOST_CHECK_EQUAL(s.mode,1);
+    BOOST_CHECK_EQUAL(s.budget,7);
+    BOOST_CHECK(s.frozenRoster==roster && s.epoch==epoch);
+    BOOST_CHECK_EQUAL(s.consumed.size(),1U);
+    s.Advance(558,uint256(),false,true,200,60);
+    BOOST_CHECK_EQUAL(s.successes,0); // Only completed sessions count.
+    s.Advance(558,uint256(),true,true,200,60);
+    BOOST_CHECK_EQUAL(s.mode,1);
+    s.Advance(618,uint256(),true,true,200,60);
+    BOOST_CHECK_EQUAL(s.mode,0);
+    for(int h:{678,738,798})s.Advance(h,uint256S("06"),true,false,200,60);
+    BOOST_CHECK_EQUAL(s.mode,1);
+    BOOST_CHECK_EQUAL(s.budget,10);
+    BOOST_CHECK(s.consumed.empty());
+    BOOST_CHECK(s.frozenRoster==s.scheduledRoster && s.epoch!=epoch);
+}
+
+BOOST_AUTO_TEST_CASE(recovery_timeout_cannot_renew_authority)
+{
+    llmq::CRecoveryState s;
+    for(int h:{78,138,198})s.Advance(h,uint256S("01"),true,false,9,60);
+    BOOST_REQUIRE_EQUAL(s.mode,1);
+    BOOST_CHECK_EQUAL(s.budget,0);
+    s.Advance(556,uint256(),false,false,100,60);
+    BOOST_CHECK_EQUAL(s.mode,1);
+    s.Advance(557,uint256(),false,false,100,60);
+    BOOST_CHECK_EQUAL(s.mode,2);
+    for(int h:{618,678,738})s.Advance(h,uint256(),true,false,100,60);
+    BOOST_CHECK_EQUAL(s.mode,2);
+    BOOST_CHECK_EQUAL(s.trigger,198);
+    s.Advance(798,uint256(),true,true,100,60);
+    s.Advance(858,uint256(),true,false,100,60);
+    s.Advance(918,uint256(),true,true,100,60);
+    BOOST_CHECK_EQUAL(s.mode,2);
+    s.Advance(978,uint256(),true,true,100,60);
+    BOOST_CHECK_EQUAL(s.mode,0);
 }
 BOOST_AUTO_TEST_SUITE_END()

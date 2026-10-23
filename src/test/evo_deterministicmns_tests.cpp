@@ -705,6 +705,22 @@ BOOST_FIXTURE_TEST_CASE(recovery_consensus_lifecycle, FundedDIP3Setup)
         BOOST_CHECK(!llmq::CheckRecoveryBlock(conflict,chainActive.Tip(),check));
         BOOST_CHECK_EQUAL(check.GetRejectReason(),"bad-recovery-target-change");
     }
+    for(bool reversed:{false,true}) {
+        CMutableTransaction spend;spend.vin.emplace_back(mn->collateralOutpoint);
+        CBlock conflict;conflict.vtx={MakeTransactionRef(spend),MakeTransactionRef(tx)};
+        if(reversed)std::reverse(conflict.vtx.begin(),conflict.vtx.end());
+        CValidationState check;
+        BOOST_CHECK(!llmq::CheckRecoveryBlock(conflict,chainActive.Tip(),check));
+        BOOST_CHECK_EQUAL(check.GetRejectReason(),"bad-recovery-target-spent");
+    }
+    {
+        CMutableTransaction replacement;replacement.nVersion=3;replacement.nType=TRANSACTION_PROVIDER_REGISTER;
+        CProRegTx payload;payload.collateralOutpoint=mn->collateralOutpoint;SetTxPayload(replacement,payload);
+        CBlock conflict;conflict.vtx={MakeTransactionRef(tx),MakeTransactionRef(replacement)};
+        CValidationState check;
+        BOOST_CHECK(!llmq::CheckRecoveryBlock(conflict,chainActive.Tip(),check));
+        BOOST_CHECK_EQUAL(check.GetRejectReason(),"bad-recovery-target-replaced");
+    }
     {
         auto invalid=tx;invalid.nVersion=4;CValidationState check;
         BOOST_CHECK(!llmq::CheckRecoveryTx(CTransaction(invalid),chainActive.Tip(),check));
@@ -764,6 +780,33 @@ BOOST_FIXTURE_TEST_CASE(recovery_consensus_lifecycle, FundedDIP3Setup)
         out << metadata.write() << '\n';
         BOOST_REQUIRE(out.good());
     }
+    // Exhaust the epoch's eight-target budget using distinct, fully signed,
+    // funded transactions. The ninth certificate must fail even with 11 approvals.
+    int penalized=1;
+    for(const auto& item:operatorKeys) {
+        if(item.first==target)continue;
+        auto cert=c;cert.target=item.first;
+        auto candidate=deterministicMNManager->GetListForBlock(chainActive.Tip()).GetMN(cert.target);
+        cert.stateHash=llmq::PoSeStateHash(*candidate->pdmnState);
+        cert.signatures.clear();
+        for(int i=0;i<11;++i)cert.signatures.emplace_back(i,keys[i].Sign(cert.SignHash(p)));
+        CMutableTransaction penalty;penalty.nVersion=3;penalty.nType=TRANSACTION_RECOVERY_PENALTY;
+        SetTxPayload(penalty,cert);
+        CValidationState check;
+        if(penalized==state.budget) {
+            BOOST_CHECK(!llmq::CheckRecoveryTx(CTransaction(penalty),chainActive.Tip(),check));
+            BOOST_CHECK_EQUAL(check.GetRejectReason(),"bad-recovery-budget");
+            break;
+        }
+        BOOST_REQUIRE(llmq::CheckRecoveryTx(CTransaction(penalty),chainActive.Tip(),check));
+        FundTransaction(penalty,utxos,payout,COIN,coinbaseKey);SignTransaction(penalty,coinbaseKey);
+        auto mined=CreateAndProcessBlock({penalty},coinbaseKey);
+        BOOST_REQUIRE(chainActive.Tip()->GetBlockHash()==mined.GetHash());
+        deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
+        ++penalized;
+        BOOST_CHECK_EQUAL(llmq::GetRecoveryState(chainActive.Tip()).consumed.size(),size_t(penalized));
+    }
+    BOOST_CHECK_EQUAL(penalized,8);
     mineTo(1800);
     BOOST_CHECK(llmq::GetRecoveryState(chainActive.Tip()).frozenRoster==state.frozenRoster);
     mineTo(1878);
