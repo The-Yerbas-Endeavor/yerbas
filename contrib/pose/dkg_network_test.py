@@ -16,6 +16,40 @@ from recovery_network_test import Node, free_port, wait_for, _allocated_ports
 REGTEST_SPORK_KEY = 'cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK'
 
 
+def disable_and_drain(nodes, diagnostics_path):
+    """Close late outbound connections as well as the initial socket snapshot.
+
+    OpenNetworkConnection checks network-active before ConnectNode; a connection
+    already in flight can be inserted after SetNetworkActive closes its snapshot.
+    Explicit disconnects here are a test-harness workaround, not a Core fix.
+    """
+    for node in nodes:
+        node.rpc('setnetworkactive', False)
+    observations = {}
+    def drained():
+        empty = True
+        for node in nodes:
+            assert not node.rpc('getnetworkinfo')['networkactive']
+            peers = node.rpc('getpeerinfo')
+            observations[node.data.name] = [p['id'] for p in peers]
+            for peer in peers:
+                empty = False
+                try:
+                    node.rpc('disconnectnode', '', peer['id'])
+                except RuntimeError:
+                    # The socket handler may have removed this peer meanwhile.
+                    if any(p['id'] == peer['id'] for p in node.rpc('getpeerinfo')):
+                        raise
+            if node.rpc('getconnectioncount') != 0:
+                empty = False
+        return empty
+    try:
+        wait_for(drained, timeout=180)
+    except Exception:
+        diagnostics_path.write_text(json.dumps(observations, indent=2)+'\n')
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bin-dir', type=Path, required=True)
@@ -27,8 +61,8 @@ def main():
     parser.add_argument('--runtime', type=Path, help='Self-contained runtime archive for remote hosts')
     parser.add_argument('--max-seconds', type=int, default=43200, help='Remote hard limit, at most 12 hours')
     args = parser.parse_args()
-    if args.remote_hosts and (not args.runtime or args.bootstrap_from):
-        parser.error('Remote mode requires --runtime and a fresh campaign without --bootstrap-from')
+    if args.remote_hosts and (not args.runtime or (args.bootstrap_from and not args.resume_after_penalty)):
+        parser.error('Remote mode requires --runtime; bootstrap reuse requires --resume-after-penalty')
     if args.resume_after_penalty and not (args.bootstrap_from and args.interrupt_recovery):
         parser.error('--resume-after-penalty requires --bootstrap-from and --interrupt-recovery')
     root = args.workdir.resolve()
@@ -100,25 +134,44 @@ def main():
             members = {m['proTxHash'] for m in roster['members']}
             offline = [n for n in nodes[1:] if n.identity['proTxHash'] not in members][:21]
             assert len(offline) == 21
-            for node in offline:
-                node.rpc('setnetworkactive', False)
-            wait_for(lambda: all(n.rpc('getconnectioncount') == 0 for n in offline))
+            disable_and_drain(offline, root / 'disconnect-diagnostics.json')
             active = [n for n in nodes if n not in offline]
             record('real participation history selects 15 RC members; 21 nonmembers isolated')
         phase(1)
         members = active[1].rpc('quorum', 'dkgstatus', 2)['session']['llmq_100_67']['allMembers']
         online_ids = {n.identity['proTxHash'] for n in active[1:]}
+        assert online_ids <= set(members)
+        missing_members = len(set(members) - online_ids)
+        if not succeeds:
+            # Other quorum types can PoSe-ban isolated nodes between sessions.
+            # Such identities are absent from this session, not bad members of it.
+            assert len(online_ids) < 80 and missing_members > 0
+        print(f'Session {start}: selected={len(members)}, online={len(online_ids)}, missing={missing_members}', flush=True)
         required = {}
         for node in active[1:]:
             i = members.index(node.identity['proTxHash'])
             required[node] = {members[(i+gap) % len(members)] for gap in (1,2,4,8,16,32)} & online_ids
         def connected():
             return all(required[n] <= {p.get('verified_proregtx_hash') for p in n.rpc('getpeerinfo')} for n in active[1:])
-        wait_for(connected, timeout=180)
+        try:
+            wait_for(connected, timeout=180)
+        except Exception:
+            diagnostics = []
+            for node in active[1:]:
+                peers = node.rpc('getpeerinfo')
+                authenticated = {p.get('verified_proregtx_hash') for p in peers}
+                diagnostics.append({'node': node.data.name,
+                    'missing': sorted(required[node] - authenticated),
+                    'peerCount': len(peers),
+                    'authenticatedCount': len(authenticated - {None}),
+                    'smartnodeStatus': node.rpc('smartnode', 'status'),
+                    'syncStatus': node.rpc('mnsync', 'status')})
+            (root / 'connection-diagnostics.json').write_text(json.dumps(diagnostics, indent=2)+'\n')
+            raise
         print('Authenticated quorum connections ready', flush=True)
         for number, field, count in [(2, 'receivedContributions', len(active)-1),
                                       (3, 'receivedComplaints' if not succeeds else None, len(active)-1),
-                                      (4, None, 0), (5, 'receivedPrematureCommitments' if succeeds else 'badMembers', 100 if succeeds else 21),
+                                      (4, None, 0), (5, 'receivedPrematureCommitments' if succeeds else 'badMembers', 100 if succeeds else missing_members),
                                       (6, None, 0)]:
             coordinator.rpc('generatetoaddress', 2, address)
             sync()
@@ -142,6 +195,42 @@ def main():
         print(f'Session {start}: success={succeeds}, RC={status["mode"]}, failures={status["failures"]}, successes={status["successes"]}', flush=True)
         return status
 
+    def reconnect_and_revive():
+        nonlocal active
+        for node in offline:
+            node.rpc('setnetworkactive', True)
+            node.connect(coordinator)
+        active = nodes
+        sync()
+        revived = []
+        for node in offline:
+            identity = node.identity
+            info = coordinator.rpc('protx', 'info', identity['proTxHash'])
+            if info['state']['PoSeBanHeight'] != -1:
+                coordinator.rpc('protx', 'update_service', identity['proTxHash'],
+                                identity['service'], identity['key'], '', address)
+                revived.append(identity['proTxHash'])
+        if revived:
+            coordinator.rpc('generatetoaddress', 1, address)
+            sync()
+            assert all(coordinator.rpc('protx', 'info', i)['state']['PoSeBanHeight'] == -1 for i in revived)
+            record(f'{len(revived)} isolated banned smartnodes revived through mined service updates')
+        assert len(coordinator.rpc('protx', 'list', 'valid')) == 100
+        for node in nodes:
+            for _ in range(10):
+                if node.rpc('mnsync', 'status')['IsSynced']: break
+                node.rpc('mnsync', 'next')
+            assert node.rpc('mnsync', 'status')['IsSynced']
+        # Catch-up and revival may have happened after the first version/MNAUTH
+        # exchange. Establish fresh handshakes only after identity and sync are ready.
+        for node in offline:
+            wait_for(lambda n=node: n.rpc('smartnode', 'status').get('proTxHash') == n.identity['proTxHash'])
+        disable_and_drain(offline, root / 'disconnect-diagnostics.json')
+        for node in offline:
+            node.rpc('setnetworkactive', True)
+            node.connect(coordinator)
+        sync()
+
     try:
         if args.bootstrap_from:
             source = args.bootstrap_from.resolve()
@@ -157,6 +246,9 @@ def main():
                 assert resumed['mode'] == 'recovery' and resumed['consumed'] == 1 and resumed['successes'] == 0
             address = coordinator.rpc('getnewaddress')
             identities = json.loads((source / 'resume-identities.json').read_text())
+            if fleet:
+                assert len(identities) == 100
+                assert all(identity['service'] == fleet.identity_service(i) for i, identity in enumerate(identities)), 'Resume identities must match the authorized fleet addresses'
             registered = coordinator.rpc('protx', 'list', 'valid', True)
             by_service = {entry['state']['service']: entry['proTxHash'] for entry in registered}
             for identity in identities:
@@ -193,14 +285,14 @@ def main():
         coordinator.stop()
         bootstrap_chain = coordinator.data / 'regtest'
         if fleet:
-            coordinator = fleet.node('remote-coordinator', binary, extra_config=f'sporkkey={REGTEST_SPORK_KEY}\n', maxconnections=160, wallet_broadcast=True, smartnode_connections=True)
+            coordinator = fleet.node('remote-coordinator', binary, extra_config=f'sporkkey={REGTEST_SPORK_KEY}\n' + resume_config, maxconnections=160, wallet_broadcast=True, smartnode_connections=True)
             shutil.copytree(bootstrap_chain, coordinator.data / 'regtest', ignore=shutil.ignore_patterns('.cookie', '.lock', 'debug.log', 'db.log', '*.pid', 'peers.dat', 'mempool.dat'))
             nodes[0] = coordinator
         private_metadata = root / 'resume-identities.json'
         private_metadata.touch(mode=0o600)
         private_metadata.write_text(json.dumps(identities))
         for i, identity in enumerate(identities):
-            node = (fleet.node(f'smartnode{i}', binary, identity, index=i, smartnode_connections=True) if fleet else
+            node = (fleet.node(f'smartnode{i}', binary, identity, index=i, extra_config=resume_config, smartnode_connections=True) if fleet else
                     Node(root, f'smartnode{i}', binary, identity, extra_config=resume_config, smartnode_connections=True))
             nodes.append(node)
             shutil.copytree(coordinator.data / 'regtest', node.data / 'regtest',
@@ -234,7 +326,8 @@ def main():
             trigger = state['triggerHeight']
             mine_to(trigger + 21)
             candidates = [(n, coordinator.rpc('protx', 'info', n.identity['proTxHash'])) for n in offline]
-            target = next(n for n, info in candidates if info['state']['PoSeBanHeight'] == -1 and info['state']['PoSePenalty'] == 0)
+            target = min(((n, info) for n, info in candidates if info['state']['PoSeBanHeight'] == -1),
+                         key=lambda pair: pair[1]['state']['PoSePenalty'])[0]
             target_id = target.identity['proTxHash']
             request = coordinator.rpc('recovery', 'request', target_id, str(trigger+1), str(trigger+21))
             roster_ids = {m['proTxHash'] for m in state['members']}
@@ -255,15 +348,7 @@ def main():
             assert all(n.rpc('recovery', 'status')['consumed'] == 1 for n in active)
             assert coordinator.rpc('protx', 'info', target_id)['state']['PoSePenalty'] > old_penalty
             record('11 selected active signers authorize a mined RC penalty after the real failures')
-            for node in offline:
-                node.rpc('setnetworkactive', True)
-                node.connect(coordinator)
-            active = nodes
-            sync()
-            for node in nodes:
-                for _ in range(10):
-                    if node.rpc('mnsync', 'status')['IsSynced']:break
-                    node.rpc('mnsync', 'next')
+            reconnect_and_revive()
         state = run_session(1620)
         assert state['mode'] == 'recovery' and state['successes'] == 1
         if args.interrupt_recovery:
@@ -271,15 +356,7 @@ def main():
             assert state['mode'] == 'recovery' and state['successes'] == 0
             assert state['consumed'] == 1
             record('a real failed DKG between successes resets restoration progress and preserves the penalty')
-            for node in offline:
-                node.rpc('setnetworkactive', True)
-                node.connect(coordinator)
-            active = nodes
-            sync()
-            for node in nodes:
-                for _ in range(10):
-                    if node.rpc('mnsync', 'status')['IsSynced']: break
-                    node.rpc('mnsync', 'next')
+            reconnect_and_revive()
             state = run_session(1740)
             assert state['mode'] == 'recovery' and state['successes'] == 1
             assert all(n.rpc('recovery', 'status')['mode'] == 'recovery' for n in nodes)

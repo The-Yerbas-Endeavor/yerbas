@@ -41,6 +41,17 @@ void CConnmanTest::ClearNodes()
     g_connman->vNodes.clear();
 }
 
+void CConnmanTest::AddConnectedNode(CConnman& connman, CNode& node)
+{
+    connman.AddConnectedNode(&node);
+}
+
+void CConnmanTest::ClearNodes(CConnman& connman)
+{
+    LOCK(connman.cs_vNodes);
+    connman.vNodes.clear();
+}
+
 uint256 insecure_rand_seed = GetRandHash();
 FastRandomContext insecure_rand_ctx(insecure_rand_seed);
 
