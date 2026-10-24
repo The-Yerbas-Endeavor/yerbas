@@ -249,3 +249,6 @@ seven new boundary/deep-rollback checks. The campaign daemon stopped on exit.
 
 See `rc-release-handoff.md` for independent review scope, host information,
 read-only evidence collection, and the multi-host acceptance matrix.
+
+For a bounded, accelerated five-host regtest campaign using blocks generated on
+demand, see `rc-accelerated-campaign.md`. It does not change public-network rules.

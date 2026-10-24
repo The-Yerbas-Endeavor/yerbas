@@ -23,7 +23,12 @@ def main():
     parser.add_argument('--bootstrap-from', type=Path, help='Stopped local campaign with private resume-identities.json')
     parser.add_argument('--interrupt-recovery', action='store_true', help='Insert a real failed DKG between recovery successes')
     parser.add_argument('--resume-after-penalty', action='store_true', help='Reuse a completed local real-DKG campaign, rewound before session 1620')
+    parser.add_argument('--remote-hosts', nargs=5, help='Coordinator then four 25-smartnode SSH hosts')
+    parser.add_argument('--runtime', type=Path, help='Self-contained runtime archive for remote hosts')
+    parser.add_argument('--max-seconds', type=int, default=43200, help='Remote hard limit, at most 12 hours')
     args = parser.parse_args()
+    if args.remote_hosts and (not args.runtime or args.bootstrap_from):
+        parser.error('Remote mode requires --runtime and a fresh campaign without --bootstrap-from')
     if args.resume_after_penalty and not (args.bootstrap_from and args.interrupt_recovery):
         parser.error('--resume-after-penalty requires --bootstrap-from and --interrupt-recovery')
     root = args.workdir.resolve()
@@ -32,6 +37,15 @@ def main():
     if args.bootstrap_from:
         for identity in json.loads((args.bootstrap_from / 'resume-identities.json').read_text()):
             _allocated_ports.add(int(identity['service'].split(':')[1]))
+    fleet = None
+    if args.remote_hosts:
+        from remote_fleet import RemoteFleet
+        fleet = RemoteFleet(root, args.remote_hosts, args.runtime, args.max_seconds)
+        try:
+            fleet.prepare()
+        except Exception:
+            fleet.cleanup()
+            raise
     binary = (args.bin_dir / 'yerbasd').resolve()
     # Intentional rewind retains a known longer discarded branch in the copied DB.
     # Bypass only its RPC safe-mode gate; synchronization and consensus still apply.
@@ -164,7 +178,7 @@ def main():
                 key = coordinator.rpc('bls', 'generate')
                 owner = coordinator.rpc('getnewaddress')
                 collateral = coordinator.rpc('getnewaddress')
-                service = f'127.0.0.1:{port}'
+                service = fleet.identity_service(i) if fleet else f'127.0.0.1:{port}'
                 protx = coordinator.rpc('protx', 'register_fund', collateral, 10, service,
                                         owner, key['public'], owner, 0, address, funding[i])
                 identities.append({'proTxHash': protx, 'key': key['secret'], 'service': service})
@@ -177,11 +191,17 @@ def main():
             assert coordinator.rpc('quorum', 'list').get('llmq_100_67', []) == []
             assert coordinator.rpc('spork', 'SPORK_17_QUORUM_DKG_ENABLED', 0) == 'success'
         coordinator.stop()
+        bootstrap_chain = coordinator.data / 'regtest'
+        if fleet:
+            coordinator = fleet.node('remote-coordinator', binary, extra_config=f'sporkkey={REGTEST_SPORK_KEY}\n', maxconnections=160, wallet_broadcast=True, smartnode_connections=True)
+            shutil.copytree(bootstrap_chain, coordinator.data / 'regtest', ignore=shutil.ignore_patterns('.cookie', '.lock', 'debug.log', 'db.log', '*.pid', 'peers.dat', 'mempool.dat'))
+            nodes[0] = coordinator
         private_metadata = root / 'resume-identities.json'
         private_metadata.touch(mode=0o600)
         private_metadata.write_text(json.dumps(identities))
         for i, identity in enumerate(identities):
-            node = Node(root, f'smartnode{i}', binary, identity, extra_config=resume_config, smartnode_connections=True)
+            node = (fleet.node(f'smartnode{i}', binary, identity, index=i, smartnode_connections=True) if fleet else
+                    Node(root, f'smartnode{i}', binary, identity, extra_config=resume_config, smartnode_connections=True))
             nodes.append(node)
             shutil.copytree(coordinator.data / 'regtest', node.data / 'regtest',
                             ignore=shutil.ignore_patterns('wallet.dat', '.cookie', '.lock',
@@ -271,12 +291,23 @@ def main():
         assert all(n.rpc('recovery', 'status')['mode'] == 'normal' for n in nodes)
         record('two real successful sessions restore normal operation on all 101 daemons')
     finally:
+        stop_errors = []
+        def stop_node(node):
+            try:
+                node.stop()
+            except Exception as error:
+                stop_errors.append({'node': node.data.name, 'error': str(error)})
         with ThreadPoolExecutor(max_workers=8) as pool:
-            list(pool.map(lambda n: n.stop(), nodes))
+            list(pool.map(stop_node, nodes))
         for node in nodes:
             (node.data / 'yerbas.conf').write_text('regtest=1\nlisten=0\nconnect=0\n')
         (root / 'rc-session-history.json').write_text(json.dumps(snapshots, indent=2)+'\n')
         (root / 'dkg-results.json').write_text(json.dumps(results, indent=2) + '\n')
+        (root / 'stop-errors.json').write_text(json.dumps(stop_errors, indent=2) + '\n')
+        if fleet:
+            fleet.cleanup()
+        elif stop_errors:
+            raise RuntimeError('Some local daemons failed to stop; inspect stop-errors.json')
     print(json.dumps(results, indent=2))
 
 
