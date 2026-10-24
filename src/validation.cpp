@@ -424,6 +424,7 @@ bool ContextualCheckTransaction(const CTransaction& tx, CValidationState &state,
                 tx.nType != TRANSACTION_COINBASE &&
                 tx.nType != TRANSACTION_QUORUM_COMMITMENT &&
                 tx.nType != TRANSACTION_ASSET_REGISTER &&
+                tx.nType != TRANSACTION_RECOVERY_PENALTY &&
                 tx.nType != TRANSACTION_ASSET_REISUE) {
                 return state.DoS(100, false, REJECT_INVALID, "bad-txns-type");
             }

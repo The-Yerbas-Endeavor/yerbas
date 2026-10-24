@@ -201,6 +201,8 @@ BITCOIN_CORE_H = \
   llmq/quorums_signing.h \
   llmq/quorums_signing_shares.h \
   llmq/quorums_utils.h \
+  llmq/quorums_recovery.h \
+  llmq/quorums_pose.h \
   smartnode/activesmartnode.h \
   smartnode/smartnode-meta.h \
   smartnode/smartnode-payments.h \
@@ -335,6 +337,8 @@ libyerbas_server_a_SOURCES = \
   llmq/quorums_signing.cpp \
   llmq/quorums_signing_shares.cpp \
   llmq/quorums_utils.cpp \
+  llmq/quorums_recovery.cpp \
+  llmq/quorums_pose.cpp \
   smartnode/activesmartnode.cpp \
   smartnode/smartnode-meta.cpp \
   smartnode/smartnode-payments.cpp \

@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "quorums_dkgsession.h"
+#include "quorums_pose.h"
 
 #include "quorums_commitment.h"
 #include "quorums_debug.h"
@@ -427,6 +428,10 @@ void CDKGSession::VerifyAndComplain(CDKGPendingMessages& pendingMessages)
 
     for (const auto& m : members) {
         if (m->bad) {
+            continue;
+        }
+        if (poseManager && poseManager->ShouldVoteBad(m->dmn->proTxHash)) {
+            MarkBadMember(m->idx);
             continue;
         }
         if (m->contributions.empty()) {

@@ -480,6 +480,7 @@ private:
 
     bool AttemptToEvictConnection();
     CNode* ConnectNode(CAddress addrConnect, const char *pszDest = nullptr, bool fCountFailure = false);
+    void AddConnectedNode(CNode* node);
     bool IsWhitelistedRange(const CNetAddr &addr);
 
     void DeleteNode(CNode* pnode);

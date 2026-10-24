@@ -84,6 +84,8 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, const std::string& strC
             }
         }
 
+        if (!Params().GetConsensus().IsLLMQEnabled(type, pquorumIndex->nHeight)) return;
+
         {
             // Check if we already got a better one locally
             // We do this before verifying the commitment to avoid DoS
@@ -352,6 +354,7 @@ bool CQuorumBlockProcessor::IsMiningPhase(Consensus::LLMQType llmqType, int nHei
 
 bool CQuorumBlockProcessor::IsCommitmentRequired(Consensus::LLMQType llmqType, int nHeight)
 {
+    if (!Params().GetConsensus().IsLLMQEnabled(llmqType, nHeight)) return false;
     uint256 quorumHash = GetQuorumBlockHash(llmqType, nHeight);
 
     // perform extra check for quorumHash.IsNull as the quorum hash is unknown for the first block of a session

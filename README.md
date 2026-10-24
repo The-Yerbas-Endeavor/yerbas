@@ -52,3 +52,11 @@ Changes should be tested by somebody other than the developer who wrote the
 code. This is especially important for large or high-risk changes. It is useful
 to add a test plan to the pull request description if testing the changes is
 not straightforward.
+
+### Recovery Committee technical reference
+
+[RC technical configuration and applications](doc/rc-technical-reference.md)
+documents the rotating 11-of-15 design, consensus parameters, operator setup,
+RPC workflow, activation schedules and testnet applications. It describes the
+implementation published in draft PR #53; documentation publication alone does
+not merge or activate that implementation.

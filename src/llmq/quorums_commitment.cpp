@@ -163,6 +163,8 @@ bool CheckLLMQCommitment(const CTransaction& tx, const CBlockIndex* pindexPrev, 
         return state.DoS(100, false, REJECT_INVALID, "bad-qc-type");
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)qcTx.commitment.llmqType);
+    if (!Params().GetConsensus().IsLLMQEnabled(params.type, pindexQuorum->nHeight))
+        return state.DoS(100, false, REJECT_INVALID, "bad-qc-inactive");
 
     if (qcTx.commitment.IsNull()) {
         if (!qcTx.commitment.VerifyNull()) {

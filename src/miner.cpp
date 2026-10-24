@@ -6,6 +6,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "miner.h"
+#include "llmq/quorums_recovery.h"
 
 #include "amount.h"
 #include "chain.h"
@@ -281,6 +282,15 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, unsigned int packageSigOp
 // - safe TXs in regard to ChainLocks
 bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& package)
 {
+    bool hasRecovery = false;
+    for (const auto& tx : pblock->vtx) if (tx && tx->nType == TRANSACTION_RECOVERY_PENALTY) hasRecovery = true;
+    for (const auto& it : package) if (it->GetTx().nType == TRANSACTION_RECOVERY_PENALTY) hasRecovery = true;
+    if (hasRecovery) {
+        CBlock candidate = *pblock;
+        for (const auto& it : package) candidate.vtx.push_back(it->GetSharedTx());
+        CValidationState state;
+        if (!llmq::CheckRecoveryBlock(candidate, chainActive.Tip(), state)) return false;
+    }
     for (const CTxMemPool::txiter it : package) {
         if (!IsFinalTx(it->GetTx(), nHeight, nLockTimeCutoff))
             return false;

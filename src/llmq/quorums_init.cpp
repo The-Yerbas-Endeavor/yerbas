@@ -4,6 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "quorums_init.h"
+#include "quorums_pose.h"
 
 #include "quorums.h"
 #include "quorums_blockprocessor.h"
@@ -36,6 +37,7 @@ void InitLLMQSystem(CEvoDB& evoDb, CScheduler* scheduler, bool unitTests, bool f
     quorumManager = new CQuorumManager(evoDb, *blsWorker, *quorumDKGSessionManager);
     quorumSigSharesManager = new CSigSharesManager();
     quorumSigningManager = new CSigningManager(*llmqDb, unitTests);
+    poseManager = new CPoSeManager(*llmqDb);
     chainLocksHandler = new CChainLocksHandler(scheduler);
     quorumInstantSendManager = new CInstantSendManager(*llmqDb);
 }
@@ -46,6 +48,8 @@ void DestroyLLMQSystem()
     quorumInstantSendManager = nullptr;
     delete chainLocksHandler;
     chainLocksHandler = nullptr;
+    delete poseManager;
+    poseManager = nullptr;
     delete quorumSigningManager;
     quorumSigningManager = nullptr;
     delete quorumSigSharesManager;
@@ -66,6 +70,7 @@ void DestroyLLMQSystem()
 
 void StartLLMQSystem()
 {
+    if (quorumSigningManager && poseManager) quorumSigningManager->RegisterRecoveredSigsListener(poseManager);
     //quorumBlockProcessor->UpgradeDB();
 
     if (blsWorker) {
@@ -88,6 +93,7 @@ void StartLLMQSystem()
 
 void StopLLMQSystem()
 {
+    if (quorumSigningManager && poseManager) quorumSigningManager->UnregisterRecoveredSigsListener(poseManager);
     if (quorumInstantSendManager) {
         quorumInstantSendManager->Stop();
     }

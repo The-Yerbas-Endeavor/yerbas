@@ -12,6 +12,8 @@
 #include "llmq/quorums_debug.h"
 #include "llmq/quorums_dkgsession.h"
 #include "llmq/quorums_signing.h"
+#include "llmq/quorums_pose.h"
+#include "llmq/quorums_recovery.h"
 
 void quorum_list_help()
 {
@@ -433,6 +435,8 @@ UniValue quorum(const JSONRPCRequest& request)
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
+    { "evo",                "recovery",               &llmq::RecoveryRPC,       false, {} },
+    { "evo",                "pose",                   &llmq::PoSeRPC,           false, {} },
     { "evo",                "quorum",                 &quorum,                 false, {}  },
 };
 

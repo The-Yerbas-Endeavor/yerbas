@@ -16,6 +16,7 @@
 #include "specialtx.h"
 
 #include "llmq/quorums_commitment.h"
+#include "llmq/quorums_recovery.h"
 #include "llmq/quorums_blockprocessor.h"
 
 bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
@@ -39,6 +40,8 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
         return CheckProUpRevTx(tx, pindexPrev, state);
     case TRANSACTION_COINBASE:
         return CheckCbTx(tx, pindexPrev, state);
+    case TRANSACTION_RECOVERY_PENALTY:
+        return llmq::CheckRecoveryTx(tx, pindexPrev, state);
     case TRANSACTION_QUORUM_COMMITMENT:
         return llmq::CheckLLMQCommitment(tx, pindexPrev, state);
     case TRANSACTION_ASSET_REGISTER:
@@ -61,6 +64,7 @@ bool ProcessSpecialTx(const CTransaction& tx, const CBlockIndex* pindex, CValida
     case TRANSACTION_PROVIDER_UPDATE_SERVICE:
     case TRANSACTION_PROVIDER_UPDATE_REGISTRAR:
     case TRANSACTION_PROVIDER_UPDATE_REVOKE:
+    case TRANSACTION_RECOVERY_PENALTY:
         return true; // handled in batches per block
     case TRANSACTION_COINBASE:
         return true; // nothing to do
@@ -85,6 +89,7 @@ bool UndoSpecialTx(const CTransaction& tx, const CBlockIndex* pindex)
     case TRANSACTION_PROVIDER_UPDATE_SERVICE:
     case TRANSACTION_PROVIDER_UPDATE_REGISTRAR:
     case TRANSACTION_PROVIDER_UPDATE_REVOKE:
+    case TRANSACTION_RECOVERY_PENALTY:
         return true; // handled in batches per block
     case TRANSACTION_COINBASE:
         return true; // nothing to do
@@ -138,6 +143,8 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
     int64_t nTime4 = GetTimeMicros(); nTimeDMN += nTime4 - nTime3;
     LogPrint(BCLog::BENCHMARK, "        - deterministicMNManager: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeDMN * 0.000001);
 
+    if (!fJustCheck) llmq::ProcessRecoveryBlock(block, pindex);
+
     if (fCheckCbTxMerleRoots && !CheckCbTxMerkleRoots(block, pindex, state)) {
     	std::cout << "fail to check CheckCbTxMerkleRoots\n";
         return false;
@@ -151,6 +158,7 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
 
 bool UndoSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex)
 {
+    llmq::UndoRecoveryBlock(pindex);
     for (int i = (int)block.vtx.size() - 1; i >= 0; --i) {
         const CTransaction& tx = *block.vtx[i];
         if (!UndoSpecialTx(tx, pindex)) {

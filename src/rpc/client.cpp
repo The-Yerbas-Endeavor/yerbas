@@ -30,6 +30,7 @@ public:
  */
 static const CRPCConvertParam vRPCConvertParams[] =
 {
+    { "pose", 2, "height" },
     { "issue", 1, "qty" },
     { "issue", 4, "units" },
     { "issue", 5, "reissuable" },

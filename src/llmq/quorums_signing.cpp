@@ -763,12 +763,20 @@ void CSigningManager::UnregisterRecoveredSigsListener(CRecoveredSigsListener* l)
     recoveredSigsListeners.erase(itRem, recoveredSigsListeners.end());
 }
 
-bool CSigningManager::AsyncSignIfMember(Consensus::LLMQType llmqType, const uint256& id, const uint256& msgHash, bool allowReSign)
+bool CSigningManager::AsyncSignIfMember(Consensus::LLMQType llmqType, const uint256& id, const uint256& msgHash, bool allowReSign, int signHeight)
 {
     auto& params = Params().GetConsensus().llmqs.at(llmqType);
 
     if (!fSmartnodeMode || activeSmartnodeInfo.proTxHash.IsNull()) {
         return false;
+    }
+
+    int tipHeight;
+    {
+        LOCK(cs_main);
+        tipHeight = signHeight == -1 ? chainActive.Height() : signHeight;
+        if (tipHeight < SIGN_HEIGHT_OFFSET || tipHeight > chainActive.Height() ||
+            !Params().GetConsensus().IsLLMQEnabled(llmqType, tipHeight)) return false;
     }
 
     {
@@ -799,12 +807,6 @@ bool CSigningManager::AsyncSignIfMember(Consensus::LLMQType llmqType, const uint
         if (!hasVoted) {
             db.WriteVoteForId(llmqType, id, msgHash);
         }
-    }
-
-    int tipHeight;
-    {
-        LOCK(cs_main);
-        tipHeight = chainActive.Height();
     }
 
     // This might end up giving different results on different members
@@ -889,7 +891,7 @@ std::vector<CQuorumCPtr> CSigningManager::GetActiveQuorumSet(Consensus::LLMQType
     {
         LOCK(cs_main);
         int startBlockHeight = signHeight - SIGN_HEIGHT_OFFSET;
-        if (startBlockHeight > chainActive.Height()) {
+        if (startBlockHeight < 0 || startBlockHeight > chainActive.Height()) {
             return {};
         }
         pindexStart = chainActive[startBlockHeight];
@@ -920,7 +922,8 @@ CQuorumCPtr CSigningManager::SelectQuorumForSigning(Consensus::LLMQType llmqType
 
 bool CSigningManager::VerifyRecoveredSig(Consensus::LLMQType llmqType, int signedAtHeight, const uint256& id, const uint256& msgHash, const CBLSSignature& sig)
 {
-    auto& llmqParams = Params().GetConsensus().llmqs.at(Params().GetConsensus().llmqTypeChainLocks);
+    if (!Params().GetConsensus().IsLLMQEnabled(llmqType, signedAtHeight)) return false;
+    auto& llmqParams = Params().GetConsensus().llmqs.at(llmqType);
 
     auto quorum = SelectQuorumForSigning(llmqParams.type, signedAtHeight, id);
     if (!quorum) {

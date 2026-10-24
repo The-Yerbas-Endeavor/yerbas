@@ -113,6 +113,10 @@ void CDKGSessionHandler::UpdatedBlockTip(const CBlockIndex* pindexNew)
 {
     LOCK(cs);
 
+    if (!Params().GetConsensus().IsLLMQEnabled(params.type, pindexNew->nHeight)) {
+        phase = QuorumPhase_Idle;
+        return;
+    }
     int quorumStageInt = pindexNew->nHeight % params.dkgInterval;
     const CBlockIndex* pindexQuorum = pindexNew->GetAncestor(pindexNew->nHeight - quorumStageInt);
 

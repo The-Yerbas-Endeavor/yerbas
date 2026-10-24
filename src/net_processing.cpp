@@ -53,6 +53,7 @@
 #include "llmq/quorums_init.h"
 #include "llmq/quorums_instantsend.h"
 #include "llmq/quorums_signing.h"
+#include "llmq/quorums_pose.h"
 #include "llmq/quorums_signing_shares.h"
 
 #if defined(NDEBUG)
@@ -3231,6 +3232,7 @@ bool static ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStr
         llmq::quorumDKGSessionManager->ProcessMessage(pfrom, strCommand, vRecv, *connman);
         llmq::quorumSigSharesManager->ProcessMessage(pfrom, strCommand, vRecv, *connman);
         llmq::quorumSigningManager->ProcessMessage(pfrom, strCommand, vRecv, *connman);
+        llmq::poseManager->ProcessMessage(pfrom, strCommand, vRecv, *connman);
         llmq::chainLocksHandler->ProcessMessage(pfrom, strCommand, vRecv, *connman);
         llmq::quorumInstantSendManager->ProcessMessage(pfrom, strCommand, vRecv, *connman);
         return true;

@@ -10,7 +10,9 @@
 #include "founder_payment.h"
 #include "smartnode/smartnode-collaterals.h"
 #include <map>
+#include <limits>
 #include <string>
+#include <vector>
 
 namespace Consensus {
 
@@ -44,6 +46,8 @@ enum LLMQType : uint8_t
 
     LLMQ_50_60 = 1, // 50 members, 30 (60%) threshold, one per hour
     LLMQ_400_60 = 2, // 400 members, 240 (60%) threshold, one every 12 hours
+    LLMQ_100_67 = 4, // PoSe approval: 100 members, 67 signatures
+    LLMQ_POSE_TEST = 101, // regtest only, 3 members, 2 signatures
     LLMQ_400_85 = 3, // 400 members, 340 (85%) threshold, one every 24 hours
 	// these are LLMQ set when network still young
 //	LLMQ_10_60 = 4, // 10 members, 6 (60%) threshold, one per hour
@@ -189,6 +193,20 @@ struct Params {
     std::map<LLMQType, LLMQParams> llmqs;
     LLMQType llmqTypeChainLocks;
     LLMQType llmqTypeInstantSend{LLMQ_NONE};
+    LLMQType llmqTypePoSe{LLMQ_100_67};
+    // A coordinated consensus upgrade must set this for public networks.
+    int nPoSeQuorumActivationHeight{std::numeric_limits<int>::max()};
+    int nRecoveryActivationHeight{std::numeric_limits<int>::max()};
+
+    bool IsLLMQEnabled(LLMQType type, int height) const
+    {
+        auto it = llmqs.find(type);
+        if (it == llmqs.end() || height < 0) return false;
+        if (type != LLMQ_100_67 && type != LLMQ_POSE_TEST) return true;
+        const int start = height - height % it->second.dkgInterval;
+        return nPoSeQuorumActivationHeight != std::numeric_limits<int>::max() &&
+               start >= nPoSeQuorumActivationHeight;
+    }
 
     FounderPayment nFounderPayment;
     AssetsRewardShare nAssetsRewardShare;
