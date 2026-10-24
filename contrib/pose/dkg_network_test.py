@@ -16,12 +16,13 @@ from recovery_network_test import Node, free_port, wait_for, _allocated_ports
 REGTEST_SPORK_KEY = 'cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK'
 
 
-def disable_and_drain(nodes, diagnostics_path):
+def disable_and_drain(nodes, diagnostics_path, native=False):
     """Close late outbound connections as well as the initial socket snapshot.
 
     OpenNetworkConnection checks network-active before ConnectNode; a connection
     already in flight can be inserted after SetNetworkActive closes its snapshot.
     Explicit disconnects here are a test-harness workaround, not a Core fix.
+    Native mode never sends disconnectnode or falls back to the workaround.
     """
     for node in nodes:
         node.rpc('setnetworkactive', False)
@@ -34,6 +35,8 @@ def disable_and_drain(nodes, diagnostics_path):
             observations[node.data.name] = [p['id'] for p in peers]
             for peer in peers:
                 empty = False
+                if native:
+                    continue
                 try:
                     node.rpc('disconnectnode', '', peer['id'])
                 except RuntimeError:
@@ -60,6 +63,8 @@ def main():
     parser.add_argument('--remote-hosts', nargs=5, help='Coordinator then four 25-smartnode SSH hosts')
     parser.add_argument('--runtime', type=Path, help='Self-contained runtime archive for remote hosts')
     parser.add_argument('--max-seconds', type=int, default=43200, help='Remote hard limit, at most 12 hours')
+    parser.add_argument('--native-peer-drain', action='store_true',
+                        help='Require Core to drain disabled peers without disconnectnode fallback')
     args = parser.parse_args()
     if args.remote_hosts and (not args.runtime or (args.bootstrap_from and not args.resume_after_penalty)):
         parser.error('Remote mode requires --runtime; bootstrap reuse requires --resume-after-penalty')
@@ -68,6 +73,10 @@ def main():
     root = args.workdir.resolve()
     root.mkdir(parents=True, exist_ok=False)
     root.chmod(0o700)
+    (root / 'drain-mode.json').write_text(json.dumps({
+        'nativePeerDrain': args.native_peer_drain,
+        'explicitDisconnectWorkaround': not args.native_peer_drain,
+    }, indent=2) + '\n')
     if args.bootstrap_from:
         for identity in json.loads((args.bootstrap_from / 'resume-identities.json').read_text()):
             _allocated_ports.add(int(identity['service'].split(':')[1]))
@@ -134,7 +143,7 @@ def main():
             members = {m['proTxHash'] for m in roster['members']}
             offline = [n for n in nodes[1:] if n.identity['proTxHash'] not in members][:21]
             assert len(offline) == 21
-            disable_and_drain(offline, root / 'disconnect-diagnostics.json')
+            disable_and_drain(offline, root / 'disconnect-diagnostics.json', native=args.native_peer_drain)
             active = [n for n in nodes if n not in offline]
             record('real participation history selects 15 RC members; 21 nonmembers isolated')
         phase(1)
@@ -225,7 +234,7 @@ def main():
         # exchange. Establish fresh handshakes only after identity and sync are ready.
         for node in offline:
             wait_for(lambda n=node: n.rpc('smartnode', 'status').get('proTxHash') == n.identity['proTxHash'])
-        disable_and_drain(offline, root / 'disconnect-diagnostics.json')
+        disable_and_drain(offline, root / 'disconnect-diagnostics.json', native=args.native_peer_drain)
         for node in offline:
             node.rpc('setnetworkactive', True)
             node.connect(coordinator)

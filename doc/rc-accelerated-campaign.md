@@ -208,3 +208,21 @@ activation overrides and obsolete appointed-key options. All local test daemons
 stopped. These tests use cryptographically valid constructed commitments, not real
 distributed DKG, and did not use or restart any paid test server. This source review
 and validation are implementation self-review, not independent reviewer approval.
+
+## Testing Core peer draining without the workaround
+
+For the outstanding distributed regression of the peer-admission fix, add
+`--native-peer-drain` to the existing campaign command. In this mode all isolation
+and post-revival refresh calls use `setnetworkactive(false)` and wait for Core to
+remove peers. The harness never calls `disconnectnode` and never falls back to
+that workaround. A timeout fails the campaign and records remaining peer IDs.
+Keep `drain-mode.json` alongside the lifecycle and cleanup evidence; it records
+whether explicit disconnects were enabled. Omitting the flag preserves the
+historical workaround mode for comparison, not acceptance of the Core fix.
+
+The three `test_dkg_drain.py` tests cover native cleanup, a stuck peer failing
+without fallback, and compatibility of the explicit workaround. They use fake
+RPC nodes and validate harness behavior only. No new distributed campaign has
+run with this option. A qualifying result still requires the full real-DKG
+lifecycle and independently verified cleanup; independent code review remains
+separate. This change does not schedule or start paid servers.
