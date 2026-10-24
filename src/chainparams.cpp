@@ -941,7 +941,9 @@ public:
         auto regtestQuorum = llmq3_60;
         regtestQuorum.type = Consensus::LLMQ_5_60;
         consensus.llmqs[Consensus::LLMQ_5_60] = regtestQuorum;
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        // Match the zero-smartnode adaptive parameters before first registration.
+        // Otherwise block assembly can resize a null commitment from 50 to 3 bits.
+        consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
         consensus.llmqTypeChainLocks = Consensus::LLMQ_5_60;
         consensus.llmqTypeInstantSend = Consensus::LLMQ_5_60;
     }

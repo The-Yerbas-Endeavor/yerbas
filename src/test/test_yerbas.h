@@ -55,6 +55,8 @@ class CNode;
 struct CConnmanTest {
     static void AddNode(CNode& node);
     static void ClearNodes();
+    static void AddConnectedNode(CConnman& connman, CNode& node);
+    static void ClearNodes(CConnman& connman);
 };
 
 class PeerLogicValidation;
