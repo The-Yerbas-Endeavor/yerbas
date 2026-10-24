@@ -55,7 +55,11 @@ export PKG_CONFIG_LIBDIR=$depends_prefix/lib/pkgconfig
 export PKG_CONFIG_PATH=$depends_prefix/share/pkgconfig
 
 if test "x@use_system_qt@" = x1; then
-  # Explicit native desktop mode: allow system Qt's pkg-config dependencies.
+  # Native Qt may be installed in a dedicated prefix by CI. Keep depends
+  # isolated while making that Qt stack and its system dependencies visible.
+  if test -n "$QT_NATIVE_PREFIX"; then
+    export PKG_CONFIG_LIBDIR="$QT_NATIVE_PREFIX/lib/pkgconfig:$PKG_CONFIG_LIBDIR"
+  fi
   system_qt_pc_path=`pkg-config --variable=pc_path pkg-config`
   export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:$system_qt_pc_path"
   if ! pkg-config --atleast-version=6.8 Qt6Core; then

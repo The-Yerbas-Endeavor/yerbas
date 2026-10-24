@@ -22,7 +22,7 @@ jobs:
   build:
     name: ${{ matrix.platform.name }} Build
     runs-on: ${{ matrix.platform.runner }}
-    timeout-minutes: ${{ matrix.platform.id == 'win64' && 240 || 120 }}
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +82,16 @@ jobs:
             sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
           fi
 
+      - name: Install native Linux Qt build dependencies
+        if: runner.os == 'Linux' && matrix.platform.id != 'win64' && matrix.platform.id != 'ubuntu26'
+        run: |
+          sudo apt-get install -y libfontconfig1-dev libssl-dev libx11-dev libx11-xcb-dev \
+            libxext-dev libxfixes-dev libxi-dev libxrender-dev libxcb1-dev libxcb-cursor-dev \
+            libxcb-glx0-dev libxcb-icccm4-dev libxcb-image0-dev libxcb-keysyms1-dev \
+            libxcb-randr0-dev libxcb-render-util0-dev libxcb-shape0-dev libxcb-shm0-dev \
+            libxcb-sync-dev libxcb-xfixes0-dev libxcb-xinerama0-dev libxcb-xkb-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev
+
       - name: Install Ubuntu Qt development tools
         if: matrix.platform.id == 'ubuntu26'
         run: |
@@ -96,6 +106,9 @@ jobs:
           for formula in coreutils gnu-sed make; do
             echo "$(brew --prefix "$formula")/libexec/gnubin" >> "$GITHUB_PATH"
           done
+
+      - name: Check native Qt packaging logic
+        run: python3 -m unittest discover -s ci/tests -v
 
       - name: Check Windows packaging logic
         if: matrix.platform.id == 'win64'
@@ -119,13 +132,32 @@ jobs:
           if [[ "$RUNNER_OS" == macOS ]]; then
             extra_args+=(OSX_MIN_VERSION=11.0)
           fi
-          if [[ "$PLATFORM_ID" == ubuntu26 ]]; then
+          if [[ "$PLATFORM_ID" != win64 ]]; then
             extra_args+=(USE_SYSTEM_QT=1)
-          elif [[ "$PLATFORM_ID" != win64 ]]; then
-            extra_args+=(NO_QT=1)
           fi
           make -C depends -j"$BUILD_JOBS" HOST="$HOST_TRIPLE" NO_UPNP=1 "${extra_args[@]}" \
             2>&1 | tee ci-logs/depends.log
+
+      - name: Cache native desktop Qt
+        if: matrix.platform.id != 'win64' && matrix.platform.id != 'ubuntu26'
+        id: native-qt-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: qt-native
+          key: native-qt-${{ matrix.platform.id }}-${{ hashFiles('ci/build-native-qt.py', 'depends/packages/qt.mk', 'depends/packages/qt5compat.mk', 'depends/packages/native_qttools.mk') }}
+
+      - name: Build and verify native desktop Qt
+        if: matrix.platform.id != 'win64' && matrix.platform.id != 'ubuntu26'
+        run: |
+          set -euo pipefail
+          if [[ ! -f qt-native/.complete ]]; then
+            python3 ci/build-native-qt.py --prefix "$PWD/qt-native" \
+              --cmake "$PWD/depends/$HOST_TRIPLE/native/bin/cmake" --jobs "$BUILD_JOBS" \
+              2>&1 | tee ci-logs/native-qt.log
+          fi
+          export PKG_CONFIG_PATH="$PWD/qt-native/lib/pkgconfig"
+          pkg-config --atleast-version=6.8 Qt6Core Qt6Gui Qt6Widgets Qt6Network Qt6Core5Compat Qt6Test
+          echo "QT_NATIVE_PREFIX=$PWD/qt-native" >> "$GITHUB_ENV"
 
       - name: Configure with wallet and tests enabled
         run: |
@@ -133,10 +165,7 @@ jobs:
           if [[ "$RUNNER_OS" == macOS ]]; then
             export CXXFLAGS="-O2 -g1 -Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
           fi
-          gui_args=(--without-gui)
-          if [[ "$PLATFORM_ID" == win64 || "$PLATFORM_ID" == ubuntu26 ]]; then
-            gui_args=(--with-gui=qt6 --with-qrencode --with-qtdbus=no)
-          fi
+          gui_args=(--with-gui=qt6 --with-qrencode --with-qtdbus=no)
           ./autogen.sh 2>&1 | tee ci-logs/autogen.log
           ./configure --prefix="$PWD/depends/$HOST_TRIPLE" \
             "${gui_args[@]}" --without-miniupnpc --disable-bench --enable-wallet --enable-tests \
@@ -180,7 +209,14 @@ jobs:
               printf '%s\n' 'Ubuntu 26 Qt wallet: requires the Ubuntu Qt 6 runtime.' \
                 'Install: sudo apt-get install libqt6widgets6 libqt6network6 libqt6core5compat6 qt6-qpa-plugins' \
                 > package/README-Qt.txt
+            else
+              python3 ci/package-native-qt.py --prefix "$QT_NATIVE_PREFIX"
             fi
+            # Preserve executable modes and library symlinks through artifact upload.
+            tar -czf test-runtime.tar.gz -C test-binaries .
+            rm -rf test-binaries
+            mkdir test-binaries
+            mv test-runtime.tar.gz test-binaries/
           fi
           {
             echo "commit=$GITHUB_SHA"
@@ -191,7 +227,8 @@ jobs:
             cd package
             find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
           )
-          archive="yerbas-${PLATFORM_ID}-${GITHUB_SHA}"
+          version="$(sed -n 's/^release-version=//p' build.properties)"
+          archive="yerbas-${version}-${PLATFORM_ID}-${GITHUB_SHA}"
           if [[ "$BINARY_EXTENSION" == .exe ]]; then
             (cd package && zip -r "../artifacts/$archive.zip" .)
           else
@@ -276,6 +313,19 @@ jobs:
           name: yerbas-${{ matrix.platform.id }}-test-executable
           path: test-binaries
 
+      - name: Extract native test runtime
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tar -xzf test-binaries/test-runtime.tar.gz -C test-binaries
+
+      - name: Install native Linux Qt test runtime
+        if: runner.os == 'Linux' && matrix.platform.id != 'ubuntu26'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0
+
       - name: Install Ubuntu Qt test runtime
         if: matrix.platform.id == 'ubuntu26'
         shell: bash
@@ -292,17 +342,20 @@ jobs:
         shell: bash
         run: python ci/run-unit-tests.py "test-binaries/${{ matrix.platform.binary }}" --output test-results --timeout 180
 
-      - name: Run Ubuntu Qt wallet and asset viewer tests
+      - name: Run native Qt wallet and asset viewer tests
         timeout-minutes: 10
-        if: ${{ !cancelled() && matrix.platform.id == 'ubuntu26' }}
+        if: ${{ !cancelled() && runner.os != 'Windows' }}
         shell: bash
-        env:
-          QT_QPA_PLATFORM: minimal
         run: |
           set -euo pipefail
           mkdir -p test-results
-          chmod +x test-binaries/test_yerbas-qt
-          ./test-binaries/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            ./test-binaries/test_yerbas-qt.app/Contents/MacOS/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
+          elif [[ "${{ matrix.platform.id }}" == ubuntu26 ]]; then
+            QT_QPA_PLATFORM=minimal ./test-binaries/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
+          else
+            QT_QPA_PLATFORM=minimal ./test-binaries/bin/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
+          fi
 
       - name: Run Windows Qt and asset viewer tests
         timeout-minutes: 10

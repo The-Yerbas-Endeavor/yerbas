@@ -108,8 +108,8 @@ ifeq ($(USE_SYSTEM_QT),1)
 ifneq ($(NO_QT),)
 $(error USE_SYSTEM_QT=1 cannot be combined with NO_QT)
 endif
-ifneq ($(host_arch)_$(host_os),$(build_arch)_linux)
-$(error USE_SYSTEM_QT=1 supports native Linux builds only)
+ifneq ($(host_arch)_$(host_os),$(build_arch)_$(build_os))
+$(error USE_SYSTEM_QT=1 supports native builds only)
 endif
 # Keep QR/zlib pinned, but use the desktop Qt 6 stack.
 qt_packages_ = $(qt_packages)
@@ -119,7 +119,7 @@ ifeq ($(build_os)_$(host_os)_$(host_arch),linux_mingw32_x86_64)
 qt_packages_ = $(qt_packages) qt qt5compat
 qt_native_packages = native_qt native_qttools
 else
-$(error GUI dependencies support native Linux or Linux to x86_64-w64-mingw32. Use NO_QT=1 only for headless builds)
+$(error GUI dependencies require USE_SYSTEM_QT=1 for native builds or Linux to x86_64-w64-mingw32. Use NO_QT=1 only for headless builds)
 endif
 endif
 endif
