@@ -53,6 +53,7 @@ public:
     std::list<BinaryMessage> PopPendingMessages(size_t maxCount);
     bool HasSeen(const uint256& hash) const;
     void Clear();
+    void SetMaxMessagesPerNode(size_t limit);
 
     template<typename Message>
     void PushPendingMessage(NodeId from, Message& msg)

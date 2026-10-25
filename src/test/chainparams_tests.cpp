@@ -11,6 +11,7 @@
 #include "key.h"
 #include "util.h"
 #include "llmq/quorums_commitment.h"
+#include "llmq/quorums_dkgsessionhandler.h"
 #include "llmq/quorums_utils.h"
 #include "primitives/block.h"
 #include "streams.h"
@@ -298,6 +299,36 @@ BOOST_AUTO_TEST_CASE(selected_member_penalties_ban_and_payment_exclusion)
     BOOST_CHECK_EQUAL(list.CalculateQuorum(200, uint256S("03")).size(), 10);
     // Banning does not remove the registration: an explorer may still list it.
     BOOST_CHECK_EQUAL(list.GetAllMNsCount(), 11);
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_FIXTURE_TEST_SUITE(legacy_dkg_queue_tests, TestingSetup)
+
+BOOST_AUTO_TEST_CASE(resize_across_low_llmq_sessions_retains_peer_limits)
+{
+    llmq::CDKGPendingMessages queue(6); // Startup 3-member quorum.
+    auto push = [&](NodeId peer, int first, int count) {
+        for (int i = first; i < first + count; ++i) {
+            CDataStream message(SER_NETWORK, PROTOCOL_VERSION);
+            message << i;
+            queue.PushPendingMessage(peer, message);
+        }
+    };
+    push(1, 0, 7);
+    BOOST_CHECK_EQUAL(queue.PopPendingMessages(1000).size(), 6);
+    queue.Clear();
+    queue.SetMaxMessagesPerNode(400); // LOW_LLMQ: 200 members, two messages each.
+    push(1, 1000, 401);
+    BOOST_CHECK_EQUAL(queue.PopPendingMessages(1000).size(), 400);
+    push(1, 2000, 1); // Popping must not reset this peer's per-session allowance.
+    BOOST_CHECK(queue.PopPendingMessages(1000).empty());
+    push(2, 2001, 1); // Another peer has an independent allowance.
+    BOOST_CHECK_EQUAL(queue.PopPendingMessages(1000).size(), 1);
+    queue.Clear();
+    queue.SetMaxMessagesPerNode(20); // Return to a normal 10-member quorum.
+    push(1, 3000, 21);
+    BOOST_CHECK_EQUAL(queue.PopPendingMessages(1000).size(), 20);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

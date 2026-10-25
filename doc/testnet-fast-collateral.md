@@ -59,3 +59,20 @@ at the boundary on mainnet, ordinary testnet and this private profile. It also
 checks unchanged ordinary collateral, profile guards, P2P separation, shared
 genesis and the unchanged difficulty target. Wallet balance/UI maturity and
 mempool reorg handling use the same selected maturity as transaction validation.
+
+## Legacy LOW_LLMQ test workflow
+
+Use the existing SPORK_21 command from the authorized Qt wallet. Do not enable
+`llmqrecoverytestnet`; the isolated chain-record integration has been reverted.
+The runtime profile remains `testnet=1` and `testnetfastcollateral=1`.
+
+The DKG handler now refreshes all four pending-message queue limits at each
+new quorum session. The limit remains twice the session quorum size, preserving
+the bounded per-peer allowance while allowing the existing LOW_LLMQ transition
+to a 200-member quorum. Previously the queues retained their startup limits.
+Update operators before activating LOW_LLMQ. This fix does not itself change
+quorum thresholds, block validation, PoSe rules, or activate a spork.
+
+The live ghost-cleanup and fresh-sync tests remain required before mainnet
+readiness can be claimed. Earlier experimental regtest/devnet recovery code
+remains inactive in this testnet profile.
