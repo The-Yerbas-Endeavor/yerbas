@@ -3,6 +3,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "coins.h"
+#include "consensus/consensus.h"
+#include "consensus/tx_verify.h"
+#include "consensus/validation.h"
 #include "evo/deterministicmns.h"
 #include "key.h"
 #include "util.h"
@@ -159,6 +163,50 @@ BOOST_AUTO_TEST_CASE(explicit_quorum_context_checks_signatures_and_membership)
     auto tooMany = members;
     tooMany.resize(params.size + 1, members[0]);
     BOOST_CHECK(!qc.Verify(params, tooMany, true));
+}
+
+BOOST_AUTO_TEST_CASE(private_testnet_collateral_and_maturity_boundaries)
+{
+    struct Restore {
+        ~Restore() { gArgs.ForceSetArg("-testnetfastcollateral", "0"); SelectParams(CBaseChainParams::REGTEST); }
+    } restore;
+    auto checkMaturity = [](int maturity) {
+        CCoinsView base;
+        CCoinsViewCache view(&base);
+        COutPoint out(uint256S("1234"), 0);
+        view.AddCoin(out, Coin(CTxOut(COIN, CScript() << OP_TRUE), 1, true), false);
+        CMutableTransaction mtx;
+        mtx.vin.emplace_back(out);
+        mtx.vout.emplace_back(COIN - 1000, CScript() << OP_TRUE);
+        CTransaction tx(mtx);
+        CAmount fee = 0, specialFee = 0;
+        CValidationState early;
+        BOOST_CHECK(!Consensus::CheckTxInputs(tx, early, view, maturity, fee, specialFee, false));
+        BOOST_CHECK_EQUAL(early.GetRejectReason(), "bad-txns-premature-spend-of-coinbase");
+        CValidationState mature;
+        BOOST_CHECK(Consensus::CheckTxInputs(tx, mature, view, maturity + 1, fee, specialFee, false));
+        BOOST_CHECK_EQUAL(fee, 1000);
+    };
+    gArgs.ForceSetArg("-testnetfastcollateral", "0");
+    SelectParams(CBaseChainParams::MAIN);
+    BOOST_CHECK_EQUAL(GetCoinbaseMaturity(), 100);
+    checkMaturity(100);
+    SelectParams(CBaseChainParams::TESTNET);
+    auto ordinary = CreateChainParams(CBaseChainParams::TESTNET);
+    BOOST_CHECK_EQUAL(GetCoinbaseMaturity(), 100);
+    BOOST_CHECK_EQUAL(Params().GetConsensus().nCollaterals.getCollateral(100), 4000 * COIN);
+    checkMaturity(100);
+    gArgs.ForceSetArg("-testnetfastcollateral", "1");
+    BOOST_CHECK_THROW(SelectParams(CBaseChainParams::MAIN), std::runtime_error);
+    BOOST_CHECK_THROW(SelectParams(CBaseChainParams::REGTEST), std::runtime_error);
+    SelectParams(CBaseChainParams::TESTNET);
+    BOOST_CHECK_EQUAL(GetCoinbaseMaturity(), 10);
+    BOOST_CHECK_EQUAL(Params().GetConsensus().nCollaterals.getCollateral(100), 4 * COIN);
+    BOOST_CHECK_EQUAL(Params().GetConsensus().nPowTargetSpacing, 60);
+    BOOST_CHECK(!Params().GetConsensus().fPowNoRetargeting);
+    BOOST_CHECK(Params().MessageStart()[0] != ordinary->MessageStart()[0]);
+    BOOST_CHECK(Params().GetConsensus().hashGenesisBlock == ordinary->GetConsensus().hashGenesisBlock);
+    checkMaturity(10);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

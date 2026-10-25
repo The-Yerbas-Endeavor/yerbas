@@ -10,6 +10,7 @@
 #include "evo/cbtx.h"
 #include "evo/specialtx.h"
 #include "consensus/merkle.h"
+#include "consensus/consensus.h"
 
 #include "tinyformat.h"
 #include "util.h"
@@ -631,6 +632,10 @@ public:
         pchMessageStart[1] = 0x79;//y
         pchMessageStart[2] = 0x65;//e
         pchMessageStart[3] = 0x72;//r
+        // Separate this incompatible private profile from ordinary testnet peers.
+        if (gArgs.GetBoolArg("-testnetfastcollateral", false)) {
+            pchMessageStart[0] = 0x7b;
+        }
         nDefaultPort = 21421;
         nPruneAfterHeight = 1000;
         //FindMainNetGenesisBlock(1675905317, 0x20001fff, "test");
@@ -670,7 +675,7 @@ public:
 
 		consensus.nCollaterals = SmartnodeCollaterals(
 			{
-				{INT_MAX, 4000 * COIN}
+				{INT_MAX, (gArgs.GetBoolArg("-testnetfastcollateral", false) ? 4 : 4000) * COIN}
 			},
 			{
 				{INT_MAX, 20}
@@ -1014,6 +1019,8 @@ std::unique_ptr<CChainParams> CreateChainParams(const std::string& chain)
 
 void SelectParams(const std::string& network)
 {
+    if (gArgs.GetBoolArg("-testnetfastcollateral", false) && network != CBaseChainParams::TESTNET)
+        throw std::runtime_error("-testnetfastcollateral requires -testnet");
     if (gArgs.GetBoolArg("-llmqtestfixture", false) && network != CBaseChainParams::REGTEST)
         throw std::runtime_error("-llmqtestfixture is only supported on regtest");
     if (gArgs.GetBoolArg("-llmqrecoverytest", false) && network != CBaseChainParams::REGTEST)
@@ -1139,4 +1146,10 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
             }
         }
     }
+}
+
+int GetCoinbaseMaturity()
+{
+    return Params().NetworkIDString() == CBaseChainParams::TESTNET &&
+           gArgs.GetBoolArg("-testnetfastcollateral", false) ? 10 : COINBASE_MATURITY;
 }
