@@ -636,7 +636,6 @@ public:
         if (gArgs.GetBoolArg("-testnetfastcollateral", false)) {
             pchMessageStart[0] = 0x7b;
         }
-        if (gArgs.GetBoolArg("-llmqrecoverytestnet", false)) pchMessageStart[0] = 0x7c;
         nDefaultPort = 21421;
         nPruneAfterHeight = 1000;
         //FindMainNetGenesisBlock(1675905317, 0x20001fff, "test");
@@ -1020,9 +1019,6 @@ std::unique_ptr<CChainParams> CreateChainParams(const std::string& chain)
 
 void SelectParams(const std::string& network)
 {
-    if (gArgs.GetBoolArg("-llmqrecoverytestnet", false) &&
-        (network != CBaseChainParams::TESTNET || !gArgs.GetBoolArg("-testnetfastcollateral", false)))
-        throw std::runtime_error("-llmqrecoverytestnet requires -testnet -testnetfastcollateral");
     if (gArgs.GetBoolArg("-testnetfastcollateral", false) && network != CBaseChainParams::TESTNET)
         throw std::runtime_error("-testnetfastcollateral requires -testnet");
     if (gArgs.GetBoolArg("-llmqtestfixture", false) && network != CBaseChainParams::REGTEST)
@@ -1089,20 +1085,9 @@ Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low)
     return low ? llmq200_2 : (mnCount < 5 ? llmq3_60 : (mnCount < 100 ? llmq10_60 : llmq50_60));
 }
 
-Consensus::LLMQParams RecoveryTestnetParams(Consensus::LLMQType type, size_t count, bool low)
-{
-    if (type == Consensus::LLMQ_50_60) return RecoveryType1Params(count, low);
-    if (type == Consensus::LLMQ_400_60)
-        return count < 5 ? llmq5_60 : (count < 100 ? llmq20_60 : (count < 600 ? llmq40_60 : llmq400_60));
-    if (type == Consensus::LLMQ_400_85)
-        return count < 5 ? llmq5_85 : (count < 100 ? llmq20_85 : (count < 600 ? llmq40_85 : llmq400_85));
-    throw std::runtime_error("Unsupported isolated testnet quorum type");
-}
-
 void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLMQParams) {
     if ((NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
-        (NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false)) ||
-        (NetworkIDString() == CBaseChainParams::TESTNET && gArgs.GetBoolArg("-testnetfastcollateral", false) && gArgs.GetBoolArg("-llmqrecoverytestnet", false))) return;
+        (NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false))) return;
 	bool isNotLLMQsMiningPhase;
     //on startup if block height % dkgInterval fall between dkgMiningWindowStart and dkgMiningWindowEnd
     //it will not switch to the correct llmq. if lastCheckHeight is 0 then force switch to the correct llmq

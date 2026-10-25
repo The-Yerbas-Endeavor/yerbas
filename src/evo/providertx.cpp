@@ -41,10 +41,7 @@ static bool CheckService(const uint256& proTxHash, const ProTx& proTx, CValidati
         return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr-port");
     }
 
-    // The isolated recovery profile must validate IPv6 registrations without a spork cache.
-    const bool recoveryTestnet = Params().NetworkIDString() == CBaseChainParams::TESTNET &&
-        gArgs.GetBoolArg("-testnetfastcollateral", false) && gArgs.GetBoolArg("-llmqrecoverytestnet", false);
-    if (recoveryTestnet || (AreAssetsDeployed() && sporkManager.GetSporkValue(SPORK_22_ENABLE_IPV6) >= chainActive.Tip()->nHeight)){
+    if (AreAssetsDeployed() && sporkManager.GetSporkValue(SPORK_22_ENABLE_IPV6) >= chainActive.Tip()->nHeight){ //enable ipv6 after assets deployment
         if (!proTx.addr.IsIPv4() && !proTx.addr.IsIPv6()) {
             return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
         }

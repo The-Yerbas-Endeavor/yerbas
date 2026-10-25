@@ -88,41 +88,6 @@ BOOST_AUTO_TEST_CASE(isolated_devnet_identity_and_network_guards)
     gArgs.ForceRemoveArg("-devnet");
 }
 
-BOOST_AUTO_TEST_CASE(isolated_testnet_recovery_guards_and_authority)
-{
-    gArgs.ForceSetArg("-llmqrecoverytestnet", "1");
-    BOOST_CHECK_THROW(SelectParams(CBaseChainParams::TESTNET), std::runtime_error);
-    gArgs.ForceSetArg("-testnetfastcollateral", "1");
-    for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::REGTEST, CBaseChainParams::DEVNET})
-        BOOST_CHECK_THROW(SelectParams(network), std::runtime_error);
-    SelectParams(CBaseChainParams::TESTNET);
-    BOOST_CHECK(llmq::RecoveryProtocolEnabled());
-    BOOST_CHECK_EQUAL(Params().MessageStart()[0], 0x7c);
-    const auto policy = llmq::GetRecoveryPolicy();
-    CKeyID authority;
-    BOOST_REQUIRE(CBitcoinAddress("rj8TFXrsjZjSgSLphThAkWhiNzZ8SHg56s").GetKeyID(authority));
-    BOOST_CHECK(policy.authorities.count(authority));
-    BOOST_CHECK_EQUAL(policy.requiredSignatures, 1);
-    BOOST_CHECK_EQUAL(policy.maxDuration, 60);
-    BOOST_CHECK_EQUAL(RecoveryTestnetParams(Consensus::LLMQ_400_60, 0, false).size, 5);
-    BOOST_CHECK_EQUAL(RecoveryTestnetParams(Consensus::LLMQ_400_60, 10, false).size, 20);
-    BOOST_CHECK_EQUAL(RecoveryTestnetParams(Consensus::LLMQ_400_60, 110, false).size, 40);
-    BOOST_CHECK_EQUAL(RecoveryTestnetParams(Consensus::LLMQ_400_85, 110, true).size, 40);
-    BOOST_CHECK_EQUAL(RecoveryTestnetParams(Consensus::LLMQ_400_85, 600, false).size, 400);
-    const auto before = Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60);
-    const_cast<CChainParams&>(Params()).UpdateLLMQParams(110, 60, true);
-    BOOST_CHECK_EQUAL(Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60).size, before.size);
-    gArgs.ForceRemoveArg("-llmqrecoverytestnet");
-    SelectParams(CBaseChainParams::TESTNET);
-    BOOST_CHECK(!llmq::RecoveryProtocolEnabled());
-    BOOST_CHECK_EQUAL(Params().MessageStart()[0], 0x7b);
-    gArgs.ForceRemoveArg("-testnetfastcollateral");
-    SelectParams(CBaseChainParams::TESTNET);
-    BOOST_CHECK(!llmq::RecoveryProtocolEnabled());
-    BOOST_CHECK_EQUAL(Params().MessageStart()[0], 0x7a);
-    SelectParams(CBaseChainParams::MAIN);
-}
-
 BOOST_AUTO_TEST_CASE(parameter_templates_are_owned_and_do_not_mutate_live_consensus)
 {
     const auto original = Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60);

@@ -17,7 +17,6 @@
 
 // Immutable type-1 templates for the experimental chain-derived resolver.
 Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low);
-Consensus::LLMQParams RecoveryTestnetParams(Consensus::LLMQType type, size_t mnCount, bool low);
 
 struct CDNSSeedData {
     std::string host;
