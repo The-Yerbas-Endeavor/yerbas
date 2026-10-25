@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Package native Qt wallets and GUI tests; Windows uses contrib/windeploy."""
 import argparse
+import os
+import re
 from pathlib import Path
 import plistlib
 import shutil
@@ -37,7 +39,33 @@ def linux_bundle(prefix, target, source, name):
     launcher.chmod(0o755)
 
 
-def mac_bundle(prefix, target, source, name, version):
+def mac_runtime_paths(app, name):
+    """Resolve Qt from the bundle, including non-framework Qt dylib builds."""
+    contents = app / 'Contents'
+    frameworks = contents / 'Frameworks'
+    binary = contents / 'MacOS' / name
+    for item in [binary, *frameworks.rglob('*.dylib'), *(contents / 'PlugIns').rglob('*.dylib')]:
+        if item.is_symlink():
+            continue
+        dependencies = subprocess.check_output(['otool', '-L', str(item)], text=True)
+        for line in dependencies.splitlines()[1:]:
+            dependency = line.strip().split(' (', 1)[0]
+            library = Path(dependency).name
+            if library.startswith('libQt6') and library.endswith('.dylib'):
+                if not (frameworks / library).is_file():
+                    raise RuntimeError(f'Missing bundled Qt dependency: {library} ({item})')
+                bundled = '@rpath/' + library
+                if dependency != bundled:
+                    subprocess.run(['install_name_tool', '-change', dependency, bundled, str(item)], check=True)
+        relative = os.path.relpath(frameworks, item.parent)
+        rpath = '@loader_path' if relative == '.' else '@loader_path/' + relative
+        commands = subprocess.check_output(['otool', '-l', str(item)], text=True)
+        existing = re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset \d+\)', commands)
+        if rpath not in existing:
+            subprocess.run(['install_name_tool', '-add_rpath', rpath, str(item)], check=True)
+
+
+def mac_bundle(prefix, target, source, name, version, *, test_runtime=False):
     app = Path(target) / (name + '.app')
     contents = app / 'Contents'
     executable(source, contents / 'MacOS' / name)
@@ -49,7 +77,14 @@ def mac_bundle(prefix, target, source, name, version):
                        'LSMinimumSystemVersion': '15.0',
                        'NSHighResolutionCapable': True}, stream)
     subprocess.run([str(prefix / 'bin/macdeployqt'), str(app), '-verbose=2'], check=True)
+    if test_runtime:
+        # test_main explicitly selects minimal; macdeployqt deploys cocoa only.
+        plugins = contents / 'PlugIns/platforms'
+        plugins.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(prefix / 'plugins/platforms/libqminimal.dylib', plugins / 'libqminimal.dylib')
+    mac_runtime_paths(app, name)
     subprocess.run(['codesign', '--force', '--deep', '--sign', '-', str(app)], check=True)
+    subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
     return app
 
 
@@ -65,7 +100,7 @@ def main():
         shutil.copytree(args.prefix / 'share/licenses', target / 'share/licenses/qt', dirs_exist_ok=True)
     if sys.platform == 'darwin':
         mac_bundle(args.prefix, args.output, 'src/qt/yerbas-qt', 'Yerbas-Qt', version)
-        mac_bundle(args.prefix, args.tests_output, 'src/qt/test/test_yerbas-qt', 'test_yerbas-qt', version)
+        mac_bundle(args.prefix, args.tests_output, 'src/qt/test/test_yerbas-qt', 'test_yerbas-qt', version, test_runtime=True)
         (args.output / 'README-Qt.txt').write_text(
             'Yerbas-Qt.app includes Qt. Built for macOS 15 Intel.\n'
             'This CI build is ad-hoc signed, not Developer ID signed or notarized.\n')
