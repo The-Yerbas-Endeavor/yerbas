@@ -6,6 +6,10 @@
 #include "chainparams.h"
 #include "server.h"
 #include "validation.h"
+#include "base58.h"
+#include "evo/evodb.h"
+#include "evo/specialtx.h"
+#include "llmq/quorums_recovery.h"
 
 #include "llmq/quorums.h"
 #include "llmq/quorums_blockprocessor.h"
@@ -402,6 +406,58 @@ UniValue quorum_dkgsimerror(const JSONRPCRequest& request)
     );
 }
 
+static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
+{
+    if (!llmq::RecoveryProtocolEnabled()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires an experimental recovery regtest or isolated recovery devnet");
+    if (request.fHelp || (create ? request.params.size() != 3 : request.params.size() > 2)) {
+        throw std::runtime_error("quorum recoveryrequest start_height end_height | quorum recoverystate ( block_hash )\nExperimental regtest / isolated devnet recovery record interface.");
+    }
+    LOCK(cs_main);
+    const CBlockIndex* index = chainActive.Tip();
+    if (!create && request.params.size() == 2) {
+        const auto hash = ParseHashV(request.params[1], "block_hash");
+        auto it = mapBlockIndex.find(hash);
+        if (it == mapBlockIndex.end()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Unknown block");
+        index = it->second;
+    }
+    const auto policy = llmq::GetRecoveryPolicy();
+    llmq::RecoveryStateStore store(*evoDb, policy);
+    llmq::RecoveryState previous;
+    if (!index || !store.ReadState(*index, previous)) throw JSONRPCError(RPC_INTERNAL_ERROR, "Recovery state missing; use a clean test datadir or reindex");
+    UniValue result(UniValue::VOBJ);
+    if (!create) {
+        result.pushKV("height", index->nHeight);
+        result.pushKV("authorization", previous.lastAuthorization.ToString());
+        result.pushKV("startHeight", previous.startHeight);
+        result.pushKV("endHeight", previous.endHeight);
+        result.pushKV("active", previous.IsLowAt(index->nHeight));
+        return result;
+    }
+    llmq::RecoveryRequest record;
+    record.genesisHash = policy.genesisHash;
+    record.previousAuthorization = previous.lastAuthorization;
+    record.anchorHeight = index->nHeight;
+    record.anchorHash = index->GetBlockHash();
+    record.startHeight = ParseInt32V(request.params[1], "start_height");
+    record.endHeight = ParseInt32V(request.params[2], "end_height");
+    CBitcoinSecret secret;
+    if (!secret.SetString(gArgs.GetArg("-sporkkey", ""))) throw JSONRPCError(RPC_INVALID_PARAMETER, "No test authority key configured");
+    std::vector<unsigned char> signature;
+    if (!secret.GetKey().SignCompact(record.GetAuthorizationHash(), signature) || signature.size() != 65) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Could not sign recovery request");
+    }
+    record.signatures.emplace_back();
+    std::copy(signature.begin(), signature.end(), record.signatures.back().begin());
+    llmq::RecoveryState next;
+    std::string error;
+    if (!llmq::ApplyRecoveryRequest(record, policy, *index, previous, next, error)) throw JSONRPCError(RPC_INVALID_PARAMETER, error);
+    CDataStream payload(SER_NETWORK, PROTOCOL_VERSION);
+    payload << record;
+    result.pushKV("payload", HexStr(payload));
+    result.pushKV("authorization", record.GetAuthorizationHash().ToString());
+    return result;
+}
+
 UniValue quorum(const JSONRPCRequest& request)
 {
     if (request.fHelp && request.params.empty()) {
@@ -413,7 +469,9 @@ UniValue quorum(const JSONRPCRequest& request)
         command = request.params[0].get_str();
     }
 
-    if (command == "list") {
+    if (command == "recoveryrequest" || command == "recoverystate") {
+        return quorum_recovery_test(request, command == "recoveryrequest");
+    } else if (command == "list") {
         return quorum_list(request);
     } else if (command == "info") {
         return quorum_info(request);

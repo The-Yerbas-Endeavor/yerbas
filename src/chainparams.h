@@ -15,6 +15,9 @@
 #include <vector>
 #include <chain.h>
 
+// Immutable type-1 templates for the experimental chain-derived resolver.
+Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low);
+
 struct CDNSSeedData {
     std::string host;
     bool supportsServiceBitsFiltering;

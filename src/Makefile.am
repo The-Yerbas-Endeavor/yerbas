@@ -191,6 +191,7 @@ BITCOIN_CORE_H = \
   llmq/quorums.h \
   llmq/quorums_blockprocessor.h \
   llmq/quorums_commitment.h \
+  llmq/quorums_recovery.h \
   llmq/quorums_chainlocks.h \
   llmq/quorums_debug.h \
   llmq/quorums_dkgsessionhandler.h \
@@ -325,6 +326,7 @@ libyerbas_server_a_SOURCES = \
   llmq/quorums.cpp \
   llmq/quorums_blockprocessor.cpp \
   llmq/quorums_commitment.cpp \
+  llmq/quorums_recovery.cpp \
   llmq/quorums_chainlocks.cpp \
   llmq/quorums_debug.cpp \
   llmq/quorums_dkgsessionhandler.cpp \

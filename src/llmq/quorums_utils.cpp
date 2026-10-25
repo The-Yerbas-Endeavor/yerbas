@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
@@ -15,7 +16,10 @@ namespace llmq
 
 std::vector<CDeterministicMNCPtr> CLLMQUtils::GetAllQuorumMembers(Consensus::LLMQType llmqType, const CBlockIndex* pindexQuorum)
 {
-    auto& params = Params().GetConsensus().llmqs.at(llmqType);
+    Consensus::LLMQParams resolved;
+    if (RecoveryProtocolEnabled() && !ResolveRecoveryQuorumParams(llmqType, pindexQuorum, resolved))
+        throw std::runtime_error("Missing historical recovery quorum context");
+    const auto& params = RecoveryProtocolEnabled() ? resolved : Params().GetConsensus().llmqs.at(llmqType);
     auto allMns = deterministicMNManager->GetListForBlock(pindexQuorum);
     auto modifier = ::SerializeHash(std::make_pair(llmqType, pindexQuorum->GetBlockHash()));
     return allMns.CalculateQuorum(params.size, modifier);
@@ -60,10 +64,11 @@ std::set<uint256> CLLMQUtils::GetQuorumConnections(Consensus::LLMQType llmqType,
             while ((gap_max >>= 1) || k <= 1) {
                 size_t idx = (i + gap) % mns.size();
                 auto& otherDmn = mns[idx];
-                if (otherDmn == dmn) {
-                    continue;
+                if (otherDmn != dmn) {
+                    result.emplace(otherDmn->proTxHash);
                 }
-                result.emplace(otherDmn->proTxHash);
+                // Advance even when the ring wraps to ourselves (one or two
+                // eligible members), otherwise this loop never terminates.
                 gap <<= 1;
                 k++;
             }
@@ -98,7 +103,11 @@ std::set<size_t> CLLMQUtils::CalcDeterministicWatchConnections(Consensus::LLMQTy
 
 bool CLLMQUtils::IsQuorumActive(Consensus::LLMQType llmqType, const uint256& quorumHash)
 {
-    auto& params = Params().GetConsensus().llmqs.at(llmqType);
+    auto params = Params().GetConsensus().llmqs.at(llmqType);
+    if (RecoveryProtocolEnabled()) {
+        LOCK(cs_main);
+        if (!ResolveRecoveryParamsAtHeight(llmqType, chainActive.Tip(), chainActive.Height(), params)) return false;
+    }
 
     // sig shares and recovered sigs are only accepted from recent/active quorums
     // we allow one more active quorum as specified in consensus, as otherwise there is a small window where things could
@@ -106,7 +115,8 @@ bool CLLMQUtils::IsQuorumActive(Consensus::LLMQType llmqType, const uint256& quo
     auto quorums = quorumManager->ScanQuorums(llmqType, (int)params.signingActiveQuorumCount + 1);
     for (auto& q : quorums) {
         if (q->qc.quorumHash == quorumHash) {
-            return true;
+            LOCK(cs_main);
+            return RecoveryQuorumCanSign(llmqType, q->pindexQuorum, chainActive.Height());
         }
     }
     return false;

@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2017-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
@@ -164,7 +165,7 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
     static std::map<Consensus::LLMQType, std::vector<uint256>> qcHashesCached;
 
     // The returned quorums are in reversed order, so the most recent one is at index 0
-    auto quorums = llmq::quorumBlockProcessor->GetMinedAndActiveCommitmentsUntilBlock(pindexPrev);
+    auto quorums = llmq::quorumBlockProcessor->GetMinedAndActiveCommitmentsUntilBlock(pindexPrev, pindexPrev->nHeight + 1);
     std::map<Consensus::LLMQType, std::vector<uint256>> qcHashes;
     size_t hashCount = 0;
 
@@ -207,7 +208,9 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
                 continue;
             }
             auto qcHash = ::SerializeHash(qc.commitment);
-            const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)qc.commitment.llmqType);
+            auto params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)qc.commitment.llmqType);
+            if (llmq::RecoveryProtocolEnabled() && !llmq::ResolveRecoveryParamsAtHeight(params.type, pindexPrev, pindexPrev->nHeight + 1, params))
+                return state.Error("recovery-retention-context-missing");
             auto& v = qcHashes[params.type];
             if (v.size() == params.signingActiveQuorumCount) {
                 // we pop the last entry, which is actually the oldest quorum as GetMinedAndActiveCommitmentsUntilBlock

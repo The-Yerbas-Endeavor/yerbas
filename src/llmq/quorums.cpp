@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -176,7 +177,8 @@ void CQuorumManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fInitial
 
 void CQuorumManager::EnsureQuorumConnections(Consensus::LLMQType llmqType, const CBlockIndex* pindexNew)
 {
-    const auto& params = Params().GetConsensus().llmqs.at(llmqType);
+    auto params = Params().GetConsensus().llmqs.at(llmqType);
+    if (RecoveryProtocolEnabled() && !ResolveRecoveryParamsAtHeight(llmqType, pindexNew, pindexNew->nHeight, params)) return;
 
     auto myProTxHash = activeSmartnodeInfo.proTxHash;
     auto lastQuorums = ScanQuorums(llmqType, pindexNew, (size_t)params.keepOldConnections);
@@ -402,7 +404,9 @@ CQuorumCPtr CQuorumManager::GetQuorum(Consensus::LLMQType llmqType, const CBlock
 
     auto& params = Params().GetConsensus().llmqs.at(llmqType);
 
-    auto quorum = std::make_shared<CQuorum>(params, blsWorker);
+    Consensus::LLMQParams resolved;
+    if (RecoveryProtocolEnabled() && !ResolveRecoveryQuorumParams(llmqType, pindexQuorum, resolved)) return nullptr;
+    auto quorum = std::make_shared<CQuorum>(RecoveryProtocolEnabled() ? resolved : params, blsWorker);
 
     if (!BuildQuorumFromCommitment(qc, pindexQuorum, minedBlockHash, quorum)) {
         return nullptr;

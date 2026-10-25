@@ -12,6 +12,7 @@
 #include "chain.h"
 #include "chainparams.h"
 #include "checkpoints.h"
+#include "llmq/quorums_recovery.h"
 #include "checkqueue.h"
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
@@ -424,7 +425,8 @@ bool ContextualCheckTransaction(const CTransaction& tx, CValidationState &state,
                 tx.nType != TRANSACTION_COINBASE &&
                 tx.nType != TRANSACTION_QUORUM_COMMITMENT &&
                 tx.nType != TRANSACTION_ASSET_REGISTER &&
-                tx.nType != TRANSACTION_ASSET_REISUE) {
+                tx.nType != TRANSACTION_ASSET_REISUE &&
+                !(tx.nType == TRANSACTION_LLMQ_RECOVERY && llmq::RecoveryProtocolEnabled())) {
                 return state.DoS(100, false, REJECT_INVALID, "bad-txns-type");
             }
             if (tx.IsCoinBase() && tx.nType != TRANSACTION_COINBASE)

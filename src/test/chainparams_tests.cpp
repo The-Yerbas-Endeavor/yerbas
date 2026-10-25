@@ -3,7 +3,12 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "evo/deterministicmns.h"
+#include "key.h"
+#include "util.h"
 #include "llmq/quorums_commitment.h"
+#include "llmq/quorums_utils.h"
+#include "primitives/block.h"
 #include "streams.h"
 #include "version.h"
 
@@ -49,6 +54,22 @@ BOOST_AUTO_TEST_CASE(regtest_null_quorum_commitments)
     }
 }
 
+BOOST_AUTO_TEST_CASE(real_dkg_fixture_is_explicit_and_regtest_only)
+{
+    const auto ordinary = CreateChainParams(CBaseChainParams::REGTEST);
+    BOOST_CHECK_EQUAL(ordinary->GetConsensus().nPowDGWHeight, 60);
+    BOOST_CHECK_EQUAL(ordinary->GetConsensus().nCollaterals.getCollateral(1), 0);
+    gArgs.ForceSetArg("-llmqtestfixture", "1");
+    const auto fixture = CreateChainParams(CBaseChainParams::REGTEST);
+    BOOST_CHECK_EQUAL(fixture->GetConsensus().nPowDGWHeight, INT_MAX);
+    BOOST_CHECK_EQUAL(fixture->GetConsensus().nCollaterals.getCollateral(1), 10 * COIN);
+    BOOST_CHECK_EQUAL(fixture->GetConsensus().nSmartnodePaymentsStartBlock, 1);
+    for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET, CBaseChainParams::DEVNET}) {
+        BOOST_CHECK_THROW(SelectParams(network), std::runtime_error);
+    }
+    gArgs.ForceRemoveArg("-llmqtestfixture");
+}
+
 BOOST_AUTO_TEST_CASE(public_network_small_quorum_parameters)
 {
     // Regtest needs its own type ID. The shared three-member parameters used
@@ -63,6 +84,172 @@ BOOST_AUTO_TEST_CASE(public_network_small_quorum_parameters)
             BOOST_CHECK_EQUAL(quorum.threshold, 2);
         }
     }
+}
+
+BOOST_AUTO_TEST_CASE(mainnet_checkpoint_matches_archived_block_header)
+{
+    // Header at height 1078436, independently corroborated by the public
+    // explorer. Derive its hash so a mistyped checkpoint cannot self-validate.
+    CBlockHeader header;
+    header.nVersion = 0x20000000;
+    header.hashPrevBlock = uint256S("34eb0b7b0e120d89a0855c81a3c5f748712c8173dd1f828287fdd57f42dbe3ce");
+    header.hashMerkleRoot = uint256S("689d68d08e26208d915192b9028ed549b08a930511d91278e5e197db73231d1f");
+    header.nTime = 1784431314;
+    header.nBits = 0x1e01dc6e;
+    header.nNonce = 1731;
+    const auto main = CreateChainParams(CBaseChainParams::MAIN);
+    BOOST_CHECK(main->Checkpoints().mapCheckpoints.at(1078436) == header.GetHash());
+}
+
+BOOST_AUTO_TEST_CASE(explicit_quorum_context_checks_signatures_and_membership)
+{
+    const auto params = Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60);
+    llmq::CFinalCommitment qc(params, uint256S("01"));
+    CBLSSecretKey quorumKey;
+    quorumKey.MakeNewKey();
+    qc.quorumPublicKey = quorumKey.GetPublicKey();
+    qc.quorumVvecHash = uint256S("02");
+    std::vector<CBLSSecretKey> keys(2);
+    std::vector<CBLSPublicKey> publicKeys;
+    std::vector<CDeterministicMNCPtr> members;
+    for (size_t i = 0; i < keys.size(); ++i) {
+        keys[i].MakeNewKey();
+        publicKeys.emplace_back(keys[i].GetPublicKey());
+        auto state = std::make_shared<CDeterministicMNState>();
+        state->pubKeyOperator.Set(publicKeys.back());
+        auto mn = std::make_shared<CDeterministicMN>();
+        mn->pdmnState = state;
+        members.emplace_back(mn);
+        qc.signers[i] = qc.validMembers[i] = true;
+    }
+    const auto hash = llmq::CLLMQUtils::BuildCommitmentHash(params.type, qc.quorumHash,
+                                                         qc.validMembers, qc.quorumPublicKey, qc.quorumVvecHash);
+    qc.membersSig = CBLSSignature::AggregateSecure({keys[0].Sign(hash), keys[1].Sign(hash)}, publicKeys, hash);
+    qc.quorumSig = quorumKey.Sign(hash);
+    BOOST_REQUIRE(qc.Verify(params, members, true));
+    BOOST_CHECK(qc.Verify(members, true));
+    BOOST_CHECK(!qc.VerifyNull(params));
+
+    auto wrong = params;
+    wrong.type = Consensus::LLMQ_400_60;
+    BOOST_CHECK(!qc.Verify(wrong, members, true));
+    BOOST_CHECK(!llmq::CFinalCommitment(params, uint256S("01")).VerifyNull(wrong));
+    wrong = params;
+    wrong.size = 200;
+    BOOST_CHECK(!qc.Verify(wrong, members, true));
+    wrong = params;
+    wrong.minSize = 3;
+    BOOST_CHECK(!qc.Verify(wrong, members, true));
+
+    auto damaged = qc;
+    damaged.quorumSig = quorumKey.Sign(uint256S("03"));
+    BOOST_CHECK(!damaged.Verify(params, members, true));
+    damaged = qc;
+    damaged.membersSig = keys[0].Sign(hash);
+    BOOST_CHECK(!damaged.Verify(params, members, true));
+    damaged = qc;
+    damaged.validMembers[2] = true;
+    BOOST_CHECK(!damaged.Verify(params, members, false));
+    damaged = qc;
+    damaged.signers[2] = true;
+    BOOST_CHECK(!damaged.Verify(params, members, false));
+    damaged = qc;
+    damaged.nVersion = 0;
+    BOOST_CHECK(!damaged.Verify(params, members, true));
+    auto tooMany = members;
+    tooMany.resize(params.size + 1, members[0]);
+    BOOST_CHECK(!qc.Verify(params, tooMany, true));
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
+// Characterization probes, not desired consensus behavior. Run EACH case in a
+// separate process: UpdateLLMQParams has process-global caches that SelectParams
+// does not reset. Disabled by default to avoid contaminating unrelated tests.
+BOOST_FIXTURE_TEST_SUITE(low_llmq_characterization, RegtestChainParamsSetup, *boost::unit_test::disabled())
+
+BOOST_AUTO_TEST_CASE(continuous_historical_windows)
+{
+    SelectParams(CBaseChainParams::MAIN);
+    for (int height = 1; height <= 37651; ++height) {
+        UpdateLLMQParams(100, height, false);
+        const bool low = (height >= 6759 && height < 8319) ||
+                         (height >= 15908 && height < 16401) ||
+                         (height >= 22771 && height < 37650);
+        BOOST_REQUIRE_EQUAL(Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60).size, low ? 200 : 50);
+    }
+}
+
+BOOST_AUTO_TEST_CASE(fresh_historical_boundary)
+{
+    SelectParams(CBaseChainParams::MAIN);
+    UpdateLLMQParams(100, 8319, false);
+    // The continuous probe above selects size 50 at this same height/count.
+    BOOST_CHECK_EQUAL(Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60).size, 200);
+}
+
+BOOST_AUTO_TEST_CASE(spork_transition_and_backward_lookup)
+{
+    UpdateLLMQParams(100, 60, false);
+    const auto normal = Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60);
+    const llmq::CFinalCommitment historical(normal, uint256S("01"));
+    BOOST_REQUIRE(historical.VerifyNull());
+    UpdateLLMQParams(100, 61, true);
+    BOOST_REQUIRE_EQUAL(Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60).size, 200);
+    // Explicit historical context remains stable after live parameters change.
+    BOOST_CHECK(historical.VerifyNull(normal));
+    // Exactly the same serialized commitment now fails size validation.
+    BOOST_CHECK(!historical.VerifyNull());
+    UpdateLLMQParams(100, 60, false);
+    BOOST_CHECK_EQUAL(Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60).size, 200);
+    BOOST_CHECK(!historical.VerifyNull());
+    UpdateLLMQParams(100, 62, false);
+    BOOST_CHECK(historical.VerifyNull(normal));
+    BOOST_CHECK(historical.VerifyNull());
+}
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_FIXTURE_TEST_SUITE(low_llmq_pose_tests, RegtestChainParamsSetup)
+
+BOOST_AUTO_TEST_CASE(selected_member_penalties_ban_and_payment_exclusion)
+{
+    // Regtest has no collateral schedule in this branch. Use the real schedule
+    // in an in-memory list, without connecting to a network.
+    SelectParams(CBaseChainParams::MAIN);
+    CDeterministicMNList list(uint256S("01"), 1, 11);
+    for (int i = 0; i < 11; ++i) {
+        auto mn = std::make_shared<CDeterministicMN>();
+        mn->proTxHash = uint256S(strprintf("%064x", i + 1));
+        mn->internalId = i;
+        mn->collateralOutpoint = COutPoint(mn->proTxHash, 0);
+        mn->nOperatorReward = 0;
+        auto state = std::make_shared<CDeterministicMNState>();
+        CKey key;
+        key.MakeNewKey(true);
+        state->keyIDOwner = key.GetPubKey().GetID();
+        state->nCollateralAmount = Params().GetConsensus().nCollaterals.getCollateral(0);
+        state->UpdateConfirmedHash(mn->proTxHash, uint256S("02"));
+        mn->pdmnState = state;
+        list.AddMN(mn);
+    }
+    // Selection has no online/offline input. All confirmed eligible entries fit.
+    BOOST_REQUIRE_EQUAL(list.CalculateQuorum(200, uint256S("03")).size(), 11);
+    const auto payee = list.GetMNPayee();
+    BOOST_REQUIRE(payee);
+    const auto target = payee->proTxHash;
+    list.PoSePunish(target, list.CalcPenalty(66), false);
+    BOOST_CHECK_EQUAL(list.GetMN(target)->pdmnState->nPoSePenalty, 66);
+    BOOST_CHECK(!list.IsMNPoSeBanned(target));
+    list.PoSeDecrease(target);
+    list.PoSePunish(target, list.CalcPenalty(66), false);
+    BOOST_CHECK(list.IsMNPoSeBanned(target));
+    BOOST_CHECK(!list.IsMNValid(target));
+    BOOST_REQUIRE(list.GetMNPayee());
+    BOOST_CHECK(list.GetMNPayee()->proTxHash != target);
+    BOOST_CHECK_EQUAL(list.CalculateQuorum(200, uint256S("03")).size(), 10);
+    // Banning does not remove the registration: an explorer may still list it.
+    BOOST_CHECK_EQUAL(list.GetAllMNsCount(), 11);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

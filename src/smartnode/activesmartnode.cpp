@@ -11,6 +11,7 @@
 #include "protocol.h"
 #include "validation.h"
 #include "warnings.h"
+#include "llmq/quorums_recovery.h"
 
 // Keep track of the active Smartnode
 CActiveSmartnodeInfo activeSmartnodeInfo;
@@ -186,7 +187,8 @@ bool CActiveSmartnodeManager::GetLocalAddress(CService& addrRet)
     if (LookupHost("8.8.8.8", addrDummyPeer, false)) {
         fFoundLocal = GetLocal(addrRet, &addrDummyPeer) && IsValidNetAddr(addrRet);
     }
-    if (!fFoundLocal && Params().NetworkIDString() == CBaseChainParams::REGTEST) {
+    if (!fFoundLocal && (Params().NetworkIDString() == CBaseChainParams::REGTEST ||
+        (Params().NetworkIDString() == CBaseChainParams::DEVNET && llmq::RecoveryProtocolEnabled()))) {
         if (Lookup("127.0.0.1", addrRet, GetListenPort(), false)) {
             fFoundLocal = true;
         }
@@ -215,10 +217,12 @@ bool CActiveSmartnodeManager::IsValidNetAddr(CService addrIn)
     // TODO: regtest is fine with any addresses for now,
     // should probably be a bit smarter if one day we start to implement tests for this
     if (AreAssetsDeployed()){
-    return Params().NetworkIDString() == CBaseChainParams::REGTEST ||
+    return (Params().NetworkIDString() == CBaseChainParams::REGTEST ||
+        (Params().NetworkIDString() == CBaseChainParams::DEVNET && llmq::RecoveryProtocolEnabled())) ||
            ((addrIn.IsIPv4() || addrIn.IsIPv6())  && IsReachable(addrIn) && addrIn.IsRoutable());
     } else {
-        return Params().NetworkIDString() == CBaseChainParams::REGTEST ||
+        return (Params().NetworkIDString() == CBaseChainParams::REGTEST ||
+        (Params().NetworkIDString() == CBaseChainParams::DEVNET && llmq::RecoveryProtocolEnabled())) ||
            (addrIn.IsIPv4()  && IsReachable(addrIn) && addrIn.IsRoutable());   
     }
 }

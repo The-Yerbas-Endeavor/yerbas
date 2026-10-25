@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -147,7 +148,9 @@ bool CDKGSessionHandler::InitNewQuorum(const CBlockIndex* pindexQuorum)
 
     const auto& consensus = Params().GetConsensus();
 
-    curSession = std::make_shared<CDKGSession>(params, blsWorker, dkgManager);
+    Consensus::LLMQParams resolved;
+    if (RecoveryProtocolEnabled() && !ResolveRecoveryQuorumParams(params.type, pindexQuorum, resolved)) return false;
+    curSession = std::make_shared<CDKGSession>(RecoveryProtocolEnabled() ? resolved : params, blsWorker, dkgManager);
 
     if (!deterministicMNManager->IsDIP3Enforced(pindexQuorum->nHeight)) {
         return false;

@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying
@@ -667,8 +668,14 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
     }else{
     isDecrease = nHeight % 2 == 0;
     }
+    if (llmq::RecoveryProtocolEnabled()) {
+        llmq::RecoveryState recovery;
+        if (!llmq::RecoveryStateStore(evoDb, llmq::GetRecoveryPolicy()).ReadState(*pindexPrev, recovery))
+            return _state.Error("recovery-parent-state-missing");
+        isDecrease = nHeight % (recovery.IsLowAt(nHeight) ? 30 : 2) == 0;
+    }
     if(isDecrease) {
-    	DecreasePoSePenalties(newList);
+        DecreasePoSePenalties(newList);
     }
     // we skip the coinbase
     for (int i = 1; i < (int)block.vtx.size(); i++) {

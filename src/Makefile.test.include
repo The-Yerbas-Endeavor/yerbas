@@ -44,6 +44,7 @@ BITCOIN_TESTS =\
   test/bls_tests.cpp \
   test/bswap_tests.cpp \
   test/chainparams_tests.cpp \
+  test/llmq_recovery_tests.cpp \
   test/checkqueue_tests.cpp \
   test/cachemap_tests.cpp \
   test/cachemultimap_tests.cpp \

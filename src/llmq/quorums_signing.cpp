@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -895,12 +896,21 @@ std::vector<CQuorumCPtr> CSigningManager::GetActiveQuorumSet(Consensus::LLMQType
         pindexStart = chainActive[startBlockHeight];
     }
 
+    if (RecoveryProtocolEnabled()) {
+        LOCK(cs_main);
+        Consensus::LLMQParams resolved;
+        if (!ResolveRecoveryParamsAtHeight(llmqType, chainActive.Tip(), signHeight, resolved)) return {};
+        poolSize = resolved.signingActiveQuorumCount;
+    }
     return quorumManager->ScanQuorums(llmqType, pindexStart, poolSize);
 }
 
 CQuorumCPtr CSigningManager::SelectQuorumForSigning(Consensus::LLMQType llmqType, int signHeight, const uint256& selectionHash)
 {
     auto quorums = GetActiveQuorumSet(llmqType, signHeight);
+    quorums.erase(std::remove_if(quorums.begin(), quorums.end(), [&](const CQuorumCPtr& q) {
+        return !RecoveryQuorumCanSign(llmqType, q->pindexQuorum, signHeight);
+    }), quorums.end());
     if (quorums.empty()) {
         return nullptr;
     }
