@@ -408,9 +408,9 @@ UniValue quorum_dkgsimerror(const JSONRPCRequest& request)
 
 static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
 {
-    if (!llmq::RecoveryProtocolEnabled()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires an experimental recovery regtest or isolated recovery devnet");
+    if (!llmq::RecoveryProtocolEnabled()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires an experimental recovery regtest, isolated recovery devnet, or isolated recovery testnet");
     if (request.fHelp || (create ? request.params.size() != 3 : request.params.size() > 2)) {
-        throw std::runtime_error("quorum recoveryrequest start_height end_height | quorum recoverystate ( block_hash )\nExperimental regtest / isolated devnet recovery record interface.");
+        throw std::runtime_error("quorum recoveryrequest start_height end_height | quorum recoverystate ( block_hash )\nExperimental isolated recovery network record interface.");
     }
     LOCK(cs_main);
     const CBlockIndex* index = chainActive.Tip();

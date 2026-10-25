@@ -143,7 +143,8 @@ bool RecoveryStateStore::DisconnectBlock(const CBlockIndex& block)
 bool RecoveryProtocolEnabled()
 {
     return (Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
-        (Params().NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false));
+        (Params().NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false)) ||
+        (Params().NetworkIDString() == CBaseChainParams::TESTNET && gArgs.GetBoolArg("-testnetfastcollateral", false) && gArgs.GetBoolArg("-llmqrecoverytestnet", false));
 }
 
 RecoveryPolicy GetRecoveryPolicy()
@@ -183,7 +184,13 @@ bool ResolveRecoveryParamsAtHeight(Consensus::LLMQType type, const CBlockIndex* 
     if (!parent) return false;
     RecoveryState state;
     if (!RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(*parent, state)) return false;
-    if (type == Consensus::LLMQ_50_60) {
+    if (Params().NetworkIDString() == CBaseChainParams::TESTNET) {
+        const auto list = deterministicMNManager->GetListForBlock(parent);
+        // The first long-quorum cycle uses the genesis templates, before any
+        // registration-count transition can have occurred.
+        out = type != Consensus::LLMQ_50_60 && start == 0 ? it->second :
+            RecoveryTestnetParams(type, list.GetAllMNsCount(), state.IsLowAt(start));
+    } else if (type == Consensus::LLMQ_50_60) {
         const auto list = deterministicMNManager->GetListForBlock(parent);
         out = RecoveryType1Params(list.GetAllMNsCount(), state.IsLowAt(start));
     } else {
