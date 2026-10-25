@@ -1,5 +1,44 @@
 # LOW_LLMQ recovery investigation
 
+## Founder-payment validation follow-up (2026-10-25)
+
+Distributed testing of published `c5966e7` reproduced a false
+`bad-cb-founder-payment-not-found` rejection when an operator received a second
+copy of a block it had already accepted. The active tip's next height was used
+by the initial `CheckBlock` call; compact-block reconstruction had the same
+assumption. Generic transaction validation also cached the payment result through
+`CBlock::fChecked` despite not having reliable branch context.
+
+The fix moves founder-payment enforcement to block acceptance with known branch
+height, block connection, and database verification. Context-free full/compact
+block checks no longer select payment rules from the active tip. The existing
+previous-height subsidy/payment convention, activation boundary, and amounts
+are preserved. Founder-payment checks are never skipped by `fChecked`.
+
+`feature_founder_payment_context.py` fails on the published daemon's duplicate
+delivery and passes on the fixed candidate. It checks P2P duplicate delivery,
+acceptance of a lower-height side branch crossing payment activation, rejection
+of a newly mined block with its founder output removed, full reindex, and level-4
+database verification. Native tests additionally cover underpayment, wrong payee,
+the activation boundary, and payment enforcement despite a context-free cache hit.
+
+An isolated candidate built from `c5966e7` plus this fix (excluding unpublished
+quorum/renewal work) passed 21 focused native cases / 545 assertions and 13 broader
+native cases / 1,854 assertions. These selections overlap and are not a summed
+test count. The candidate daemon SHA256 is
+`a856be779c942723c2f3e1ba9fe4e555a60c0ca946e437a653734ac6ca8f7623`.
+
+The four-server recovery scenario then passed with unrestricted bootstrap mining,
+without the prior ten-block pacing workaround. The local fifth node replayed
+through height 859, restarted, and reindexed successfully. Real quorum signing,
+offline-member PoSe banning, recovery expiry, and normal-quorum replacement all
+passed. All four remote logs contained zero founder-payment rejections and zero
+peer-ban threshold events. This was an isolated accelerated devnet test, not a
+mainnet historical compatibility audit or production activation.
+
+The earlier investigation below is retained as historical evidence; references
+to the founder-payment blocker describe the state before this follow-up.
+
 This investigation starts from `4815c09d086866df84377c7f805b4b65d3ca2e01`
 on branch `4.0.0.4`. Public-network quorum/PoSe consensus, historical activation rules, and mainnet sporks are
 unchanged. A separately verified mainnet checkpoint typo is corrected below. An explicit regtest-only DKG fixture is added.

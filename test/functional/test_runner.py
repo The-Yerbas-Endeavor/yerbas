@@ -128,6 +128,7 @@ BASE_SCRIPTS= [
     'p2p_mempool.py',
     'mining_prioritisetransaction.py',
     'p2p_invalid_block.py',
+    'feature_founder_payment_context.py',
     'p2p_invalid_tx.py',
     'feature_versionbits_warning.py',
     'rpc_preciousblock.py',

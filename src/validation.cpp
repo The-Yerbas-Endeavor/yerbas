@@ -2171,6 +2171,23 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
+bool CheckBlockFounderPayment(const CBlock& block, CValidationState& state,
+                             const Consensus::Params& consensusParams, int blockHeight)
+{
+    // Preserve the historical previous-height subsidy/payment convention.
+    // This check must not be cached by CBlock::fChecked: compact reconstruction
+    // and out-of-order delivery do not yet know the block's chain height.
+    const int paymentHeight = blockHeight - 1;
+    auto payment = consensusParams.nFounderPayment;
+    const CAmount subsidy = GetBlockSubsidy(1, paymentHeight, consensusParams, false);
+    if (paymentHeight > payment.getStartBlock() &&
+        payment.getFounderPaymentAmount(paymentHeight, subsidy) &&
+        !payment.IsBlockPayeeValid(*block.vtx[0], paymentHeight, subsidy)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-cb-founder-payment-not-found");
+    }
+    return true;
+}
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
@@ -2187,6 +2204,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Check it again in case a previous version let a bad block in
     if (!CheckBlock(block, state, chainparams.GetConsensus(), pindex->nHeight, !fJustCheck, !fJustCheck))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
+    if (!CheckBlockFounderPayment(block, state, chainparams.GetConsensus(), pindex->nHeight))
+        return false;
 
     if (pindex->pprev && pindex->phashBlock && llmq::chainLocksHandler->HasConflictingChainLock(pindex->nHeight, pindex->GetBlockHash())) {
         return state.DoS(10, error("%s: conflicting with chainlock", __func__), REJECT_INVALID, "bad-chainlock");
@@ -3790,7 +3809,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     for (unsigned int i = 1; i < block.vtx.size(); i++)
         if (block.vtx[i]->IsCoinBase())
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-multiple", false, "more than one coinbase");
-    CAmount blockReward = GetBlockSubsidy(1, nHeight - 1, Params().GetConsensus(), false);
     // Check transactions
     bool fCheckBlock = true;
     bool fCheckMempool = false;
@@ -3802,7 +3820,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         if (fDBCheck){
             fCheckBlock = false;
         }
-        if (!CheckTransaction(*tx, state, nHeight - 1, blockReward, fCheckMempool, fCheckBlock))
+        if (!CheckTransaction(*tx, state, 0, 0, fCheckMempool, fCheckBlock))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
     }
@@ -3895,6 +3913,9 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
     unsigned int nMaxBlockSize = MaxBlockSize(fDIP0001Active_context);
     if (block.vtx.empty() || block.vtx.size() > nMaxBlockSize || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION) > nMaxBlockSize)
         return state.DoS(10, false, REJECT_INVALID, "bad-blk-length", false, "size limits failed");
+
+    if (!CheckBlockFounderPayment(block, state, consensusParams, nHeight))
+        return false;
 
     // Check that all transactions are finalized and not over-sized
     // Also count sigops
@@ -4131,8 +4152,9 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
         CValidationState state;
         // Ensure that CheckBlock() passes before calling AcceptBlock, as
         // belt-and-suspenders.
-        int nHeight = chainActive.Tip()->nHeight + 1;
-        bool ret = CheckBlock(*pblock, state, chainparams.GetConsensus(), nHeight);
+        // Height-dependent founder payments are checked by AcceptBlock using
+        // the accepted header's height, not the current active tip.
+        bool ret = CheckBlock(*pblock, state, chainparams.GetConsensus(), 0);
 
         LOCK(cs_main);
 
@@ -4614,7 +4636,9 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         if (!ReadBlockFromDisk(block, pindex, chainparams.GetConsensus()))
             return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         // check level 1: verify block validity
-        if (nCheckLevel >= 1 && !CheckBlock(block, state, chainparams.GetConsensus(),pindex->nHeight))
+        if (nCheckLevel >= 1 &&
+            (!CheckBlock(block, state, chainparams.GetConsensus(), pindex->nHeight) ||
+             !CheckBlockFounderPayment(block, state, chainparams.GetConsensus(), pindex->nHeight)))
             return error("%s: *** found bad block at %d, hash=%s (%s)\n", __func__,
                          pindex->nHeight, pindex->GetBlockHash().ToString(), FormatStateMessage(state));
         // check level 2: verify undo validity
