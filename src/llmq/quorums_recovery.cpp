@@ -2,6 +2,8 @@
 // Distributed under the MIT software license, see the accompanying COPYING file.
 #include "quorums_recovery.h"
 
+#include <algorithm>
+
 #include "chain.h"
 #include "base58.h"
 #include "chainparams.h"
@@ -25,7 +27,19 @@ bool ValidPolicy(const RecoveryPolicy& policy)
            policy.requiredSignatures > policy.authorities.size() / 2 &&
            policy.requiredSignatures <= policy.authorities.size() &&
            policy.dkgInterval > 0 && policy.maxDuration > 0 &&
-           policy.maxStartDelay > 0 && policy.maxAnchorAge >= 0 && policy.minAnchorHeight >= 0;
+           policy.maxStartDelay > 0 && policy.maxAnchorAge >= 0 && policy.minAnchorHeight >= 0 &&
+           policy.activationHeight >= 0 && (policy.activationHeight == 0 ||
+           (policy.activationHeight % policy.dkgInterval == 0 &&
+            policy.legacyAnchorHeight >= 0 && policy.legacyAnchorHeight < policy.activationHeight &&
+            !policy.legacyAnchorHash.IsNull()));
+}
+bool MatchesLegacyAnchor(const RecoveryPolicy& policy, const CBlockIndex& block)
+{
+    const auto* genesis = block.GetAncestor(0);
+    if (!genesis || genesis->GetBlockHash() != policy.genesisHash) return false;
+    if (policy.activationHeight == 0) return true;
+    const auto* anchor = block.GetAncestor(policy.legacyAnchorHeight);
+    return anchor && anchor->GetBlockHash() == policy.legacyAnchorHash;
 }
 const std::string RECOVERY_STATE_KEY = "llmq_recovery_state_v1";
 }
@@ -47,12 +61,15 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
     if (!ValidPolicy(policy)) {
         return reject("recovery-invalid-policy");
     }
-    if (request.version != 1 && request.version != 2) return reject("recovery-version");
+    if (int64_t(parent.nHeight) + 1 < policy.activationHeight) return reject("recovery-before-activation");
+    if ((request.version != 1 && request.version != 2) || (policy.activationHeight > 0 && request.version != 2))
+        return reject("recovery-version");
     if (request.genesisHash != policy.genesisHash) return reject("recovery-network");
     const auto genesis = parent.GetAncestor(0);
     if (!genesis || genesis->GetBlockHash() != policy.genesisHash) return reject("recovery-branch-network");
+    if (!MatchesLegacyAnchor(policy, parent)) return reject("recovery-legacy-anchor");
     if (request.previousAuthorization != previous.lastAuthorization) return reject("recovery-sequence");
-    if (request.anchorHeight < policy.minAnchorHeight || request.anchorHeight > parent.nHeight ||
+    if (request.anchorHeight < std::max(policy.minAnchorHeight, policy.activationHeight - 1) || request.anchorHeight > parent.nHeight ||
         int64_t(parent.nHeight) - request.anchorHeight > policy.maxAnchorAge) {
         return reject("recovery-anchor-height");
     }
@@ -106,11 +123,18 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
 bool RecoveryStateStore::ReadState(const CBlockIndex& block, RecoveryState& state) const
 {
     if (!policy.enabled || !ValidPolicy(policy)) return false;
-    if (block.nHeight == 0 && block.GetBlockHash() == policy.genesisHash) {
+    if (policy.activationHeight > 0) {
+        if (block.nHeight < policy.activationHeight - 1 || !MatchesLegacyAnchor(policy, block)) return false;
+        if (block.nHeight == policy.activationHeight - 1) {
+            state = RecoveryState{};
+            return true; // virtual bootstrap only; never synthesize missing later state
+        }
+    }
+    if (policy.activationHeight == 0 && block.nHeight == 0 && block.GetBlockHash() == policy.genesisHash) {
         state = RecoveryState{};
         return true;
     }
-    if (block.nHeight == 1 && !policy.bootstrapBlockHash.IsNull() && block.GetBlockHash() == policy.bootstrapBlockHash) {
+    if (policy.activationHeight == 0 && block.nHeight == 1 && !policy.bootstrapBlockHash.IsNull() && block.GetBlockHash() == policy.bootstrapBlockHash) {
         state = RecoveryState{};
         return true;
     }
@@ -123,6 +147,10 @@ bool RecoveryStateStore::ConnectBlock(const CBlockIndex& block, const RecoveryRe
     if (!ValidPolicy(policy)) { error = "recovery-invalid-policy"; return false; }
     if (!block.pprev || int64_t(block.nHeight) != int64_t(block.pprev->nHeight) + 1) {
         error = "recovery-parent";
+        return false;
+    }
+    if (block.nHeight < policy.activationHeight) {
+        error = "recovery-before-activation";
         return false;
     }
     RecoveryState previous;
@@ -146,7 +174,7 @@ bool RecoveryStateStore::ConnectBlock(const CBlockIndex& block, const RecoveryRe
 
 bool RecoveryStateStore::DisconnectBlock(const CBlockIndex& block)
 {
-    if (!policy.enabled || !ValidPolicy(policy) || !block.pprev) return false;
+    if (!policy.enabled || !ValidPolicy(policy) || !block.pprev || block.nHeight < policy.activationHeight) return false;
     const auto key = std::make_pair(RECOVERY_STATE_KEY, block.GetBlockHash());
     if (!db.Exists(key)) return false;
     db.Erase(key);
@@ -155,8 +183,22 @@ bool RecoveryStateStore::DisconnectBlock(const CBlockIndex& block)
 
 bool RecoveryProtocolEnabled()
 {
-    return (Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
+    return Params().GetConsensus().nLLMQRecoveryHeight >= 0 ||
+        (Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
         (Params().NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false));
+}
+
+bool RecoveryUsesRecordedParams(int height)
+{
+    if (!RecoveryProtocolEnabled()) return false;
+    const int cutover = Params().GetConsensus().nLLMQRecoveryHeight;
+    return cutover < 0 || height >= cutover;
+}
+
+bool RecoveryLegacyQuorumRetired(int quorumHeight, int signingHeight)
+{
+    const int cutover = Params().GetConsensus().nLLMQRecoveryHeight;
+    return cutover >= 0 && quorumHeight < cutover && signingHeight >= cutover;
 }
 
 RecoveryPolicy GetRecoveryPolicy()
@@ -175,7 +217,7 @@ RecoveryPolicy GetRecoveryPolicy()
         policy.authorities.emplace(id);
     }
     policy.requiredSignatures = Params().MinSporkKeys();
-    // Test-network policy only; no public-network values are assigned.
+    // Type-1 records use the existing schedule; public activation is release-gated.
     policy.dkgInterval = 30;
     policy.maxDuration = 60;
     policy.maxStartDelay = 60;
@@ -184,6 +226,15 @@ RecoveryPolicy GetRecoveryPolicy()
         policy.maxDuration = 90;
         policy.minAnchorHeight = 1; // bind every record to this named devnet, not the shared base genesis
         policy.bootstrapBlockHash = Params().GetConsensus().hashDevnetGenesisBlock;
+    }
+    if (Params().GetConsensus().nLLMQRecoveryHeight >= 0) {
+        policy.activationHeight = Params().GetConsensus().nLLMQRecoveryHeight;
+        policy.legacyAnchorHeight = 0;
+        policy.legacyAnchorHash = policy.genesisHash;
+    } else if (Params().NetworkIDString() == CBaseChainParams::REGTEST) {
+        policy.activationHeight = gArgs.GetArg("-llmqrecoveryactivationheight", 0);
+        policy.legacyAnchorHeight = 0;
+        policy.legacyAnchorHash = policy.genesisHash;
     }
     return policy;
 }
@@ -195,17 +246,24 @@ bool ResolveRecoveryParamsAtHeight(Consensus::LLMQType type, const CBlockIndex* 
     const auto& types = Params().GetConsensus().llmqs;
     auto it = types.find(type);
     if (it == types.end()) return false;
-    const int start = height - height % it->second.dkgInterval;
+    if (!RecoveryUsesRecordedParams(height)) {
+        out = it->second; // Existing legacy validation below the release boundary.
+        return true;
+    }
+    Consensus::LLMQParams schedule = it->second;
+    const bool testnet = Params().NetworkIDString() == CBaseChainParams::TESTNET;
+    RecoveryDynamicParams(type, 0, false, testnet, schedule);
+    const int start = height - height % schedule.dkgInterval;
     const auto* parent = branch->GetAncestor(start > 0 ? start - 1 : 0);
     if (!parent) return false;
     RecoveryState state;
-    if (!RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(*parent, state)) return false;
-    if (type == Consensus::LLMQ_50_60) {
-        const auto list = deterministicMNManager->GetListForBlock(parent);
-        out = RecoveryType1Params(list.GetAllMNsCount(), state.IsLowAt(start));
-    } else {
-        out = it->second;
-    }
+    const auto policy = GetRecoveryPolicy();
+    // Deferred-activation regtest uses the deterministic normal fixture profile
+    // before cutover. This is NOT a resolver for unrecorded public-network history.
+    if (start >= policy.activationHeight && !RecoveryStateStore(*evoDb, policy).ReadState(*parent, state)) return false;
+    const auto list = deterministicMNManager->GetListForBlock(parent);
+    if (!RecoveryDynamicParams(type, list.GetAllMNsCount(), state.IsLowAt(start), testnet, out))
+        out = it->second; // Fixed types retain their network-specific configuration.
     return true;
 }
 
@@ -217,9 +275,11 @@ bool ResolveRecoveryQuorumParams(Consensus::LLMQType type, const CBlockIndex* qu
 
 bool RecoveryQuorumCanSign(Consensus::LLMQType type, const CBlockIndex* quorum, int signingHeight)
 {
-    if (!RecoveryProtocolEnabled() || type != Consensus::LLMQ_50_60) return true;
+    if (!RecoveryProtocolEnabled()) return true;
     LOCK(cs_main);
-    if (!quorum) return false;
+    if (!quorum || RecoveryLegacyQuorumRetired(quorum->nHeight, signingHeight)) return false;
+    if (type != Consensus::LLMQ_50_60) return true;
+    if (quorum->nHeight < GetRecoveryPolicy().activationHeight) return true;
     RecoveryState state;
     if (!RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(quorum->pprev ? *quorum->pprev : *quorum, state)) return false;
     if (!state.IsLowAt(quorum->nHeight)) return true;
@@ -241,6 +301,8 @@ bool CheckRecoveryTransaction(const CTransaction& tx, const CBlockIndex* parent,
     RecoveryRequest request;
     if (!parent || !GetTxPayload(tx, request)) return state.DoS(100, false, REJECT_INVALID, "bad-recovery-payload");
     const auto policy = GetRecoveryPolicy();
+    if (int64_t(parent->nHeight) + 1 < policy.activationHeight)
+        return state.DoS(100, false, REJECT_INVALID, "recovery-before-activation");
     RecoveryStateStore store(*evoDb, policy);
     RecoveryState previous, next;
     std::string error;
@@ -254,6 +316,13 @@ bool CheckRecoveryTransaction(const CTransaction& tx, const CBlockIndex* parent,
 bool ConnectRecoveryBlock(const CBlock& block, const CBlockIndex& index, CValidationState& state)
 {
     if (!RecoveryProtocolEnabled()) return true;
+    if (index.nHeight < GetRecoveryPolicy().activationHeight) {
+        for (const auto& tx : block.vtx) {
+            if (tx->nVersion == 3 && tx->nType == TRANSACTION_LLMQ_RECOVERY)
+                return state.DoS(100, false, REJECT_INVALID, "recovery-before-activation");
+        }
+        return true;
+    }
     RecoveryRequest request;
     bool found = false;
     for (const auto& tx : block.vtx) {
@@ -281,7 +350,7 @@ bool ConnectRecoveryBlock(const CBlock& block, const CBlockIndex& index, CValida
 
 bool DisconnectRecoveryBlock(const CBlockIndex& index)
 {
-    if (!RecoveryProtocolEnabled()) return true;
+    if (!RecoveryProtocolEnabled() || index.nHeight < GetRecoveryPolicy().activationHeight) return true;
     RecoveryStateStore store(*evoDb, GetRecoveryPolicy());
     return store.DisconnectBlock(index);
 }

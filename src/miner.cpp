@@ -33,6 +33,7 @@
 #include "wallet/wallet.h"
 
 #include "evo/specialtx.h"
+#include "llmq/quorums_recovery.h"
 #include "evo/cbtx.h"
 #include "evo/simplifiedmns.h"
 #include "evo/deterministicmns.h"
@@ -113,6 +114,7 @@ BlockAssembler::BlockAssembler(const CChainParams& params) : BlockAssembler(para
 void BlockAssembler::resetBlock()
 {
     inBlock.clear();
+    hasRecoveryTransaction = false;
 
     // Reserve space for coinbase tx
     nBlockSize = 1000;
@@ -281,9 +283,16 @@ bool BlockAssembler::TestPackage(uint64_t packageSize, unsigned int packageSigOp
 // - safe TXs in regard to ChainLocks
 bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& package)
 {
+    bool recoveryInPackage = hasRecoveryTransaction;
     for (const CTxMemPool::txiter it : package) {
         if (!IsFinalTx(it->GetTx(), nHeight, nLockTimeCutoff))
             return false;
+        const auto& tx = it->GetTx();
+        if (tx.nVersion == 3 && tx.nType == TRANSACTION_LLMQ_RECOVERY) {
+            CValidationState state;
+            if (recoveryInPackage || !llmq::CheckRecoveryTransaction(tx, chainActive.Tip(), state)) return false;
+            recoveryInPackage = true;
+        }
         if (!llmq::chainLocksHandler->IsTxSafeForMining(it->GetTx().GetHash())) {
             return false;
         }
@@ -293,6 +302,8 @@ bool BlockAssembler::TestPackageTransactions(const CTxMemPool::setEntries& packa
 
 void BlockAssembler::AddToBlock(CTxMemPool::txiter iter)
 {
+    if (iter->GetTx().nVersion == 3 && iter->GetTx().nType == TRANSACTION_LLMQ_RECOVERY)
+        hasRecoveryTransaction = true;
     pblock->vtx.emplace_back(iter->GetSharedTx());
     pblocktemplate->vTxFees.push_back(iter->GetFee());
     pblocktemplate->vSpecialTxFees.push_back(iter->GetSpecialTxFee());

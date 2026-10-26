@@ -75,6 +75,7 @@
 
 #include "evo/deterministicmns.h"
 #include "llmq/quorums_init.h"
+#include "llmq/quorums_recovery.h"
 
 #include <primitives/powcache.h>
 
@@ -2043,6 +2044,14 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                         break;
                     }
                     assert(chainActive.Tip() != NULL);
+                    if (llmq::RecoveryProtocolEnabled() &&
+                        chainActive.Height() >= llmq::GetRecoveryPolicy().activationHeight) {
+                        llmq::RecoveryState recovery;
+                        if (!llmq::RecoveryStateStore(*evoDb, llmq::GetRecoveryPolicy()).ReadState(*chainActive.Tip(), recovery)) {
+                            strLoadError = _("Signed recovery history is missing. Rebuild using -reindex-chainstate (or -reindex); do not reset recovery state manually.");
+                            break;
+                        }
+                    }
                 }
 
                 //deterministicMNManager->UpgradeDBIfNeeded();

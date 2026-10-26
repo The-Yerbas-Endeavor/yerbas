@@ -977,6 +977,13 @@ public:
         // Regtest Yerbas BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 1;
 
+        if (gArgs.IsArgSet("-llmqrecoverycutoverheight")) {
+            const int64_t height = gArgs.GetArg("-llmqrecoverycutoverheight", -1);
+            if (height <= 0 || height > std::numeric_limits<int32_t>::max() || height % 720 != 0)
+                throw std::runtime_error("Recovery cutover must be a positive 720-block boundary");
+            consensus.nLLMQRecoveryHeight = height;
+        }
+
         // Keep the small regtest quorum's serialized type consistent with its
         // map key. Do not mutate llmq3_60: mainnet/testnet use it as LLMQ_50_60.
         auto regtestQuorum = llmq3_60;
@@ -1033,6 +1040,17 @@ void SelectParams(const std::string& network)
     if (gArgs.GetBoolArg("-llmqrecoverydevnet", false) &&
         (network != CBaseChainParams::DEVNET || gArgs.GetArg("-devnet", "").empty()))
         throw std::runtime_error("-llmqrecoverydevnet requires a named devnet");
+
+    if (gArgs.IsArgSet("-llmqrecoveryactivationheight")) {
+        const int64_t height = gArgs.GetArg("-llmqrecoveryactivationheight", 0);
+        if (network != CBaseChainParams::REGTEST || !gArgs.GetBoolArg("-llmqrecoverytest", false) ||
+            height < 0 || height > std::numeric_limits<int32_t>::max() || height % 30 != 0)
+            throw std::runtime_error("-llmqrecoveryactivationheight requires recovery regtest and a nonnegative 30-block boundary");
+    }
+
+    if (gArgs.IsArgSet("-llmqrecoverycutoverheight") &&
+        (network != CBaseChainParams::REGTEST || gArgs.IsArgSet("-llmqrecoveryactivationheight")))
+        throw std::runtime_error("-llmqrecoverycutoverheight is regtest-only and cannot be combined with experimental activation");
 
     SelectBaseParams(network);
     globalChainParams = CreateChainParams(network);
@@ -1106,8 +1124,32 @@ Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low)
     return low ? llmq200_2 : (mnCount < 5 ? llmq3_60 : (mnCount < 100 ? llmq10_60 : llmq50_60));
 }
 
+// Owned templates for recorded-history validation. Resolve using the count at
+// the quorum-start parent, never the process-wide mutable legacy parameter map.
+bool RecoveryDynamicParams(Consensus::LLMQType type, size_t count, bool low, bool testnet, Consensus::LLMQParams& out)
+{
+    switch (type) {
+    case Consensus::LLMQ_50_60:
+        out = RecoveryType1Params(count, low);
+        return true;
+    case Consensus::LLMQ_400_60:
+        out = count < 5 && testnet ? llmq5_60 :
+            (count < 100 ? llmq20_60 : (count < 600 ? llmq40_60 : llmq400_60));
+        return true;
+    case Consensus::LLMQ_400_85:
+        out = count < 5 && testnet ? llmq5_85 :
+            (count < 100 ? llmq20_85 : (count < 600 ? llmq40_85 : llmq400_85));
+        return true;
+    default:
+        return false; // Fixed network-specific types are not resized by LOW_LLMQ.
+    }
+}
+
 void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLMQParams) {
-    if ((NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
+    if (consensus.nLLMQRecoveryHeight >= 0) {
+        if (height >= consensus.nLLMQRecoveryHeight) return;
+        // Preserve the existing update behavior below the release cutover.
+    } else if ((NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
         (NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false))) return;
 	bool isNotLLMQsMiningPhase;
     //on startup if block height % dkgInterval fall between dkgMiningWindowStart and dkgMiningWindowEnd

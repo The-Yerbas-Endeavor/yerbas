@@ -151,6 +151,7 @@ private:
     unsigned int nBlockSigOps;
     CAmount nFees;
     CAmount nSpecialTxFees;
+    bool hasRecoveryTransaction{false};
     CTxMemPool::setEntries inBlock;
 
     // Chain context for the block

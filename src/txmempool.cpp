@@ -25,6 +25,7 @@
 #include "evo/providertx.h"
 
 #include "llmq/quorums_instantsend.h"
+#include "llmq/quorums_recovery.h"
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef& _tx, const CAmount& _nFee, const CAmount& _specialTxFee,
                                  int64_t _nTime, unsigned int _entryHeight,
@@ -781,6 +782,13 @@ void CTxMemPool::removeForReorg(const CCoinsViewCache *pcoins, unsigned int nMem
     setEntries txToRemove;
     for (indexed_transaction_set::const_iterator it = mapTx.begin(); it != mapTx.end(); it++) {
         const CTransaction& tx = it->GetTx();
+        if (tx.nVersion == 3 && tx.nType == TRANSACTION_LLMQ_RECOVERY) {
+            CValidationState state;
+            if (!llmq::CheckRecoveryTransaction(tx, chainActive.Tip(), state)) {
+                txToRemove.insert(it);
+                continue;
+            }
+        }
         LockPoints lp = it->GetLockPoints();
         bool validLP =  TestLockPointValidity(&lp);
         if (!CheckFinalTx(tx, flags) || !CheckSequenceLocks(tx, flags, &lp, validLP)) {

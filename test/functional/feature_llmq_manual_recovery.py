@@ -92,21 +92,8 @@ class ManualRecovery(module.LowLLMQPoSeTest):
         for h in self.registrations:
             assert_equal(self.nodes[i].protx('info', h)['state'], self.nodes[0].protx('info', h)['state'])
 
-    def run_test(self):
+    def register_operators(self):
         c = self.nodes[0]
-        assert_equal(c.quorum('recovery', 'status')['status'], 'off')
-        assert not c.quorum('recovery', 'off')['submitted']
-        assert_raises_rpc_error(-8, 'Expected on, off, or status', c.quorum, 'recovery', 'invalid')
-        assert_raises_rpc_error(-8, 'No test authority key configured', self.nodes[1].quorum, 'recovery', 'on')
-        assert_raises_rpc_error(-4, 'Insufficient funds', c.quorum, 'recovery', 'on')
-        assert_equal(c.getrawmempool(), [])
-        c.spork('SPORK_21_LOW_LLMQ_PARAMS', 0)
-        c.spork('SPORK_17_QUORUM_DKG_ENABLED', 0)
-        wait_until(lambda: all((n.spork('active')['SPORK_17_QUORUM_DKG_ENABLED'] for n in self.nodes[:4])))
-        self.mine(110)
-        # A gossip spork alone cannot authorize recorded-history LOW_LLMQ.
-        assert not c.quorum('recoverystate')['active']
-        _, on_height = self.record(True)
         self.registrations = []
         keys = []
         for i in range(1, 4):
@@ -130,6 +117,23 @@ class ManualRecovery(module.LowLLMQPoSeTest):
                 if i != j:
                     connect_nodes(self.nodes[i], j)
         wait_until(lambda: all((sum((bool(p.get('verified_proregtx_hash')) for p in self.nodes[i].getpeerinfo())) >= 2 for i in range(1, 4))), timeout=45)
+
+    def run_test(self):
+        c = self.nodes[0]
+        assert_equal(c.quorum('recovery', 'status')['status'], 'off')
+        assert not c.quorum('recovery', 'off')['submitted']
+        assert_raises_rpc_error(-8, 'Expected on, off, or status', c.quorum, 'recovery', 'invalid')
+        assert_raises_rpc_error(-8, 'No spork signing key configured', self.nodes[1].quorum, 'recovery', 'on')
+        assert_raises_rpc_error(-4, 'Insufficient funds', c.quorum, 'recovery', 'on')
+        assert_equal(c.getrawmempool(), [])
+        c.spork('SPORK_21_LOW_LLMQ_PARAMS', 0)
+        c.spork('SPORK_17_QUORUM_DKG_ENABLED', 0)
+        wait_until(lambda: all((n.spork('active')['SPORK_17_QUORUM_DKG_ENABLED'] for n in self.nodes[:4])))
+        self.mine(110)
+        # A gossip spork alone cannot authorize recorded-history LOW_LLMQ.
+        assert not c.quorum('recoverystate')['active']
+        _, on_height = self.record(True)
+        self.register_operators()
         healthy = self.dkg(3)
         self.stop_node(3)
         self.online = [0, 1, 2]

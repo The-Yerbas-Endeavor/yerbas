@@ -416,9 +416,9 @@ UniValue quorum_dkgsimerror(const JSONRPCRequest& request)
 
 static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
 {
-    if (!llmq::RecoveryProtocolEnabled()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires an experimental recovery regtest or isolated recovery devnet");
+    if (!llmq::RecoveryProtocolEnabled()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Signed recovery is not configured on this network");
     if (request.fHelp || (create ? (request.params.size() != 3 && request.params.size() != 4) : request.params.size() > 2)) {
-        throw std::runtime_error("quorum recoveryrequest start_height end_height ( version ) | quorum recoverystate ( block_hash )\nExperimental regtest / isolated devnet recovery record interface.");
+        throw std::runtime_error("quorum recoveryrequest start_height end_height ( version ) | quorum recoverystate ( block_hash )\nSigned recovery record and historical state interface.");
     }
     LOCK(cs_main);
     const CBlockIndex* index = chainActive.Tip();
@@ -431,7 +431,7 @@ static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
     const auto policy = llmq::GetRecoveryPolicy();
     llmq::RecoveryStateStore store(*evoDb, policy);
     llmq::RecoveryState previous;
-    if (!index || !store.ReadState(*index, previous)) throw JSONRPCError(RPC_INTERNAL_ERROR, "Recovery state missing; use a clean test datadir or reindex");
+    if (!index || !store.ReadState(*index, previous)) throw JSONRPCError(RPC_INTERNAL_ERROR, "Recovery state missing; rebuild with -reindex-chainstate or -reindex");
     UniValue result(UniValue::VOBJ);
     if (!create) {
         result.pushKV("height", index->nHeight);
@@ -454,7 +454,7 @@ static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
         record.version = version;
     }
     CBitcoinSecret secret;
-    if (!secret.SetString(gArgs.GetArg("-sporkkey", ""))) throw JSONRPCError(RPC_INVALID_PARAMETER, "No test authority key configured");
+    if (!secret.SetString(gArgs.GetArg("-sporkkey", ""))) throw JSONRPCError(RPC_INVALID_PARAMETER, "No spork signing key configured");
     std::vector<unsigned char> signature;
     if (!secret.GetKey().SignCompact(record.GetAuthorizationHash(), signature) || signature.size() != 65) {
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Could not sign recovery request");
@@ -483,7 +483,7 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
             "ON has no automatic expiry. Confirmation precedes activation at a quorum boundary.\n"
             "An unconfirmed request must be included by last_inclusion_height or resubmitted.\n"
             "Status reports confirmed authorization separately from pending_authorization.\n"
-            "Currently available only on isolated recovery test networks.\n");
+            "Requires release-defined activation or an isolated recovery test profile.\n");
     }
     const std::string action = request.params[1].get_str();
     if (action != "on" && action != "off" && action != "status")
@@ -493,6 +493,17 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
     LOCK(cs_main);
     const auto* tip = chainActive.Tip();
     const auto policy = llmq::GetRecoveryPolicy();
+    if (tip && tip->nHeight < policy.activationHeight) {
+        if (action != "status")
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Signed recovery has not activated yet");
+        UniValue pending(UniValue::VOBJ);
+        pending.pushKV("status", "not_activated");
+        pending.pushKV("active", false);
+        pending.pushKV("height", tip->nHeight);
+        pending.pushKV("activation_height", policy.activationHeight);
+        pending.pushKV("submitted", false);
+        return pending;
+    }
     llmq::RecoveryState current;
     if (!tip || !llmq::RecoveryStateStore(*evoDb, policy).ReadState(*tip, current))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Recovery history is unavailable");
@@ -511,6 +522,8 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
         llmq::RecoveryRequest pending;
         if (!tx || tx->nVersion != 3 || tx->nType != TRANSACTION_LLMQ_RECOVERY ||
             !GetTxPayload(*tx, pending) || pending.previousAuthorization != current.lastAuthorization) continue;
+        CValidationState pendingState;
+        if (!llmq::CheckRecoveryTransaction(*tx, tip, pendingState)) continue;
         const std::string pendingAction = pending.endHeight == 0 ? "on" : "off";
         if (action != "status" && (pending.version != 2 || action != pendingAction))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Another recovery transition is awaiting confirmation");

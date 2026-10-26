@@ -21,7 +21,7 @@ class CValidationState;
 
 namespace llmq {
 
-// Experimental protocol building block: public networks cannot enable it.
+// Signed recovery rules. Public activation is a release-defined consensus height.
 struct RecoveryPolicy {
     bool enabled{false};
     uint256 genesisHash;
@@ -32,6 +32,11 @@ struct RecoveryPolicy {
     int maxStartDelay{0};
     int maxAnchorAge{0};
     int minAnchorHeight{0};
+    // A nonzero cutover is bound to an explicitly selected legacy ancestor.
+    // Public-network heights/anchors remain unassigned.
+    int activationHeight{0};
+    int legacyAnchorHeight{0};
+    uint256 legacyAnchorHash;
     uint256 bootstrapBlockHash; // named devnet block 1, which is connected by startup
 };
 
@@ -110,8 +115,11 @@ public:
     bool DisconnectBlock(const CBlockIndex& block);
 };
 
-// Experimental integration: opt-in regtest or the isolated recovery devnet profile.
+// Release cutover, or explicit isolated experimental profiles.
 bool RecoveryProtocolEnabled();
+// True only for heights governed by recorded rules, or experimental fixtures.
+bool RecoveryUsesRecordedParams(int height);
+bool RecoveryLegacyQuorumRetired(int quorumHeight, int signingHeight);
 RecoveryPolicy GetRecoveryPolicy();
 bool ResolveRecoveryParamsAtHeight(Consensus::LLMQType type, const CBlockIndex* branch, int height, Consensus::LLMQParams& out);
 bool RecoveryQuorumCanSign(Consensus::LLMQType type, const CBlockIndex* quorum, int signingHeight);

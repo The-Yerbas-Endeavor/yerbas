@@ -767,8 +767,32 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // check special TXs after all the other checks. If we'd do this before the other checks, we might end up
         // DoS scoring a node for non-critical errors, e.g. duplicate keys because a TX is received that was already
         // mined
-        if (!CheckSpecialTx(tx, chainActive.Tip(), state))
+        if (tx.nVersion == 3 && tx.nType == TRANSACTION_LLMQ_RECOVERY) {
+            // An authorized request can expire or lose its anchor while in
+            // transit. Reject it without punishing the relaying peer. Block
+            // validation retains the full consensus validation state.
+            CValidationState recoveryState;
+            if (!CheckSpecialTx(tx, chainActive.Tip(), recoveryState)) {
+                if (recoveryState.IsInvalid())
+                    return state.Invalid(false, recoveryState.GetRejectCode(),
+                        recoveryState.GetRejectReason(), recoveryState.GetDebugMessage());
+                state = recoveryState;
+                return false;
+            }
+        } else if (!CheckSpecialTx(tx, chainActive.Tip(), state)) {
             return false;
+        }
+
+        // One pending transition is sufficient; alternate funding transactions
+        // for the same authorization must not make a miner assemble two records.
+        if (tx.nVersion == 3 && tx.nType == TRANSACTION_LLMQ_RECOVERY) {
+            LOCK(pool.cs);
+            for (const auto& entry : pool.mapTx) {
+                const auto& pending = entry.GetTx();
+                if (pending.nVersion == 3 && pending.nType == TRANSACTION_LLMQ_RECOVERY)
+                    return state.Invalid(false, REJECT_DUPLICATE, "recovery-pending-duplicate");
+            }
+        }
 
         if (pool.existsProviderTxConflict(tx)) {
             return state.DoS(0, false, REJECT_DUPLICATE, "protx-dup");
@@ -3154,6 +3178,20 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     disconnectpool.removeForBlock(blockConnecting.vtx);
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
+
+    // Recovery requests bind to a branch, predecessor and inclusion deadline.
+    // Revalidate after committing the new tip, including blocks without a record.
+    if (llmq::RecoveryProtocolEnabled()) {
+        std::vector<uint256> pendingHashes;
+        mempool.queryHashes(pendingHashes);
+        for (const auto& hash : pendingHashes) {
+            const auto pending = mempool.get(hash);
+            if (!pending || pending->nVersion != 3 || pending->nType != TRANSACTION_LLMQ_RECOVERY) continue;
+            CValidationState recoveryState;
+            if (!llmq::CheckRecoveryTransaction(*pending, pindexNew, recoveryState))
+                mempool.removeRecursive(*pending, MemPoolRemovalReason::CONFLICT);
+        }
+    }
 
     int64_t nTime6 = GetTimeMicros(); nTimePostConnect += nTime6 - nTime5; nTimeTotal += nTime6 - nTime1;
     LogPrint(BCLog::BENCHMARK, "  - Connect postprocess: %.2fms [%.2fs]\n", (nTime6 - nTime5) * 0.001, nTimePostConnect * 0.000001);

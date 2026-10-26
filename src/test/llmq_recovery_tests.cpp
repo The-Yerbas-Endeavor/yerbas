@@ -104,6 +104,39 @@ BOOST_AUTO_TEST_CASE(parameter_templates_are_owned_and_do_not_mutate_live_consen
     BOOST_CHECK_EQUAL(Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60).size, original.size);
 }
 
+BOOST_AUTO_TEST_CASE(recorded_profiles_cover_every_dynamic_type)
+{
+    for (bool testnet : {false, true}) {
+        for (size_t count : {0U, 4U, 5U, 99U, 100U, 599U, 600U, 1000U}) {
+            for (auto type : {Consensus::LLMQ_50_60, Consensus::LLMQ_400_60, Consensus::LLMQ_400_85}) {
+                Consensus::LLMQParams normal, low;
+                BOOST_REQUIRE(RecoveryDynamicParams(type, count, false, testnet, normal));
+                BOOST_REQUIRE(RecoveryDynamicParams(type, count, true, testnet, low));
+                BOOST_CHECK_EQUAL(normal.type, type);
+                BOOST_CHECK_EQUAL(low.type, type);
+                if (type == Consensus::LLMQ_50_60) {
+                    BOOST_CHECK_EQUAL(normal.size, count < 5 ? 3 : (count < 100 ? 10 : 50));
+                    BOOST_CHECK_EQUAL(low.size, 200);
+                    BOOST_CHECK_EQUAL(low.threshold, 2);
+                } else {
+                    BOOST_CHECK_EQUAL(normal.size, count < 5 && testnet ? 5 : (count < 100 ? 20 : (count < 600 ? 40 : 400)));
+                    BOOST_CHECK_EQUAL(normal.size, low.size);
+                    BOOST_CHECK_EQUAL(normal.threshold, low.threshold);
+                }
+                BOOST_CHECK_EQUAL(normal.dkgInterval, low.dkgInterval);
+                BOOST_CHECK_EQUAL(normal.dkgInterval, type == Consensus::LLMQ_50_60 ? 30 : (type == Consensus::LLMQ_400_60 ? 360 : 720));
+                const auto expected = normal.size;
+                normal.size = 9999;
+                BOOST_REQUIRE(RecoveryDynamicParams(type, count, false, testnet, normal));
+                BOOST_CHECK_EQUAL(normal.size, expected);
+            }
+        }
+    }
+    auto fixed = RecoveryType1Params(0, false);
+    BOOST_CHECK(!RecoveryDynamicParams(Consensus::LLMQ_5_60, 1000, true, false, fixed));
+    BOOST_CHECK_EQUAL(fixed.size, 3);
+}
+
 BOOST_AUTO_TEST_CASE(authenticated_window_expiry_and_serialization)
 {
     llmq::RecoveryState state;
@@ -413,6 +446,135 @@ BOOST_AUTO_TEST_CASE(database_replay_forks_and_atomic_rollback)
     BOOST_CHECK(!inactive.ReadState(chain[180], state));
     BOOST_CHECK(!inactive.ConnectBlock(chain[180], nullptr, error));
     BOOST_CHECK_EQUAL(error, "recovery-disabled");
+}
+
+BOOST_AUTO_TEST_CASE(cutover_bootstrap_is_anchored_and_never_masks_missing_history)
+{
+    policy.activationHeight = 60;
+    policy.legacyAnchorHeight = 30;
+    policy.legacyAnchorHash = hashes[30];
+    llmq::RecoveryStateStore store(*evoDb, policy);
+    llmq::RecoveryState state, next;
+    std::string error;
+    BOOST_CHECK(!store.ReadState(chain[58], state));
+    BOOST_REQUIRE(store.ReadState(chain[59], state));
+    BOOST_CHECK(state.lastAuthorization.IsNull());
+    BOOST_CHECK(!state.IsLowAt(90));
+    BOOST_CHECK(!store.ReadState(chain[60], state));
+    BOOST_CHECK(!store.ConnectBlock(chain[59], nullptr, error));
+    BOOST_CHECK_EQUAL(error, "recovery-before-activation");
+    BOOST_CHECK(!store.DisconnectBlock(chain[59]));
+
+    auto on = request;
+    on.version = 2;
+    on.anchorHeight = 59;
+    on.anchorHash = hashes[59];
+    on.endHeight = 0;
+    Sign(on);
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(on, policy, chain[58], {}, next, error));
+    BOOST_CHECK_EQUAL(error, "recovery-before-activation");
+    auto old = request;
+    old.anchorHeight = 59;
+    old.anchorHash = hashes[59];
+    Sign(old);
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(old, policy, chain[59], {}, next, error));
+    BOOST_CHECK_EQUAL(error, "recovery-version");
+    auto stale = on;
+    stale.anchorHeight = 55;
+    stale.anchorHash = hashes[55];
+    Sign(stale);
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(stale, policy, chain[59], {}, next, error));
+    BOOST_CHECK_EQUAL(error, "recovery-anchor-height");
+    auto wrongPolicy = policy;
+    wrongPolicy.legacyAnchorHash = uint256S("dead");
+    llmq::RecoveryStateStore wrong(*evoDb, wrongPolicy);
+    BOOST_CHECK(!wrong.ReadState(chain[59], state));
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(on, wrongPolicy, chain[59], {}, next, error));
+    BOOST_CHECK_EQUAL(error, "recovery-legacy-anchor");
+    {
+        auto transaction = evoDb->BeginTransaction();
+        BOOST_REQUIRE(store.ConnectBlock(chain[60], &on, error));
+        BOOST_REQUIRE(store.ReadState(chain[60], state));
+        BOOST_CHECK(!state.IsLowAt(89));
+        BOOST_CHECK(state.IsLowAt(90));
+        // Abandoning candidate validation must not persist authorization.
+    }
+    BOOST_CHECK(!store.ReadState(chain[60], state));
+    {
+        auto transaction = evoDb->BeginTransaction();
+        BOOST_REQUIRE(store.ConnectBlock(chain[60], &on, error));
+        transaction->Commit();
+    }
+    BOOST_REQUIRE(evoDb->CommitRootTransaction());
+    llmq::RecoveryStateStore reopened(*evoDb, policy);
+    BOOST_REQUIRE(reopened.ReadState(chain[60], state));
+    BOOST_CHECK(state.lastAuthorization == on.GetAuthorizationHash());
+    BOOST_CHECK(!reopened.ConnectBlock(chain[62], nullptr, error));
+    BOOST_CHECK_EQUAL(error, "recovery-parent-state-missing");
+    BOOST_REQUIRE(reopened.ConnectBlock(chain[61], nullptr, error));
+    BOOST_REQUIRE(reopened.DisconnectBlock(chain[61]));
+    BOOST_REQUIRE(reopened.DisconnectBlock(chain[60]));
+    BOOST_CHECK(!reopened.ReadState(chain[60], state));
+    BOOST_REQUIRE(reopened.ReadState(chain[59], state));
+    BOOST_CHECK(!state.IsLowAt(90));
+    // A different branch can cross activation without inheriting the ON record.
+    CBlockIndex fork = chain[60];
+    uint256 forkHash = uint256S("abcd");
+    fork.phashBlock = &forkHash;
+    BOOST_REQUIRE(reopened.ConnectBlock(fork, nullptr, error));
+    BOOST_REQUIRE(reopened.ReadState(fork, state));
+    BOOST_CHECK(!state.IsLowAt(90));
+    BOOST_CHECK(state.lastAuthorization.IsNull());
+}
+
+BOOST_AUTO_TEST_CASE(deferred_cutover_override_is_regtest_only)
+{
+    gArgs.ForceSetArg("-llmqrecoveryactivationheight", "90");
+    for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET, CBaseChainParams::DEVNET, CBaseChainParams::REGTEST})
+        BOOST_CHECK_THROW(SelectParams(network), std::runtime_error);
+    gArgs.ForceSetArg("-llmqrecoverytest", "1");
+    for (const auto& height : {"-30", "31", "2147483648"}) {
+        gArgs.ForceSetArg("-llmqrecoveryactivationheight", height);
+        BOOST_CHECK_THROW(SelectParams(CBaseChainParams::REGTEST), std::runtime_error);
+    }
+    gArgs.ForceSetArg("-llmqrecoveryactivationheight", "90");
+    SelectParams(CBaseChainParams::REGTEST);
+    const auto rules = llmq::GetRecoveryPolicy();
+    BOOST_CHECK(rules.enabled);
+    BOOST_CHECK_EQUAL(rules.activationHeight, 90);
+    BOOST_CHECK_EQUAL(rules.legacyAnchorHeight, 0);
+    BOOST_CHECK(rules.legacyAnchorHash == rules.genesisHash);
+    gArgs.ForceRemoveArg("-llmqrecoveryactivationheight");
+    gArgs.ForceRemoveArg("-llmqrecoverytest");
+}
+
+BOOST_AUTO_TEST_CASE(release_cutover_guards_and_legacy_retirement)
+{
+    gArgs.ForceSetArg("-llmqrecoverycutoverheight", "720");
+    for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET, CBaseChainParams::DEVNET})
+        BOOST_CHECK_THROW(SelectParams(network), std::runtime_error);
+    for (const auto& height : {"-1", "0", "30", "721", "2147483648"}) {
+        gArgs.ForceSetArg("-llmqrecoverycutoverheight", height);
+        BOOST_CHECK_THROW(SelectParams(CBaseChainParams::REGTEST), std::runtime_error);
+    }
+    gArgs.ForceSetArg("-llmqrecoverycutoverheight", "720");
+    SelectParams(CBaseChainParams::REGTEST);
+    BOOST_CHECK(llmq::RecoveryProtocolEnabled());
+    BOOST_CHECK(!llmq::RecoveryUsesRecordedParams(719));
+    BOOST_CHECK(llmq::RecoveryUsesRecordedParams(720));
+    BOOST_CHECK_EQUAL(llmq::GetRecoveryPolicy().activationHeight, 720);
+    BOOST_CHECK(!llmq::RecoveryLegacyQuorumRetired(690, 719));
+    BOOST_CHECK(llmq::RecoveryLegacyQuorumRetired(690, 720));
+    BOOST_CHECK(llmq::RecoveryLegacyQuorumRetired(690, 1000));
+    BOOST_CHECK(!llmq::RecoveryLegacyQuorumRetired(720, 1000));
+    gArgs.ForceRemoveArg("-llmqrecoverycutoverheight");
+    for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET}) {
+        SelectParams(network);
+        BOOST_CHECK_EQUAL(Params().GetConsensus().nLLMQRecoveryHeight, -1);
+        BOOST_CHECK(!llmq::RecoveryProtocolEnabled());
+        BOOST_CHECK(!llmq::RecoveryUsesRecordedParams(1000000));
+    }
+    SelectParams(CBaseChainParams::REGTEST);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

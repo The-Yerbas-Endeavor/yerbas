@@ -1,0 +1,65 @@
+Signed LOW_LLMQ release candidate — operator and rollout notes
+
+Scope
+This candidate retains existing LOW_LLMQ parameters and PoSe cleanup. It adds
+fee-paying, authority-signed manual ON/OFF transactions and a release-defined
+cutover. It does not change collateral, renew registrations, expire ON after a
+fixed duration, or exclude older peer versions automatically. PoSe banning is
+not deletion of the collateral registration. Normal profile sizing still counts
+all registrations, including banned ones. Ensure enough live operators for the
+normal minimum before sending OFF; cleanup alone does not lower that minimum.
+
+Activation
+Consensus::Params::nLLMQRecoveryHeight is -1 on mainnet and testnet in this
+candidate. A release must assign a future positive height divisible by 720,
+after testnet validation and operator rollout. There is no public runtime
+activation-height override. -llmqrecoverycutoverheight is rejected outside
+regtest and must not be presented as a mainnet configuration option.
+
+At the cutover
+Existing registrations, balances and PoSe state are retained. Recorded recovery
+starts OFF. Pre-cutover quorums cannot sign for post-cutover signing heights;
+historical commitments remain valid data. Quorum services can pause until new
+quorums form, but PoW blocks and recovery transactions do not need a quorum.
+
+Commands after activation
+Configure the existing authorized sporkkey securely and fund/unlock the wallet
+for ordinary transaction fees. Use:
+  quorum recovery status
+  quorum recovery on
+  quorum recovery off
+The result identifies the transaction, fee, effective height, and last inclusion
+height. Broadcast is not confirmation or activation. ON has no automatic expiry.
+An unmined request past its inclusion deadline must be recreated. Fee payment
+alone grants no authority. Only one pending recovery transaction is admitted;
+expired and branch-invalid requests are removed from the mempool. This request
+deadline does not turn off an already active ON authorization. Expired or
+branch-stale requests relayed by peers are rejected without a ban penalty.
+Do not use the legacy gossip spork command to activate recorded LOW_LLMQ;
+it does not create a transaction.
+
+History and upgrades
+Below activation, validation retains the existing legacy path and established
+legacy spork setting. This does not reconstruct missing old spork messages.
+Above activation, the chain records determine recovery history. Do not change
+the legacy spork setting as part of a recorded transition.
+Upgrade before activation. A late-upgraded database missing recorded state is
+refused with a reindex instruction; use -reindex-chainstate or -reindex. Pruned
+nodes may need to obtain the missing blocks again. Never clear just the recovery
+state and assume OFF. A fresh node reconstructs it from blocks.
+
+Authority and rollout
+Use the release's configured spork address set and signature threshold. The RPC
+currently signs with one configured key; a multi-authority policy would need
+signature collection before it could be deployed. Authority rotation must retain
+historical verification rules and is not implemented by replacing old addresses.
+Protocol 70224 remains advertised. Compatible nodes must be upgraded before
+activation; merely connecting to older peers does not make their validation
+compatible. Do not choose or activate a mainnet height before successful testnet
+validation and a coordinated rollout.
+
+Acceptance
+The local tests cover signed ON/OFF, exact effective boundaries, fresh sync,
+reindex, rollback, preserved registrations, real DKG/PoSe, legacy quorum
+retirement, and late-upgrade recovery. Cross-platform CI and testnet results must
+be recorded separately; local passes are not a mainnet deployment approval.
