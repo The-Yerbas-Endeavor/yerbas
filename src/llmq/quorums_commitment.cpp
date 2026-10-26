@@ -139,12 +139,19 @@ bool CFinalCommitment::VerifyNull() const
         return false;
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)llmqType);
-    return VerifyNull(params);
+    if (nVersion == 0 || nVersion > CURRENT_VERSION || !IsNull() || signers.size() != validMembers.size()) {
+        return false;
+    }
+    // An empty historical record does not create a quorum, change membership,
+    // or authorize signatures. Do not reinterpret it using today's live DKG
+    // size. The caller still checks type, quorum ancestry and mining window.
+    return signers.size() == static_cast<size_t>(params.size) ||
+        IsLegacyNullCommitmentSize((Consensus::LLMQType)llmqType, signers.size());
 }
 
 bool CFinalCommitment::VerifyNull(const Consensus::LLMQParams& params) const
 {
-    if (llmqType != params.type) {
+    if (nVersion == 0 || nVersion > CURRENT_VERSION || llmqType != params.type) {
         return false;
     }
 

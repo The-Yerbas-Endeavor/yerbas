@@ -59,6 +59,50 @@ BOOST_AUTO_TEST_CASE(regtest_null_quorum_commitments)
     }
 }
 
+BOOST_AUTO_TEST_CASE(legacy_null_commitments_survive_live_size_changes)
+{
+    // The old three-member null record and LOW_LLMQ's 200-member null
+    // record are both empty; neither can authorize a reduced threshold.
+    const auto configured = Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60);
+    for (int size : {3, 10, 50, 200}) {
+        auto historical = configured;
+        historical.size = size;
+        llmq::CFinalCommitment qc(historical, uint256S("01"));
+        BOOST_CHECK(qc.VerifyNull());
+        if (size != configured.size) BOOST_CHECK(!qc.VerifyNull(configured));
+        qc.validMembers.push_back(false);
+        BOOST_CHECK(!qc.VerifyNull());
+    }
+    for (int size : {0, 1, 2, 4, 5, 20, 40, 199, 201, 400}) {
+        auto invalid = configured;
+        invalid.size = size;
+        BOOST_CHECK(!llmq::CFinalCommitment(invalid, uint256S("01")).VerifyNull());
+    }
+    auto qc = llmq::CFinalCommitment(configured, uint256S("01"));
+    qc.nVersion = 0;
+    BOOST_CHECK(!qc.VerifyNull());
+    qc.nVersion = llmq::CFinalCommitment::CURRENT_VERSION + 1;
+    BOOST_CHECK(!qc.VerifyNull());
+    qc.nVersion = llmq::CFinalCommitment::CURRENT_VERSION;
+    qc.signers[0] = true;
+    BOOST_CHECK(!qc.VerifyNull());
+    qc.signers[0] = false;
+    qc.validMembers[0] = true;
+    BOOST_CHECK(!qc.VerifyNull());
+    qc.validMembers[0] = false;
+    qc.quorumVvecHash = uint256S("02");
+    BOOST_CHECK(!qc.VerifyNull());
+    qc.quorumVvecHash.SetNull();
+    CBLSSecretKey key;
+    key.MakeNewKey();
+    qc.quorumPublicKey = key.GetPublicKey();
+    BOOST_CHECK(!qc.VerifyNull());
+    qc.llmqType = Consensus::LLMQ_NONE;
+    BOOST_CHECK(!qc.VerifyNull());
+    BOOST_CHECK(!IsLegacyNullCommitmentSize(Consensus::LLMQ_400_60, 200));
+    BOOST_CHECK(!IsLegacyNullCommitmentSize(Consensus::LLMQ_400_85, 3));
+}
+
 BOOST_AUTO_TEST_CASE(real_dkg_fixture_is_explicit_and_regtest_only)
 {
     const auto ordinary = CreateChainParams(CBaseChainParams::REGTEST);

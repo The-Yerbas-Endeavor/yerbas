@@ -941,7 +941,7 @@ public:
         nPoolMinParticipants = 3;
         nPoolMaxParticipants = 5;
 
-        // privKey: cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK
+        // Regtest signing authority used by the functional test framework.
         vSporkAddresses = {"yj949n1UH6fDhw6HtVE5VMj2iSTaSWBMcW"};
         nMinSporkKeys = 1;
         // regtest usually has no smartnodes in most tests, so don't check for upgraged MNs
@@ -988,6 +988,10 @@ public:
         // Explicit fixture for real-DKG functional tests. Never enabled on a
         // public network, and leave ordinary regtest consensus unchanged.
         if (gArgs.GetBoolArg("-llmqtestfixture", false)) {
+            // Public networks register all adaptive types at startup. The
+            // replay fixture must do so too, independent of its first spork.
+            consensus.llmqs[Consensus::LLMQ_400_60] = llmq20_60;
+            consensus.llmqs[Consensus::LLMQ_400_85] = llmq20_85;
             consensus.nCollaterals = SmartnodeCollaterals({{INT_MAX, 10 * COIN}}, {{INT_MAX, 20}});
             consensus.nSmartnodePaymentsStartBlock = 1;
             consensus.nPowDGWHeight = INT_MAX;
@@ -1078,6 +1082,23 @@ bool IsLLMQsMiningPhase(int nHeight) {
 		}
 	}
 	return false;
+}
+
+bool IsLegacyNullCommitmentSize(Consensus::LLMQType type, size_t size)
+{
+    // Use the actual legacy profiles, not arbitrary bitset sizes. Type 5 and
+    // other fixed/experimental types retain their exact configured size.
+    for (const auto* profile : {&llmq3_60, &llmq10_60, &llmq50_60, &llmq200_2,
+                               &llmq20_60, &llmq40_60, &llmq400_60,
+                               &llmq20_85, &llmq40_85, &llmq400_85}) {
+        if (profile->type == type && static_cast<size_t>(profile->size) == size) return true;
+    }
+    if (Params().NetworkIDString() == CBaseChainParams::TESTNET) {
+        for (const auto* profile : {&llmq5_60, &llmq5_85}) {
+            if (profile->type == type && static_cast<size_t>(profile->size) == size) return true;
+        }
+    }
+    return false;
 }
 
 Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low)
