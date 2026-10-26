@@ -105,6 +105,7 @@ def extract(blocks_dir, anchor_hash, anchor_height, output_dir, summary_only=Fal
     transitions = []
     previous_sizes = {}
     commitment_count = 0
+    commitment_inventory = {}
     rows = []
     digest = hashlib.sha256()
     with (nullcontext(None) if summary_only else (output_dir / 'blocks.dat').open('wb')) as fixture:
@@ -130,6 +131,14 @@ def extract(blocks_dir, anchor_hash, anchor_height, output_dir, summary_only=Fal
                         raise ValueError('Commitment height mismatch')
                     summary['block_hash'] = block_hash[::-1].hex()
                     commitment_count += 1
+                    # Shape is evidence, not authorization or signature validation.
+                    key = (summary['type'], summary['signers_size'],
+                           summary['members_size'], summary['null'])
+                    bucket = commitment_inventory.setdefault(key, dict(
+                        type=key[0], signers_size=key[1], members_size=key[2],
+                        null=key[3], count=0, first_height=height, last_height=height))
+                    bucket['count'] += 1
+                    bucket['last_height'] = height
                     sizes = (summary['signers_size'], summary['members_size'])
                     if previous_sizes.get(summary['type']) != sizes:
                         transitions.append(summary)
@@ -145,7 +154,8 @@ def extract(blocks_dir, anchor_hash, anchor_height, output_dir, summary_only=Fal
     manifest = dict(anchor_hash=anchor_hash, anchor_height=anchor_height,
                     block_count=len(chain), fixture_sha256=digest.hexdigest(),
                     consensus_validated=False, fixture_written=not summary_only,
-                    commitment_count=commitment_count, size_transitions=transitions)
+                    commitment_count=commitment_count, size_transitions=transitions,
+                    commitment_inventory=[commitment_inventory[k] for k in sorted(commitment_inventory)])
     if not summary_only:
         manifest.update(blocks=rows, commitments=commitments)
     (output_dir / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

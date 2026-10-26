@@ -71,6 +71,14 @@ class ReplayFixtureTests(unittest.TestCase):
                             ser_compact_size(200) + bytes(25) +
                             ser_compact_size(200) + bytes(25) + bytes(272))
         self.next.vtx.append(qc)
+        # Same dimensions as the null commitment, but non-null bytes. Merely
+        # recording the size transition would miss this distinction. This is
+        # deliberately NOT a valid signed commitment: extraction must not claim
+        # signature verification from a nonzero field.
+        nonnull = CTransaction()
+        nonnull.nVersion, nonnull.nType = 3, 6
+        nonnull.vExtraPayload = qc.vExtraPayload[:-1] + b'\x01'
+        self.next.vtx.append(nonnull)
         self.next.hashMerkleRoot = self.next.calc_merkle_root()
         self.next_hash = extract.hash256(self.next.serialize()[:80])[::-1].hex()
         self.archive.write_bytes(framed(self.genesis) + framed(self.next))
@@ -82,7 +90,15 @@ class ReplayFixtureTests(unittest.TestCase):
         manifest = json.loads((self.root / 'summary/manifest.json').read_text())
         self.assertFalse(manifest['fixture_written'])
         self.assertNotIn('blocks', manifest)
-        self.assertEqual(manifest['commitment_count'], 1)
+        self.assertEqual(manifest['commitment_count'], 2)
+        self.assertEqual(len(manifest['size_transitions']), 1)
+        inventory = manifest['commitment_inventory']
+        self.assertEqual(len(inventory), 2)
+        self.assertEqual({b['null'] for b in inventory}, {False, True})
+        self.assertTrue(all(b['count'] == 1 and b['first_height'] == b['last_height'] == 1 for b in inventory))
+        self.assertFalse(manifest['consensus_validated'])
+        full_manifest = json.loads((self.root / 'output/manifest.json').read_text())
+        self.assertEqual(inventory, full_manifest['commitment_inventory'])
         self.assertEqual(manifest['size_transitions'][0]['signers_size'], 200)
         self.assertEqual(manifest['size_transitions'][0]['height'], 1)
 

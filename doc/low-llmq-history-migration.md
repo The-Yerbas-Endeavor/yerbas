@@ -10,8 +10,10 @@ Use the existing spork authority to turn LOW_LLMQ ON and later OFF. There is no
 automatic expiry. The production Qt/RPC command should fund, sign and broadcast
 the history record and report its confirmation/effective height. Operators
 should not assemble raw transactions or manage migration files themselves.
-That command integration remains unfinished; the current broadcast-only spork
-command does not create a chain record.
+The isolated prototype now provides `quorum recovery on|off|status`, using the
+selected wallet for fees and the configured spork key for authorization. The
+legacy broadcast-only spork command does not create a chain record. Public
+activation and migration remain unfinished.
 
 A confirmed ON record takes effect at a future quorum boundary. OFF takes effect
 at a later boundary and retires low-quorum signing without invalidating old
@@ -45,12 +47,18 @@ version 1 remains an older experimental format.
    already produced there. Do not invent historical boundaries from timestamps
    or a wallet's current state. If a compatible transition cannot be coordinated,
    extend the audit and defer activation.
-6. **Start the new system OFF.** Finish legacy recovery and verify normal quorum
-   availability before cutover. A release-defined, network-bound bootstrap state
-   initializes recorded history; an old active spork cannot implicitly enable it.
-   Subsequent ON and OFF require newly signed, confirmed records. Reorgs restore
-   branch-local state; reorgs conflicting with the pinned legacy prefix follow
-   the documented checkpoint rule.
+6. **Start the new system OFF without requiring a working quorum.** A
+   release-defined, network-bound bootstrap state initializes recorded history;
+   an old active spork cannot implicitly enable it. Normal quorum formation is
+   not a precondition: the purpose includes recovery from stalled DKG. Ordinary
+   proof-of-work blocks must still advance and include an authority-signed,
+   fee-paying ON transaction. Submission, relay, funding and block validation
+   must not require InstantSend or an existing threshold signature. Subsequent
+   OFF also requires a newly signed, confirmed record. Preserve registrations,
+   collateral and the reconstructed PoSe state across cutover; initializing
+   recovery authorization OFF is not a reset of those states. Reorgs restore
+   branch-local state; reorgs conflicting with a pinned legacy prefix follow
+   its separately approved checkpoint rule.
 
 The audit table must identify the network, checkpoint, canonical schema/digest,
 complete historical profiles and PoSe rules, source evidence, and reference state
@@ -62,7 +70,8 @@ mutable download. Neither those data nor H/A have been selected in this commit.
 Require fresh genesis sync, reindex and matching smartnode state across the
 legacy prefix, cutover, ON, OFF and a second ON. Test real DKG and PoSe, normal
 quorum return, rollback/reorg, unauthorized low commitments, tampered migration
-data, and the finished Qt/RPC workflow. The prototype's passing isolated tests
+data, and the finished Qt/RPC workflow. Explicitly test a stalled normal quorum
+at cutover: an ordinary mined ON transaction must still permit recovery. The prototype's passing isolated tests
 cover manual ON/OFF, no expiry, DKG/PoSe, normal return, fresh replay, reindex and
 OFF rollback; they do not establish completed mainnet migration.
 

@@ -184,6 +184,17 @@ jobs:
           python3 ci/test-wallet-asset-restore.py "$PWD/src/yerbasd" \
             --workdir "$PWD/ci-logs/asset-restore" 2>&1 | tee ci-logs/asset-restore.log
 
+      - name: Test signed LOW_LLMQ transactions and replay audit
+        if: matrix.platform.id == 'ubuntu26'
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s contrib/llmq -p test_extract_replay_fixture.py -v \
+            2>&1 | tee ci-logs/replay-extraction-tests.log
+          python3 test/functional/feature_llmq_manual_recovery.py \
+            --tmpdir="$RUNNER_TEMP/yerbas-signed-spork-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            2>&1 | tee ci-logs/signed-spork-transactions.log
+
       - name: Collect binaries and checksums
         run: |
           set -euo pipefail
