@@ -5,6 +5,9 @@
 #include "chainparams.h"
 #include "base58.h"
 #include "evo/evodb.h"
+#include "consensus/merkle.h"
+#include "primitives/block.h"
+#include "evo/specialtx.h"
 #include "hash.h"
 #include "key.h"
 #include "streams.h"
@@ -645,6 +648,102 @@ BOOST_AUTO_TEST_CASE(first_signed_record_selects_cutover)
     BOOST_CHECK_EQUAL(output.cutoverHeight, 720);
     BOOST_CHECK(output.IsLowAt(749));
     BOOST_CHECK(!output.IsLowAt(750));
+}
+
+BOOST_AUTO_TEST_CASE(legacy_history_migration_resumes_and_preserves_other_state)
+{
+    std::vector<CBlock> blocks(1006);
+    std::vector<CBlockIndex> indexes(blocks.size());
+    std::vector<uint256> blockHashes(blocks.size());
+    auto rebuild = [&](size_t first) {
+        for (size_t i = first; i < blocks.size(); ++i) {
+            blocks[i].nVersion = 1;
+            blocks[i].nTime = i + 1;
+            blocks[i].hashPrevBlock = i ? blockHashes[i - 1] : uint256();
+            blocks[i].hashMerkleRoot = BlockMerkleRoot(blocks[i]);
+            blockHashes[i] = blocks[i].GetHash();
+            indexes[i].nHeight = i;
+            indexes[i].phashBlock = &blockHashes[i];
+            if (i) indexes[i].pprev = &indexes[i - 1];
+        }
+    };
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        CMutableTransaction tx;
+        tx.nLockTime = i;
+        blocks[i].vtx.push_back(MakeTransactionRef(tx));
+    }
+    rebuild(0);
+    auto rules = policy;
+    rules.activationByRecord = true;
+    rules.genesisHash = blockHashes[0];
+    CEvoDB database(1 << 20, true);
+    const auto best = uint256S("abc123");
+    {
+        auto transaction = database.BeginTransaction();
+        database.WriteBestBlock(best);
+        transaction->Commit();
+        BOOST_REQUIRE(database.CommitRootTransaction());
+    }
+    llmq::RecoveryStateStore store(database, rules);
+    int reads = 0;
+    auto reader = [&](CBlock& block, const CBlockIndex* index) {
+        ++reads;
+        block = blocks[index->nHeight];
+        return true;
+    };
+    std::string error;
+    int progress = 0;
+    BOOST_CHECK(!llmq::MigrateLegacyRecoveryHistory(database, rules, indexes.back(), reader,
+        [&] { return reads == 1002; }, [&](int height) { progress = height; }, error));
+    BOOST_CHECK_EQUAL(progress, 1000);
+    llmq::RecoveryState state;
+    BOOST_CHECK(store.ReadState(indexes[1000], state));
+    BOOST_CHECK(!store.ReadState(indexes[1001], state));
+    reads = 0;
+    BOOST_REQUIRE(llmq::MigrateLegacyRecoveryHistory(database, rules, indexes.back(), reader,
+        [] { return false; }, [&](int height) { progress = height; }, error));
+    BOOST_CHECK_EQUAL(reads, 5);
+    BOOST_CHECK_EQUAL(progress, 1005);
+    BOOST_REQUIRE(store.ReadState(indexes.back(), state));
+    BOOST_CHECK(state.lastAuthorization.IsNull());
+    BOOST_CHECK_EQUAL(state.cutoverHeight, 0);
+    uint256 unchanged;
+    BOOST_REQUIRE(database.Read(EVODB_BEST_BLOCK, unchanged));
+    BOOST_CHECK(unchanged == best);
+    reads = 0;
+    BOOST_REQUIRE(llmq::MigrateLegacyRecoveryHistory(database, rules, indexes.back(), reader,
+        [] { return false; }, [](int) {}, error));
+    BOOST_CHECK_EQUAL(reads, 0);
+
+    // A checkpoint on another branch must not conceal that branch's record.
+    CMutableTransaction record;
+    record.nVersion = 3;
+    record.nType = TRANSACTION_LLMQ_RECOVERY;
+    blocks[500].vtx[0] = MakeTransactionRef(record);
+    rebuild(500);
+    reads = 0;
+    BOOST_CHECK(!llmq::MigrateLegacyRecoveryHistory(database, rules, indexes.back(), reader,
+        [] { return false; }, [](int) {}, error));
+    BOOST_CHECK_EQUAL(reads, 500);
+    BOOST_CHECK(error.find("Existing signed recovery records") != std::string::npos);
+    BOOST_CHECK(!store.ReadState(indexes.back(), state));
+
+    // Neither absent files nor changed transaction data justify assuming OFF.
+    CEvoDB missing(1 << 20, true);
+    BOOST_CHECK(!llmq::MigrateLegacyRecoveryHistory(missing, rules, indexes[10],
+        [&](CBlock& block, const CBlockIndex* index) {
+            if (index->nHeight == 4) return false;
+            block = blocks[index->nHeight]; return true;
+        }, [] { return false; }, [](int) {}, error));
+    BOOST_CHECK(error.find("unavailable or unreadable") != std::string::npos);
+    CEvoDB damaged(1 << 20, true);
+    BOOST_CHECK(!llmq::MigrateLegacyRecoveryHistory(damaged, rules, indexes[10],
+        [&](CBlock& block, const CBlockIndex* index) {
+            block = blocks[index->nHeight];
+            if (index->nHeight == 4) block.vtx.clear();
+            return true;
+        }, [] { return false; }, [](int) {}, error));
+    BOOST_CHECK(error.find("damaged block transactions") != std::string::npos);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

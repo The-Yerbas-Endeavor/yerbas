@@ -19,20 +19,35 @@ class RecordCutover(ManualRecovery):
         assert status['activation_by_record']
         assert_equal(status['cutover_height'], 0)
         assert not status['active']
-        # Existing databases must rebuild history instead of assuming no record.
+        # Upgrade the existing validated database without rebuilding chainstate.
         legacy_args = [a for a in self.extra_args[4] if a != '-llmqrecoverybyrecord']
         self.start_node(4, legacy_args)
         self.nodes[4].setmocktime(self.mocktime)
         connect_nodes(self.nodes[4], 0)
         self.sync_blocks([c, self.nodes[4]])
+        receiving = self.nodes[4].getnewaddress()
+        c.sendtoaddress(receiving, 1)
+        self.mine(1)
+        self.sync_blocks([c, self.nodes[4]])
+        prefix_height = c.getblockcount()
+        coins_before = self.nodes[4].gettxoutsetinfo()
+        wallet_before = self.nodes[4].getwalletinfo()['balance']
+        assert_equal(wallet_before, 1)
         self.stop_node(4)
-        self.nodes[4].assert_start_raises_init_error(
-            self.extra_args[4], 'Signed recovery history is missing', partial_match=True)
-        self.start_node(4, self.extra_args[4] + ['-reindex-chainstate'])
+        self.start_node(4, self.extra_args[4])
+        self.nodes[4].setmocktime(self.mocktime)
+        connect_nodes(self.nodes[4], 0)
+        self.check(4)
+        coins_after = self.nodes[4].gettxoutsetinfo()
+        for field in ('height', 'bestblock', 'transactions', 'txouts', 'hash_serialized_2', 'total_amount'):
+            assert_equal(coins_after[field], coins_before[field])
+        assert_equal(self.nodes[4].getwalletinfo()['balance'], wallet_before)
+        self.restart_node(4, self.extra_args[4])
         self.nodes[4].setmocktime(self.mocktime)
         connect_nodes(self.nodes[4], 0)
         self.check(4)
         self.stop_node(4)
+        self.log.info('Automatic migration and restart preserve existing UTXO state and wallet balance')
         assert_raises_rpc_error(-8, 'recovery-first-cutover', c.quorum, 'recoveryrequest', 150, 0, 2)
         first_block, on = self.record(True)
         assert_equal(on, 720)
@@ -56,7 +71,7 @@ class RecordCutover(ManualRecovery):
         assert not self.nodes[5].quorum('recoverystate')['active']
         self.nodes[5].setnetworkactive(False)
         self.nodes[5].invalidateblock(first_block)
-        assert_equal(self.nodes[5].getblockcount(), 110)
+        assert_equal(self.nodes[5].getblockcount(), prefix_height)
         assert_equal(self.nodes[5].quorum('recoverystate')['cutoverHeight'], 0)
         self.nodes[5].reconsiderblock(first_block)
         self.check(5)

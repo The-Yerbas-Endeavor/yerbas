@@ -36,9 +36,17 @@ setting. This does not reconstruct missing old gossip-spork messages or rewrite
 historical rules. No signature, payment, collateral or state-root checks are
 waived. The first record may be included before A without changing the mode.
 Record an explicitly empty history for pre-record blocks. Missing database state
-is an error, never permission to infer that no record exists. An existing node
-without this history index must rebuild it with -reindex-chainstate or -reindex.
-Wallet keys and balances are not reset. Pruned nodes may need old blocks again.
+is never permission to infer that no record exists. Before the first record,
+an existing node automatically builds a missing index from its already validated
+local blocks. This checks indexed block hashes and transaction Merkle roots,
+without rebuilding UTXO/chainstate, smartnode state or wallet data. Progress is
+committed every 1,000 blocks and resumes from a branch-bound checkpoint after
+interruption. Nodes with an existing valid tip entry skip this migration.
+If the scan finds a signed recovery record, it stops and requires
+-reindex-chainstate or -reindex to validate recorded history. Missing or damaged
+blocks require restoration or resync; pruned nodes may need old blocks again.
+Wallet keys and balances are not reset. This migration does not repair unrelated
+chainstate corruption or reconstruct missing legacy gossip-spork history.
 
 5. Applying and retaining history
 Store the first ON effective height in branch-specific recovery state and retain

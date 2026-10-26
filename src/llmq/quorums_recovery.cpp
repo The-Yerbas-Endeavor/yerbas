@@ -8,6 +8,7 @@
 #include "base58.h"
 #include "chainparams.h"
 #include "consensus/validation.h"
+#include "consensus/merkle.h"
 #include "evo/evodb.h"
 #include "evo/deterministicmns.h"
 #include "evo/specialtx.h"
@@ -182,6 +183,61 @@ bool RecoveryStateStore::DisconnectBlock(const CBlockIndex& block)
     const auto key = std::make_pair(RECOVERY_STATE_KEY, block.GetBlockHash());
     if (!db.Exists(key)) return false;
     db.Erase(key);
+    return true;
+}
+
+bool MigrateLegacyRecoveryHistory(CEvoDB& db, const RecoveryPolicy& policy,
+    const CBlockIndex& tip,
+    const std::function<bool(CBlock&, const CBlockIndex*)>& readBlock,
+    const std::function<bool()>& interrupted,
+    const std::function<void(int)>& progress, std::string& error)
+{
+    auto reject = [&](const char* reason) { error = reason; return false; };
+    if (!policy.enabled || !policy.activationByRecord || !ValidPolicy(policy))
+        return reject("Recovery history migration requires the transaction-selected policy.");
+    std::vector<const CBlockIndex*> chain(tip.nHeight + 1);
+    for (auto* index = &tip; index; index = index->pprev) chain[index->nHeight] = index;
+    if (chain.empty() || !chain[0] || chain[0]->GetBlockHash() != policy.genesisHash)
+        return reject("Recovery history migration has an inconsistent chain.");
+    RecoveryStateStore store(db, policy);
+    const std::string checkpointKey = "llmq_recovery_migration_v2";
+    std::pair<int, uint256> checkpoint;
+    int start = 1;
+    if (db.Read(checkpointKey, checkpoint) && checkpoint.first > 0 && checkpoint.first <= tip.nHeight &&
+        chain[checkpoint.first] && chain[checkpoint.first]->GetBlockHash() == checkpoint.second) {
+        RecoveryState state;
+        if (store.ReadState(*chain[checkpoint.first], state) && state.lastAuthorization.IsNull() &&
+            state.startHeight == 0 && state.endHeight == 0 && state.cutoverHeight == 0)
+            start = checkpoint.first + 1;
+    }
+    progress(start - 1);
+    // Bounded batches and a branch-bound checkpoint make an interrupted upgrade
+    // resumable without trusting a missing state entry or an unscanned prefix.
+    for (int first = start; first <= tip.nHeight;) {
+        auto transaction = db.BeginTransaction();
+        const int last = int(std::min<int64_t>(tip.nHeight, int64_t(first) + 999));
+        for (int height = first; height <= last; ++height) {
+            if (interrupted()) return reject("Recovery history indexing interrupted; restart to resume.");
+            const auto* index = chain[height];
+            CBlock block;
+            if (!index || !readBlock(block, index) || block.GetHash() != index->GetBlockHash())
+                return reject("Recovery history indexing needs unavailable or unreadable historical blocks. Restore the blocks or resync; do not assume recovery is OFF.");
+            bool mutated = false;
+            if (BlockMerkleRoot(block, &mutated) != block.hashMerkleRoot || mutated)
+                return reject("Recovery history indexing found damaged block transactions. Restore the blocks or resync.");
+            for (const auto& tx : block.vtx) {
+                if (tx->nVersion == 3 && tx->nType == TRANSACTION_LLMQ_RECOVERY)
+                    return reject("Existing signed recovery records require validation with -reindex-chainstate (or -reindex); automatic legacy migration stopped.");
+            }
+            if (!store.ConnectBlock(*index, nullptr, error)) return false;
+        }
+        db.Write(checkpointKey, std::make_pair(last, chain[last]->GetBlockHash()));
+        transaction->Commit();
+        if (!db.CommitRootTransaction()) return reject("Could not save recovery history migration progress.");
+        progress(last);
+        first = last + 1;
+    }
+    error.clear();
     return true;
 }
 

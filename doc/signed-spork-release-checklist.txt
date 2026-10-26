@@ -44,10 +44,14 @@ Before the first record's effective height, validation retains the existing lega
 legacy spork setting. This does not reconstruct missing old spork messages.
 Above activation, the chain records determine recovery history. Do not change
 the legacy spork setting as part of a recorded transition.
-Upgrade before the first transaction. A database missing recorded state is
-refused with a reindex instruction; use -reindex-chainstate or -reindex. Pruned
-nodes may need to obtain the missing blocks again. Never clear just the recovery
-state and assume OFF. A fresh node reconstructs it from blocks.
+Upgrade before the first transaction. Existing unpruned nodes automatically
+index pre-record history from validated local blocks without rebuilding chainstate.
+The scan verifies block hashes and Merkle roots, preserves wallet/UTXO/smartnode
+state, and resumes interrupted batches. Already indexed nodes skip the scan.
+If signed records already exist but their index is missing, use
+-reindex-chainstate or -reindex. Missing/damaged historical blocks must be restored
+or downloaded again; pruned nodes may therefore need a resync. Never clear just
+the recovery state and assume OFF. A fresh node reconstructs it from blocks.
 
 Authority and rollout
 Use the release's configured spork address set and signature threshold. The RPC

@@ -9,6 +9,7 @@
 #include "uint256.h"
 
 #include <array>
+#include <functional>
 #include <set>
 #include <string>
 #include <vector>
@@ -116,6 +117,15 @@ public:
     bool ConnectBlock(const CBlockIndex& block, const RecoveryRequest* request, std::string& error);
     bool DisconnectBlock(const CBlockIndex& block);
 };
+
+// Index an already-validated, pre-record chain without rebuilding chainstate.
+// The reader must load the block matching the index; transaction merkle roots
+// are checked here. Only verified empty history can be migrated this way.
+bool MigrateLegacyRecoveryHistory(CEvoDB& db, const RecoveryPolicy& policy,
+    const CBlockIndex& tip,
+    const std::function<bool(CBlock&, const CBlockIndex*)>& readBlock,
+    const std::function<bool()>& interrupted,
+    const std::function<void(int)>& progress, std::string& error);
 
 // Network support for recorded transitions, or isolated regression profiles.
 bool RecoveryProtocolEnabled();

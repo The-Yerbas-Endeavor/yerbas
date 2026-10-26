@@ -2048,8 +2048,34 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                         chainActive.Height() >= llmq::GetRecoveryPolicy().activationHeight) {
                         llmq::RecoveryState recovery;
                         if (!llmq::RecoveryStateStore(*evoDb, llmq::GetRecoveryPolicy()).ReadState(*chainActive.Tip(), recovery)) {
-                            strLoadError = _("Signed recovery history is missing. Rebuild using -reindex-chainstate (or -reindex); do not reset recovery state manually.");
-                            break;
+                            const auto policy = llmq::GetRecoveryPolicy();
+                            if (!policy.activationByRecord) {
+                                strLoadError = _("Signed recovery history is missing. Rebuild using -reindex-chainstate (or -reindex); do not reset recovery state manually.");
+                                break;
+                            }
+                            uiInterface.InitMessage(_("Indexing recovery history (chainstate is preserved)..."));
+                            std::string migrationError;
+                            if (!llmq::MigrateLegacyRecoveryHistory(*evoDb, policy, *chainActive.Tip(),
+                                [&](CBlock& block, const CBlockIndex* index) {
+                                    // This is the already-validated active chain. The
+                                    // migrator checks the indexed header hash and merkle
+                                    // root; do not repeat expensive PoW/script validation.
+                                    if (!(index->nStatus & BLOCK_HAVE_DATA)) return false;
+                                    CAutoFile input(OpenBlockFile(index->GetBlockPos(), true), SER_DISK, CLIENT_VERSION);
+                                    if (input.IsNull()) return false;
+                                    try { input >> block; }
+                                    catch (const std::exception&) { return false; }
+                                    return true;
+                                }, [] { return ShutdownRequested(); },
+                                [&](int height) {
+                                    LogPrintf("Recovery history indexing: %d/%d blocks verified\n", height, chainActive.Height());
+                                    uiInterface.InitMessage(strprintf(_("Indexing recovery history: %d/%d blocks"), height, chainActive.Height()));
+                                }, migrationError)) {
+                                if (ShutdownRequested()) return false;
+                                strLoadError = migrationError;
+                                break;
+                            }
+                            LogPrintf("Recovery history migration complete; existing chainstate preserved\n");
                         }
                     }
                 }
