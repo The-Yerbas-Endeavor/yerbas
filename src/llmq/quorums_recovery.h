@@ -21,9 +21,10 @@ class CValidationState;
 
 namespace llmq {
 
-// Signed recovery rules. Public activation is a release-defined consensus height.
+// Signed recovery rules. Public cutover is selected by the first ON record.
 struct RecoveryPolicy {
     bool enabled{false};
+    bool activationByRecord{false};
     uint256 genesisHash;
     std::set<CKeyID> authorities;
     size_t requiredSignatures{0};
@@ -32,8 +33,7 @@ struct RecoveryPolicy {
     int maxStartDelay{0};
     int maxAnchorAge{0};
     int minAnchorHeight{0};
-    // A nonzero cutover is bound to an explicitly selected legacy ancestor.
-    // Public-network heights/anchors remain unassigned.
+    // A nonzero fixed cutover is retained for isolated regression fixtures.
     int activationHeight{0};
     int legacyAnchorHeight{0};
     uint256 legacyAnchorHash;
@@ -79,6 +79,7 @@ struct RecoveryState {
     uint256 lastAuthorization;
     int32_t startHeight{0};
     int32_t endHeight{0};
+    int32_t cutoverHeight{0}; // first ON effective height; retained after OFF
 
     bool IsLowAt(int height) const { return startHeight > 0 && height >= startHeight && (endHeight == 0 || height < endHeight); }
     // Evaluate against the frozen state that authorized this quorum.
@@ -94,6 +95,7 @@ struct RecoveryState {
         READWRITE(lastAuthorization);
         READWRITE(startHeight);
         READWRITE(endHeight);
+        READWRITE(cutoverHeight);
     }
 };
 
@@ -115,10 +117,10 @@ public:
     bool DisconnectBlock(const CBlockIndex& block);
 };
 
-// Release cutover, or explicit isolated experimental profiles.
+// Network support for recorded transitions, or isolated regression profiles.
 bool RecoveryProtocolEnabled();
 // True only for heights governed by recorded rules, or experimental fixtures.
-bool RecoveryUsesRecordedParams(int height);
+bool RecoveryUsesRecordedParams(int height, const CBlockIndex* branch = nullptr);
 bool RecoveryLegacyQuorumRetired(int quorumHeight, int signingHeight);
 RecoveryPolicy GetRecoveryPolicy();
 bool ResolveRecoveryParamsAtHeight(Consensus::LLMQType type, const CBlockIndex* branch, int height, Consensus::LLMQParams& out);

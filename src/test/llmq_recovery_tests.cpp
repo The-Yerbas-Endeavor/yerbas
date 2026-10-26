@@ -364,9 +364,10 @@ BOOST_AUTO_TEST_CASE(signature_serialization_is_bounded)
 
 BOOST_AUTO_TEST_CASE(experimental_protocol_is_opt_in_and_regtest_only)
 {
-    BOOST_CHECK(!llmq::RecoveryProtocolEnabled());
+    SelectParams(CBaseChainParams::MAIN);
+    BOOST_CHECK(llmq::GetRecoveryPolicy().activationByRecord);
     gArgs.ForceSetArg("-llmqrecoverytest", "1");
-    BOOST_CHECK(!llmq::RecoveryProtocolEnabled());
+    BOOST_CHECK(llmq::GetRecoveryPolicy().activationByRecord);
     for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET, CBaseChainParams::DEVNET}) {
         BOOST_CHECK_THROW(SelectParams(network), std::runtime_error);
     }
@@ -571,10 +572,79 @@ BOOST_AUTO_TEST_CASE(release_cutover_guards_and_legacy_retirement)
     for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET}) {
         SelectParams(network);
         BOOST_CHECK_EQUAL(Params().GetConsensus().nLLMQRecoveryHeight, -1);
-        BOOST_CHECK(!llmq::RecoveryProtocolEnabled());
+        BOOST_CHECK(llmq::RecoveryProtocolEnabled());
+        BOOST_CHECK(llmq::GetRecoveryPolicy().activationByRecord);
         BOOST_CHECK(!llmq::RecoveryUsesRecordedParams(1000000));
     }
     SelectParams(CBaseChainParams::REGTEST);
+}
+
+BOOST_AUTO_TEST_CASE(record_activation_override_is_isolated)
+{
+    gArgs.ForceSetArg("-llmqrecoverybyrecord", "1");
+    for (const auto& network : {CBaseChainParams::MAIN, CBaseChainParams::TESTNET, CBaseChainParams::DEVNET})
+        BOOST_CHECK_THROW(SelectParams(network), std::runtime_error);
+    SelectParams(CBaseChainParams::REGTEST);
+    BOOST_CHECK(llmq::GetRecoveryPolicy().activationByRecord);
+    BOOST_CHECK_EQUAL(Params().GetConsensus().nLLMQRecoveryHeight, -1);
+    gArgs.ForceRemoveArg("-llmqrecoverybyrecord");
+    SelectParams(CBaseChainParams::REGTEST);
+}
+
+BOOST_AUTO_TEST_CASE(first_signed_record_selects_cutover)
+{
+    policy.activationByRecord = true;
+    policy.maxAnchorAge = 750;
+    request.version = 2;
+    request.startHeight = 720;
+    request.endHeight = 0;
+    Sign(request);
+    llmq::RecoveryState selected;
+    std::string error;
+    BOOST_REQUIRE(Apply(request, selected, error));
+    BOOST_CHECK_EQUAL(selected.cutoverHeight, 720);
+    BOOST_CHECK(!selected.IsLowAt(719));
+    BOOST_CHECK(selected.IsLowAt(720));
+    auto bad = request;
+    bad.startHeight = 90;
+    Sign(bad);
+    llmq::RecoveryState output;
+    BOOST_CHECK(!Apply(bad, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-first-cutover");
+    bad = request;
+    bad.endHeight = bad.startHeight;
+    Sign(bad);
+    BOOST_CHECK(!Apply(bad, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-first-cutover");
+    bad = request;
+    bad.version = 1;
+    Sign(bad);
+    BOOST_CHECK(!Apply(bad, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-version");
+    CDataStream encoded(SER_DISK, PROTOCOL_VERSION);
+    encoded << selected;
+    encoded >> output;
+    BOOST_CHECK_EQUAL(output.cutoverHeight, 720);
+
+    std::vector<CBlockIndex> extended(721);
+    std::vector<uint256> extendedHashes(721);
+    for (size_t i = 0; i < extended.size(); ++i) {
+        extendedHashes[i] = uint256S(strprintf("%064x", i + 1));
+        extended[i].nHeight = i;
+        extended[i].phashBlock = &extendedHashes[i];
+        if (i) extended[i].pprev = &extended[i - 1];
+    }
+    const auto& parent = extended.back();
+    auto off = request;
+    off.previousAuthorization = selected.lastAuthorization;
+    off.anchorHeight = 720;
+    off.anchorHash = parent.GetBlockHash();
+    off.startHeight = off.endHeight = 750;
+    Sign(off);
+    BOOST_REQUIRE(llmq::ApplyRecoveryRequest(off, policy, parent, selected, output, error));
+    BOOST_CHECK_EQUAL(output.cutoverHeight, 720);
+    BOOST_CHECK(output.IsLowAt(749));
+    BOOST_CHECK(!output.IsLowAt(750));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

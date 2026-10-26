@@ -436,6 +436,7 @@ static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
     if (!create) {
         result.pushKV("height", index->nHeight);
         result.pushKV("authorization", previous.lastAuthorization.ToString());
+        result.pushKV("cutoverHeight", previous.cutoverHeight);
         result.pushKV("startHeight", previous.startHeight);
         result.pushKV("endHeight", previous.endHeight);
         result.pushKV("active", previous.IsLowAt(index->nHeight));
@@ -483,7 +484,7 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
             "ON has no automatic expiry. Confirmation precedes activation at a quorum boundary.\n"
             "An unconfirmed request must be included by last_inclusion_height or resubmitted.\n"
             "Status reports confirmed authorization separately from pending_authorization.\n"
-            "Requires release-defined activation or an isolated recovery test profile.\n");
+            "Requires signed recovery support in the network software.\n");
     }
     const std::string action = request.params[1].get_str();
     if (action != "on" && action != "off" && action != "status")
@@ -513,6 +514,11 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
     result.pushKV("height", tip->nHeight);
     result.pushKV("authorization", current.lastAuthorization.ToString());
     result.pushKV("automatic_expiry", false);
+    result.pushKV("cutover_height", current.cutoverHeight);
+    result.pushKV("activation_by_record", policy.activationByRecord);
+    result.pushKV("recorded_rules_active", policy.activationByRecord
+        ? current.cutoverHeight > 0 && tip->nHeight >= current.cutoverHeight
+        : tip->nHeight >= policy.activationHeight);
 
     // Report unconfirmed authorizations before accepting another request.
     std::vector<uint256> hashes;
@@ -561,7 +567,9 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
     LOCK(wallet->cs_wallet);
     EnsureWalletIsUnlocked(wallet);
     // Allow at least one full DKG interval for inclusion. Never expire an ON.
-    const int64_t effective = (int64_t(tip->nHeight) / policy.dkgInterval + 2) * policy.dkgInterval;
+    const bool first = policy.activationByRecord && current.cutoverHeight == 0;
+    const int64_t effective = first ? ((int64_t(tip->nHeight) + 30 + 719) / 720) * 720 :
+        (int64_t(tip->nHeight) / policy.dkgInterval + 2) * policy.dkgInterval;
     if (effective > std::numeric_limits<int32_t>::max())
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Recovery height exceeds the supported range");
     JSONRPCRequest signing = request;

@@ -53,6 +53,14 @@ class ManualRecovery(module.LowLLMQPoSeTest):
             connect_nodes(self.nodes[0], i)
         self.sync_blocks(self.nodes[:4], timeout=30)
 
+    def mine(self, count):
+        # Bound each generate RPC on slower CI runners; do not hide a timeout
+        # by retrying a mining request that may already have created blocks.
+        while count > 0:
+            batch = min(count, 30)
+            super().mine(batch)
+            count -= batch
+
     def record(self, active):
         controller = self.nodes[0]
         action, opposite = ('on', 'off') if active else ('off', 'on')

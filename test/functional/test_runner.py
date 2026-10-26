@@ -134,6 +134,8 @@ BASE_SCRIPTS= [
     'feature_llmq_recovery_cutover.py',
     'feature_llmq_release_cutover.py',
     'feature_llmq_release_dkg.py',
+    'feature_llmq_record_cutover.py',
+    'feature_llmq_record_dkg.py',
     'feature_llmq_recovery_mempool.py',
     'p2p_invalid_tx.py',
     'feature_versionbits_warning.py',

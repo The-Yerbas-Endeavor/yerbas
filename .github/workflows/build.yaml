@@ -186,7 +186,7 @@ jobs:
 
       - name: Test signed LOW_LLMQ transactions and replay audit
         if: matrix.platform.id == 'ubuntu26'
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: |
           set -euo pipefail
           # The existing P2P harness imports asyncore, removed in Python 3.12.
@@ -207,6 +207,12 @@ jobs:
           python3 test/functional/feature_llmq_release_dkg.py \
             --tmpdir="$RUNNER_TEMP/yerbas-release-dkg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             2>&1 | tee ci-logs/release-dkg.log
+          python3 test/functional/feature_llmq_record_cutover.py \
+            --tmpdir="$RUNNER_TEMP/yerbas-record-cutover-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            2>&1 | tee ci-logs/record-cutover.log
+          python3 test/functional/feature_llmq_record_dkg.py \
+            --tmpdir="$RUNNER_TEMP/yerbas-record-dkg-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            2>&1 | tee ci-logs/record-dkg.log
           python3 test/functional/feature_llmq_recovery_mempool.py \
             --tmpdir="$RUNNER_TEMP/yerbas-recovery-mempool-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             2>&1 | tee ci-logs/recovery-mempool.log

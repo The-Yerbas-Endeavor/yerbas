@@ -426,6 +426,7 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "main";
+        consensus.fLLMQRecoveryByRecord = true;
         consensus.nSubsidyHalvingInterval = 210240; // Note: actual number of blocks per calendar year with DGW v3 is ~200700 (for example 449750 - 249050)
         consensus.nSmartnodePaymentsStartBlock = 4200; // 
         consensus.nSmartnodePaymentsIncreaseBlock = 158000; // actual historical value
@@ -583,6 +584,7 @@ class CTestNetParams : public CChainParams {
 public:
     CTestNetParams() {
         strNetworkID = "test";
+        consensus.fLLMQRecoveryByRecord = true;
         consensus.nSubsidyHalvingInterval = 210240;
         consensus.nSmartnodePaymentsStartBlock = 4010; // not true, but it's ok as long as it's less then nSmartnodePaymentsIncreaseBlock
         consensus.nSmartnodePaymentsIncreaseBlock = 4030;
@@ -977,6 +979,7 @@ public:
         // Regtest Yerbas BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 1;
 
+        consensus.fLLMQRecoveryByRecord = gArgs.GetBoolArg("-llmqrecoverybyrecord", false);
         if (gArgs.IsArgSet("-llmqrecoverycutoverheight")) {
             const int64_t height = gArgs.GetArg("-llmqrecoverycutoverheight", -1);
             if (height <= 0 || height > std::numeric_limits<int32_t>::max() || height % 720 != 0)
@@ -1051,6 +1054,11 @@ void SelectParams(const std::string& network)
     if (gArgs.IsArgSet("-llmqrecoverycutoverheight") &&
         (network != CBaseChainParams::REGTEST || gArgs.IsArgSet("-llmqrecoveryactivationheight")))
         throw std::runtime_error("-llmqrecoverycutoverheight is regtest-only and cannot be combined with experimental activation");
+
+    if (gArgs.IsArgSet("-llmqrecoverybyrecord") &&
+        (network != CBaseChainParams::REGTEST || gArgs.IsArgSet("-llmqrecoverycutoverheight") ||
+         gArgs.IsArgSet("-llmqrecoveryactivationheight") || gArgs.GetBoolArg("-llmqrecoverytest", false)))
+        throw std::runtime_error("-llmqrecoverybyrecord requires standalone regtest recovery policy");
 
     SelectBaseParams(network);
     globalChainParams = CreateChainParams(network);

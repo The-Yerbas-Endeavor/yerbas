@@ -5,11 +5,13 @@ from test_framework.util import assert_equal, connect_nodes, wait_until
 
 
 class ReleaseDKG(ManualRecovery):
+    record_selected_cutover = False
+
     def set_test_params(self):
         super().set_test_params()
         for args in self.extra_args:
             args.remove('-llmqrecoverytest')
-            args.append('-llmqrecoverycutoverheight=720')
+            args.append('-llmqrecoverybyrecord' if self.record_selected_cutover else '-llmqrecoverycutoverheight=720')
 
     def enable_dkg(self, enabled):
         self.bump_mocktime(2, nodes=self.nodes[:4])
@@ -20,6 +22,10 @@ class ReleaseDKG(ManualRecovery):
         c = self.nodes[0]
         self.mine(110)
         self.register_operators()
+        if self.record_selected_cutover:
+            self.mine(660 - c.getblockcount())
+            _, first_on = self.record(True)
+            assert_equal(first_on, 720)
         self.mine(689 - c.getblockcount())
         self.enable_dkg(True)
         legacy = self.dkg(3)
@@ -29,11 +35,12 @@ class ReleaseDKG(ManualRecovery):
             assert self.nodes[i].quorum('sign', 1, '11' * 32, '44' * 32)
         wait_until(lambda: c.quorum('hasrecsig', 1, '11' * 32, '44' * 32), timeout=30)
         assert_equal(c.quorum('getrecsig', 1, '11' * 32, '44' * 32)['quorumHash'], legacy['quorumHash'])
+        self.enable_dkg(False)
         self.mine(719 - c.getblockcount())
         before = [c.protx('info', h)['state'] for h in self.registrations]
         self.mine(1)
         cutover = c.getbestblockhash()
-        assert_equal(c.quorum('recovery', 'status')['status'], 'off')
+        assert_equal(c.quorum('recovery', 'status')['status'], 'on' if self.record_selected_cutover else 'off')
         for i in (1, 2):
             assert not self.nodes[i].quorum('sign', 1, '22' * 32, '33' * 32)
         for h, state in zip(self.registrations, before):
@@ -42,7 +49,10 @@ class ReleaseDKG(ManualRecovery):
                 assert_equal(now[field], state[field])
         self.log.info('Legacy quorum signed before cutover and cannot sign afterward; registrations retained')
         self.enable_dkg(False)
-        _, on = self.record(True)
+        if self.record_selected_cutover:
+            on = (c.getblockcount() // 30 + 1) * 30
+        else:
+            _, on = self.record(True)
         self.mine(on - c.getblockcount() - 1)
         self.enable_dkg(True)
         low = self.dkg(3)
@@ -70,7 +80,8 @@ class ReleaseDKG(ManualRecovery):
         self.nodes[5].setnetworkactive(False)
         self.nodes[5].invalidateblock(cutover)
         assert_equal(self.nodes[5].getblockcount(), 719)
-        assert_equal(self.nodes[5].quorum('recovery', 'status')['status'], 'not_activated')
+        assert_equal(self.nodes[5].quorum('recovery', 'status')['status'],
+                     'scheduled' if self.record_selected_cutover else 'not_activated')
         self.nodes[5].reconsiderblock(cutover)
         self.check(5)
         self.log.info('Release cutover: real legacy/LOW/normal commitments, fresh sync, reindex and rollback passed')

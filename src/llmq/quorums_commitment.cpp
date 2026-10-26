@@ -33,9 +33,10 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
         LOCK(cs_main);
         const auto it = mapBlockIndex.find(quorumHash);
         Consensus::LLMQParams resolved;
-        if (it == mapBlockIndex.end()) return false;
-        if (RecoveryUsesRecordedParams(it->second->nHeight))
-            return ResolveRecoveryQuorumParams((Consensus::LLMQType)llmqType, it->second, resolved) && Verify(resolved, members, checkSigs);
+        if (it == mapBlockIndex.end() ||
+            !ResolveRecoveryQuorumParams((Consensus::LLMQType)llmqType, it->second, resolved)) return false;
+        if (RecoveryUsesRecordedParams(it->second->nHeight, it->second))
+            return Verify(resolved, members, checkSigs);
     }
     if (nVersion == 0 || nVersion > CURRENT_VERSION) {
         return false;
@@ -132,9 +133,10 @@ bool CFinalCommitment::VerifyNull() const
         LOCK(cs_main);
         const auto it = mapBlockIndex.find(quorumHash);
         Consensus::LLMQParams resolved;
-        if (it == mapBlockIndex.end()) return false;
-        if (RecoveryUsesRecordedParams(it->second->nHeight))
-            return ResolveRecoveryQuorumParams((Consensus::LLMQType)llmqType, it->second, resolved) && VerifyNull(resolved);
+        if (it == mapBlockIndex.end() ||
+            !ResolveRecoveryQuorumParams((Consensus::LLMQType)llmqType, it->second, resolved)) return false;
+        if (RecoveryUsesRecordedParams(it->second->nHeight, it->second))
+            return VerifyNull(resolved);
     }
     if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)llmqType)) {
         LogPrintfFinalCommitment("invalid llmqType=%d\n", llmqType);

@@ -668,7 +668,8 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
     }else{
     isDecrease = nHeight % 2 == 0;
     }
-    if (llmq::RecoveryProtocolEnabled() && nHeight >= llmq::GetRecoveryPolicy().activationHeight) {
+    if (llmq::RecoveryProtocolEnabled() && nHeight >= llmq::GetRecoveryPolicy().activationHeight &&
+        llmq::RecoveryUsesRecordedParams(nHeight, pindexPrev)) {
         llmq::RecoveryState recovery;
         if (!llmq::RecoveryStateStore(evoDb, llmq::GetRecoveryPolicy()).ReadState(*pindexPrev, recovery))
             return _state.Error("recovery-parent-state-missing");

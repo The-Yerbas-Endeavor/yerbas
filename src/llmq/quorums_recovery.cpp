@@ -41,7 +41,7 @@ bool MatchesLegacyAnchor(const RecoveryPolicy& policy, const CBlockIndex& block)
     const auto* anchor = block.GetAncestor(policy.legacyAnchorHeight);
     return anchor && anchor->GetBlockHash() == policy.legacyAnchorHash;
 }
-const std::string RECOVERY_STATE_KEY = "llmq_recovery_state_v1";
+const std::string RECOVERY_STATE_KEY = "llmq_recovery_state_v2";
 }
 
 uint256 RecoveryRequest::GetAuthorizationHash() const
@@ -62,7 +62,7 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
         return reject("recovery-invalid-policy");
     }
     if (int64_t(parent.nHeight) + 1 < policy.activationHeight) return reject("recovery-before-activation");
-    if ((request.version != 1 && request.version != 2) || (policy.activationHeight > 0 && request.version != 2))
+    if ((request.version != 1 && request.version != 2) || ((policy.activationHeight > 0 || policy.activationByRecord) && request.version != 2))
         return reject("recovery-version");
     if (request.genesisHash != policy.genesisHash) return reject("recovery-network");
     const auto genesis = parent.GetAncestor(0);
@@ -75,10 +75,13 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
     }
     const auto anchor = parent.GetAncestor(request.anchorHeight);
     if (!anchor || anchor->GetBlockHash() != request.anchorHash) return reject("recovery-anchor");
+    const bool first = policy.activationByRecord && previous.cutoverHeight == 0;
+    if (first && (request.endHeight != 0 || request.startHeight % 720 != 0))
+        return reject("recovery-first-cutover");
     // The record is included at parent+1. The earliest affected quorum must
     // start later, so its parameters never depend on transactions in itself.
     if (int64_t(request.startHeight) <= int64_t(parent.nHeight) + 1 ||
-        int64_t(request.startHeight) - parent.nHeight > policy.maxStartDelay ||
+        int64_t(request.startHeight) - parent.nHeight > (first ? 750 : policy.maxStartDelay) ||
         request.startHeight % policy.dkgInterval != 0) return reject("recovery-window");
     if (request.version == 1) {
         if (request.endHeight % policy.dkgInterval != 0 ||
@@ -112,6 +115,7 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
         if (!signers.emplace(key.GetID()).second) return reject("recovery-duplicate-signer");
     }
     RecoveryState accepted;
+    accepted.cutoverHeight = first ? request.startHeight : previous.cutoverHeight;
     accepted.lastAuthorization = hash;
     accepted.startHeight = request.version == 2 && request.endHeight != 0 ? previous.startHeight : request.startHeight;
     accepted.endHeight = request.endHeight;
@@ -163,7 +167,7 @@ bool RecoveryStateStore::ConnectBlock(const CBlockIndex& block, const RecoveryRe
     RecoveryState existing;
     if (ReadState(block, existing) &&
         (existing.lastAuthorization != next.lastAuthorization || existing.startHeight != next.startHeight ||
-         existing.endHeight != next.endHeight)) {
+         existing.endHeight != next.endHeight || existing.cutoverHeight != next.cutoverHeight)) {
         error = "recovery-state-conflict";
         return false;
     }
@@ -183,13 +187,25 @@ bool RecoveryStateStore::DisconnectBlock(const CBlockIndex& block)
 
 bool RecoveryProtocolEnabled()
 {
-    return Params().GetConsensus().nLLMQRecoveryHeight >= 0 ||
+    return Params().GetConsensus().fLLMQRecoveryByRecord || Params().GetConsensus().nLLMQRecoveryHeight >= 0 ||
         (Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
         (Params().NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false));
 }
 
-bool RecoveryUsesRecordedParams(int height)
+bool RecoveryUsesRecordedParams(int height, const CBlockIndex* branch)
 {
+    if (Params().GetConsensus().fLLMQRecoveryByRecord) {
+        LOCK(cs_main);
+        if (!branch) branch = chainActive.Tip();
+        if (!branch) return false;
+        // The first record predates its effective height. Use this branch's
+        // parent state, never the active tip's authorization for another fork.
+        const auto* parent = height > 0 && height <= branch->nHeight
+            ? branch->GetAncestor(height - 1) : branch;
+        RecoveryState state;
+        return parent && RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(*parent, state) &&
+            state.cutoverHeight > 0 && height >= state.cutoverHeight;
+    }
     if (!RecoveryProtocolEnabled()) return false;
     const int cutover = Params().GetConsensus().nLLMQRecoveryHeight;
     return cutover < 0 || height >= cutover;
@@ -197,7 +213,14 @@ bool RecoveryUsesRecordedParams(int height)
 
 bool RecoveryLegacyQuorumRetired(int quorumHeight, int signingHeight)
 {
-    const int cutover = Params().GetConsensus().nLLMQRecoveryHeight;
+    int cutover = Params().GetConsensus().nLLMQRecoveryHeight;
+    if (Params().GetConsensus().fLLMQRecoveryByRecord) {
+        LOCK(cs_main);
+        const auto* index = chainActive[signingHeight];
+        RecoveryState state;
+        if (!index || !RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(*index, state)) return true;
+        cutover = state.cutoverHeight > 0 ? state.cutoverHeight : -1;
+    }
     return cutover >= 0 && quorumHeight < cutover && signingHeight >= cutover;
 }
 
@@ -206,6 +229,7 @@ RecoveryPolicy GetRecoveryPolicy()
     RecoveryPolicy policy;
     if (!RecoveryProtocolEnabled()) return policy;
     policy.enabled = true;
+    policy.activationByRecord = Params().GetConsensus().fLLMQRecoveryByRecord;
     policy.genesisHash = Params().GenesisBlock().GetHash();
     // Isolated regtest fixtures may use a fresh authority instead of a
     // source-embedded test key, matching the spork manager's test override.
@@ -217,11 +241,11 @@ RecoveryPolicy GetRecoveryPolicy()
         policy.authorities.emplace(id);
     }
     policy.requiredSignatures = Params().MinSporkKeys();
-    // Type-1 records use the existing schedule; public activation is release-gated.
+    // Later type-1 transitions use the existing 30-block schedule.
     policy.dkgInterval = 30;
     policy.maxDuration = 60;
     policy.maxStartDelay = 60;
-    policy.maxAnchorAge = 60;
+    policy.maxAnchorAge = policy.activationByRecord ? 750 : 60;
     if (Params().NetworkIDString() == CBaseChainParams::DEVNET) {
         policy.maxDuration = 90;
         policy.minAnchorHeight = 1; // bind every record to this named devnet, not the shared base genesis
@@ -246,7 +270,14 @@ bool ResolveRecoveryParamsAtHeight(Consensus::LLMQType type, const CBlockIndex* 
     const auto& types = Params().GetConsensus().llmqs;
     auto it = types.find(type);
     if (it == types.end()) return false;
-    if (!RecoveryUsesRecordedParams(height)) {
+    if (Params().GetConsensus().fLLMQRecoveryByRecord) {
+        const auto* parent = height > 0 && height <= branch->nHeight
+            ? branch->GetAncestor(height - 1) : branch;
+        RecoveryState state;
+        // Missing historical state is not evidence of a legacy prefix.
+        if (!parent || !RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(*parent, state)) return false;
+    }
+    if (!RecoveryUsesRecordedParams(height, branch)) {
         out = it->second; // Existing legacy validation below the release boundary.
         return true;
     }
@@ -278,6 +309,7 @@ bool RecoveryQuorumCanSign(Consensus::LLMQType type, const CBlockIndex* quorum, 
     if (!RecoveryProtocolEnabled()) return true;
     LOCK(cs_main);
     if (!quorum || RecoveryLegacyQuorumRetired(quorum->nHeight, signingHeight)) return false;
+    if (!RecoveryUsesRecordedParams(quorum->nHeight, quorum)) return true;
     if (type != Consensus::LLMQ_50_60) return true;
     if (quorum->nHeight < GetRecoveryPolicy().activationHeight) return true;
     RecoveryState state;

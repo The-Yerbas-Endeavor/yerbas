@@ -1,98 +1,69 @@
-Signed LOW_LLMQ cutover rules — implementation specification
-Status: release-policy routing is implemented locally; public activation remains
-unassigned (-1). Regtest can exercise that same policy with a 720-block-aligned
-cutover override. This is not a claim that mainnet deployment is ready.
+Signed LOW_LLMQ cutover rules — first signed transaction selects activation
 
-1. Release constants and scope
-A is a network-specific activation height. Select it only after legacy replay
-and operator rollout; no runtime setting may change A on public networks.
-A must align with every affected DKG schedule so no legacy round starts before
-A and expects a commitment under newly chosen parameters. Use the actual profile
-intervals, including non-type-1 consumers; do not assume alignment to 30 alone.
-The authority set and signature threshold are consensus rules. A normal
-sporkaddr setting must not override them on public networks. Preserve protocol
-70224 advertising; peer-version exclusion is a separate rollout decision.
+1. Software support and operator control
+The release enables recognition of authority-signed recovery transactions. It
+must not select a public activation height. Upgraded nodes retain legacy quorum
+and PoSe rules until the effective height carried by the first mined ON record.
+The operator chooses when to submit that record using quorum recovery on.
+Installing software, paying a fee alone, or broadcasting gossip does not turn
+LOW_LLMQ on. Compatible nodes must be installed before the first record is mined.
+Protocol 70224 advertising does not automatically exclude older peers.
 
-2. Legacy prefix
-Blocks below A retain the existing legacy validation path, including its null
-commitment compatibility and historical quorum/PoSe boundary rules. This upgrade
-does not reconstruct missing old gossip-spork history or waive signature, payment,
-collateral, membership or state-root validation. Keep the established legacy
-spork setting during migration; recorded ON/OFF transactions do not modify it.
-The legacy path's dependence on that setting is an inherited limitation, not a
-property repaired by this cutover. Verify fresh sync with the deployment setting.
-Record transactions are invalid before A. Replaying the prefix must neither
-create recorded authorization history nor reset registrations or penalties.
+2. First transition and schedule
+Only manual record version 2 is accepted by this policy. The first record must
+be ON and its effective height A must be divisible by 720, aligning the existing
+30/360/720-block quorum schedules. This prevents a legacy round spanning the
+change of validation rules. The RPC selects the first such boundary at least
+30 blocks ahead: A=ceil((tip+30)/720)*720. The first wait is therefore 30 to 749
+blocks, not an activation date or height selected in a release.
+The record must be mined before A. Subsequent ON/OFF records use the existing
+30-block schedule and 60-block scheduling horizon. ON has no automatic expiry.
+The transaction signature fixes the network, predecessor, ancestor and effective
+height; an expired unmined request must be recreated, not silently moved.
 
-3. Bootstrap without a functioning quorum
-The virtual recorded authorization state at the parent of A is OFF, with no
-previous record. Preserve all reconstructed smartnode/UTXO/PoSe state.
-Initialization is permitted only after the legacy prefix is valid under rule 2.
-No DKG, ChainLock or InstantSend success is required to include an ON record;
-ordinary mined blocks and standard transaction funding are sufficient.
-The state database must distinguish a valid preactivation bootstrap from missing
-postactivation records. A missing postactivation parent state is an error, never
-an instruction to reset OFF. Reindex reconstructs the state from blocks.
+3. Authorization and fees
+Use the network's configured spork address set and signature threshold, not a
+runtime public-network address override. The wallet RPC uses sporkkey and pays
+ordinary transaction fees. The current RPC collects one authority signature.
+Reject wrong network/branch/authority/predecessor, duplicate signers, overlapping
+pending transitions, redundant actions, and more than one record in a block.
+Mempool policy admits one pending record, revalidates it after tip changes, and
+rejects expired relay requests without penalizing a peer for the context change.
 
-4. Accepted records after A
-Accept manual record version 2 only; reject the old bounded-window version 1.
-Use the existing network/ancestor/previous-authorization/signature verification.
-Require anchor height >= A-1, within the allowed recent-ancestor interval.
-ON has endHeight=0; OFF has endHeight=startHeight. No automatic ON expiry.
-At most one transition per block; reject a second pending effective transition,
-redundant actions, wrong authority, wrong branch/network and stale predecessor.
-The funding transaction pays normal fees. Paying the fee grants no authority.
-A failed transaction or an unmined request changes no consensus state.
+4. Preserving the prefix
+Before A, retain the existing legacy validation and established legacy spork
+setting. This does not reconstruct missing old gossip-spork messages or rewrite
+historical rules. No signature, payment, collateral or state-root checks are
+waived. The first record may be included before A without changing the mode.
+Record an explicitly empty history for pre-record blocks. Missing database state
+is an error, never permission to infer that no record exists. An existing node
+without this history index must rebuild it with -reindex-chainstate or -reindex.
+Wallet keys and balances are not reset. Pruned nodes may need old blocks again.
 
-5. Inclusion and effective heights
-For a record included at I, its effective height E must satisfy E>I and be an
-approved type-1 quorum boundary within the configured scheduling horizon.
-The RPC currently chooses the second upcoming boundary to allow inclusion time.
-Its final permissible inclusion height is E-1. Missing that height requires a
-new request; do not silently move a signed effective height.
-At E-1 the old mode applies; at E the new mode applies. Apply PoSe decay using
-the candidate block height and its parent's confirmed recovery state. A record
-inside that block cannot retroactively affect the block's own decay or selection.
+5. Applying and retaining history
+Store the first ON effective height in branch-specific recovery state and retain
+it after OFF and all later ON records. OFF ends LOW_LLMQ, not recorded validation.
+At A, pre-A quorums retire from new signing; historical commitments remain data.
+Resolve post-A parameter profiles from quorum-start parent state and count,
+using owned profiles for all adaptive types. LOW changes type 1 only.
+Retain existing membership selection, registrations, collateral and PoSe cleanup.
+A record included in a block cannot change that same block's quorum parameters.
+Quorum services may pause until replacements form; ordinary mining and the signed
+fee-paying activation transaction do not require a functioning quorum.
 
-6. Quorum context and retirement
-Resolve parameter profiles from the quorum-start parent and the authorized mode
-for that quorum height. Define membership using Yerbas's established quorum-block
-list unless an explicit consensus change chooses otherwise. Do not conflate the
-parameter snapshot and membership snapshot. Store/pass owned profile values.
-The isolated recorded-history path now resolves all three adaptive types from
-owned templates and the smartnode count at the quorum-start parent. LOW changes
-only type 1. Types 2 and 3 retain their 360/720-block schedules and normal count
-thresholds. Fixed experimental types retain their network configuration.
-This does not replace the legacy mainnet resolver: its historical update timing
-and PoSe boundaries still require validation against the archived chain.
-An OFF record does not invalidate an earlier commitment. Its old LOW quorum
-ceases current signing eligibility at OFF; a later ON must not revive it.
-If no normal replacement quorum exists, services wait rather than accept an
-unauthorized weak quorum. Ordinary block production continues independently.
-For the release cutover, every pre-A quorum becomes ineligible for new signing
-at A. Historical commitments remain in the chain and retain normal commitment
-retention accounting; the signing cutoff does not erase historical data.
-Signatures evaluated for a pre-A signing height retain legacy eligibility.
-New post-A quorums follow recorded rules, including manual OFF retirement.
-This can interrupt quorum-dependent services until replacement quorums form;
-ordinary block production and paid recovery activation remain available.
+6. Reorganizations and reconstruction
+Recovery state is keyed by block hash and updated atomically with evolutionary
+state. Losing the first record removes that branch's selected cutover; losing
+an OFF restores the prior mode. Reconsidering/replaying restores the same state.
+A competing branch must use its own records. Fresh sync and reindex reconstruct
+ON, OFF and the retained cutover without the current gossip spork determining
+post-cutover history. RPC status distinguishes pending, scheduled and effective.
 
-7. Reorganization and status
-Recovery state belongs to block hashes and participates in the same atomic
-connect/disconnect operation as other evolutionary state. Disconnecting a record
-restores its parent's authorization. Disconnecting through A restores the legacy
-path, not a new mutable OFF record attached to that old block. A competing branch
-must derive its own record sequence. Stale mempool requests are revalidated.
-RPC distinguishes broadcast, confirmed/scheduled, and effective states. Gossip
-spork display is not the authoritative recorded-history status.
-
-8. Acceptance evidence required
-Replay archived mainnet blocks with assumevalid=0 and the established legacy
-spork setting; check the expected block hash and state roots for compatibility.
-Then exercise the release-policy cutover with fresh sync and reindex across A.
-Confirm that gossip changes do not override recorded post-A authorization.
-Do not claim that this makes pre-A legacy history independent of gossip. Test A-1/A/E-1/E, pre-A record
-rejection, legacy-version rejection, missing database state, stalled DKG bootstrap,
-second ON after OFF, old LOW signing retirement, and reorg across A and records.
-Check all enabled quorum types, PoSe, payments and existing registrations. Passing
-serialized archive extraction or daemon exit code alone is not consensus replay.
+7. Acceptance and remaining rollout gates
+Test first ON without a configured height or functioning quorum, boundary
+behavior, OFF, subsequent ON, invalid first records, fresh sync, reindex,
+missing-state refusal, reindex-chainstate, reorg through the first record, and
+real legacy/LOW/normal quorum signing. Check compatibility of the legacy prefix.
+Local tests and CI do not substitute for the planned testnet run and coordinated
+operator upgrade before mainnet use. Fixed-height experimental fixtures remain
+regtest-only regression cases; they are not the public activation policy.

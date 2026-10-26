@@ -127,9 +127,11 @@ struct AssetsRewardShare {
  * Parameters that influence chain consensus.
  */
 struct Params {
-    // Release-defined signed recovery cutover; -1 leaves public activation disabled.
-    // Public networks must never accept a runtime override of this field.
+    // Fixed-height regression fixture; public networks leave this at -1.
+    // Public activation uses the first signed record instead.
     int nLLMQRecoveryHeight{-1};
+    // Software support only: the first signed ON record selects its cutover.
+    bool fLLMQRecoveryByRecord{false};
     uint256 hashGenesisBlock;
     uint256 hashDevnetGenesisBlock;
     int nSubsidyHalvingInterval;
