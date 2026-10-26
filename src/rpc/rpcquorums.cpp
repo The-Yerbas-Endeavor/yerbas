@@ -409,8 +409,8 @@ UniValue quorum_dkgsimerror(const JSONRPCRequest& request)
 static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
 {
     if (!llmq::RecoveryProtocolEnabled()) throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires an experimental recovery regtest or isolated recovery devnet");
-    if (request.fHelp || (create ? request.params.size() != 3 : request.params.size() > 2)) {
-        throw std::runtime_error("quorum recoveryrequest start_height end_height | quorum recoverystate ( block_hash )\nExperimental regtest / isolated devnet recovery record interface.");
+    if (request.fHelp || (create ? (request.params.size() != 3 && request.params.size() != 4) : request.params.size() > 2)) {
+        throw std::runtime_error("quorum recoveryrequest start_height end_height ( version ) | quorum recoverystate ( block_hash )\nExperimental regtest / isolated devnet recovery record interface.");
     }
     LOCK(cs_main);
     const CBlockIndex* index = chainActive.Tip();
@@ -440,6 +440,11 @@ static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
     record.anchorHash = index->GetBlockHash();
     record.startHeight = ParseInt32V(request.params[1], "start_height");
     record.endHeight = ParseInt32V(request.params[2], "end_height");
+    if (request.params.size() == 4) {
+        const int version = ParseInt32V(request.params[3], "version");
+        if (version != 1 && version != 2) throw JSONRPCError(RPC_INVALID_PARAMETER, "Unsupported recovery version");
+        record.version = version;
+    }
     CBitcoinSecret secret;
     if (!secret.SetString(gArgs.GetArg("-sporkkey", ""))) throw JSONRPCError(RPC_INVALID_PARAMETER, "No test authority key configured");
     std::vector<unsigned char> signature;

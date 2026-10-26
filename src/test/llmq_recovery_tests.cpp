@@ -134,6 +134,83 @@ BOOST_AUTO_TEST_CASE(authenticated_window_expiry_and_serialization)
     BOOST_CHECK(!restored.IsLowAt(150));
 }
 
+BOOST_AUTO_TEST_CASE(manual_authorization_requires_explicit_off_and_new_on)
+{
+    auto on = request;
+    on.version = 2;
+    on.endHeight = 0;
+    Sign(on);
+    llmq::RecoveryState active;
+    std::string error;
+    BOOST_REQUIRE(Apply(on, active, error));
+    BOOST_CHECK(!active.IsLowAt(89));
+    BOOST_CHECK(active.IsLowAt(90));
+    BOOST_CHECK(active.IsLowAt(std::numeric_limits<int>::max()));
+    BOOST_CHECK(active.AllowsRecoverySigning(90, 1000000));
+    auto off = on;
+    off.previousAuthorization = active.lastAuthorization;
+    off.anchorHeight = 120;
+    off.anchorHash = hashes[120];
+    off.startHeight = off.endHeight = 150;
+    Sign(off);
+    llmq::RecoveryState closed;
+    BOOST_REQUIRE(llmq::ApplyRecoveryRequest(off, policy, chain[120], active, closed, error));
+    BOOST_CHECK_EQUAL(closed.startHeight, 90);
+    BOOST_CHECK(closed.IsLowAt(149));
+    BOOST_CHECK(!closed.IsLowAt(150));
+    BOOST_CHECK(!closed.AllowsRecoverySigning(90, 150));
+    llmq::RecoveryState ignored;
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(off, policy, chain[120], closed, ignored, error));
+    BOOST_CHECK_EQUAL(error, "recovery-sequence");
+    auto again = on;
+    again.previousAuthorization = closed.lastAuthorization;
+    again.anchorHeight = 150;
+    again.anchorHash = hashes[150];
+    again.startHeight = 180;
+    Sign(again);
+    BOOST_REQUIRE(llmq::ApplyRecoveryRequest(again, policy, chain[150], closed, ignored, error));
+    BOOST_CHECK(!ignored.IsLowAt(179));
+    BOOST_CHECK(ignored.IsLowAt(180));
+    BOOST_CHECK(!ignored.AllowsRecoverySigning(90, 180));
+}
+
+BOOST_AUTO_TEST_CASE(manual_records_reject_unauthorized_and_ambiguous_transitions)
+{
+    auto on = request;
+    on.version = 2;
+    on.endHeight = 0;
+    Sign(on);
+    llmq::RecoveryState active, output;
+    std::string error;
+    BOOST_REQUIRE(Apply(on, active, error));
+    auto bad = on;
+    bad.signatures[0].fill(0);
+    BOOST_CHECK(!Apply(bad, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-signature");
+    bad = on;
+    bad.endHeight = bad.startHeight;
+    Sign(bad);
+    BOOST_CHECK(!Apply(bad, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-manual-state");
+    bad = on;
+    bad.previousAuthorization = active.lastAuthorization;
+    bad.startHeight = bad.endHeight = 120;
+    Sign(bad);
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(bad, policy, chain[60], active, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-window-outstanding");
+    bad.anchorHeight = 90;
+    bad.anchorHash = hashes[90];
+    bad.endHeight = 0; // redundant ON after the first ON became effective
+    Sign(bad);
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(bad, policy, chain[90], active, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-manual-state");
+    bad.version = 1;
+    bad.endHeight = 150;
+    Sign(bad);
+    BOOST_CHECK(!llmq::ApplyRecoveryRequest(bad, policy, chain[90], active, output, error));
+    BOOST_CHECK_EQUAL(error, "recovery-window-outstanding");
+}
+
 BOOST_AUTO_TEST_CASE(reject_untrusted_authorizations_without_state_mutation)
 {
     llmq::RecoveryState sentinel;
@@ -151,7 +228,7 @@ BOOST_AUTO_TEST_CASE(reject_untrusted_authorizations_without_state_mutation)
     };
     auto bad = request;
     bad.genesisHash = uint256S("02"); reject(bad, "recovery-network");
-    bad = request; bad.version = 2; reject(bad, "recovery-version");
+    bad = request; bad.version = 3; reject(bad, "recovery-version");
     bad = request; bad.previousAuthorization = uint256S("03"); reject(bad, "recovery-sequence");
     bad = request; bad.anchorHash = uint256S("04"); reject(bad, "recovery-anchor");
     bad = request; bad.anchorHeight = -1; reject(bad, "recovery-anchor-height");

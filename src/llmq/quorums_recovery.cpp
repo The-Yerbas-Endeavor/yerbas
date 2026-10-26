@@ -47,7 +47,7 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
     if (!ValidPolicy(policy)) {
         return reject("recovery-invalid-policy");
     }
-    if (request.version != 1) return reject("recovery-version");
+    if (request.version != 1 && request.version != 2) return reject("recovery-version");
     if (request.genesisHash != policy.genesisHash) return reject("recovery-network");
     const auto genesis = parent.GetAncestor(0);
     if (!genesis || genesis->GetBlockHash() != policy.genesisHash) return reject("recovery-branch-network");
@@ -62,14 +62,27 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
     // start later, so its parameters never depend on transactions in itself.
     if (int64_t(request.startHeight) <= int64_t(parent.nHeight) + 1 ||
         int64_t(request.startHeight) - parent.nHeight > policy.maxStartDelay ||
-        request.startHeight % policy.dkgInterval != 0 ||
-        request.endHeight % policy.dkgInterval != 0 ||
-        request.endHeight <= request.startHeight ||
-        int64_t(request.endHeight) - request.startHeight > policy.maxDuration) {
-        return reject("recovery-window");
+        request.startHeight % policy.dkgInterval != 0) return reject("recovery-window");
+    if (request.version == 1) {
+        if (request.endHeight % policy.dkgInterval != 0 ||
+            request.endHeight <= request.startHeight ||
+            int64_t(request.endHeight) - request.startHeight > policy.maxDuration)
+            return reject("recovery-window");
+        if (previous.startHeight > 0 && previous.endHeight == 0)
+            return reject("recovery-window-outstanding");
+        if (request.startHeight < previous.endHeight) return reject("recovery-overlap");
+        if (parent.nHeight < previous.endHeight) return reject("recovery-window-outstanding");
+    } else {
+        // Manual records are future ON (end=0) or OFF (end=start).
+        // Never overwrite a pending transition or a bounded legacy window.
+        if (request.endHeight != 0 && request.endHeight != request.startHeight)
+            return reject("recovery-manual-action");
+        if (previous.startHeight > parent.nHeight ||
+            (previous.endHeight > 0 && previous.endHeight > parent.nHeight))
+            return reject("recovery-window-outstanding");
+        const bool open = previous.startHeight > 0 && previous.endHeight == 0;
+        if ((request.endHeight == 0) == open) return reject("recovery-manual-state");
     }
-    if (request.startHeight < previous.endHeight) return reject("recovery-overlap");
-    if (parent.nHeight < previous.endHeight) return reject("recovery-window-outstanding");
     if (request.signatures.size() < policy.requiredSignatures ||
         request.signatures.size() > policy.authorities.size()) return reject("recovery-signature-count");
 
@@ -83,7 +96,7 @@ bool ApplyRecoveryRequest(const RecoveryRequest& request, const RecoveryPolicy& 
     }
     RecoveryState accepted;
     accepted.lastAuthorization = hash;
-    accepted.startHeight = request.startHeight;
+    accepted.startHeight = request.version == 2 && request.endHeight != 0 ? previous.startHeight : request.startHeight;
     accepted.endHeight = request.endHeight;
     next = accepted;
     error.clear();
@@ -152,7 +165,11 @@ RecoveryPolicy GetRecoveryPolicy()
     if (!RecoveryProtocolEnabled()) return policy;
     policy.enabled = true;
     policy.genesisHash = Params().GenesisBlock().GetHash();
-    for (const auto& address : Params().SporkAddresses()) {
+    // Isolated regtest fixtures may use a fresh authority instead of a
+    // source-embedded test key, matching the spork manager's test override.
+    const auto addresses = Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.IsArgSet("-sporkaddr")
+        ? gArgs.GetArgs("-sporkaddr") : Params().SporkAddresses();
+    for (const auto& address : addresses) {
         CKeyID id;
         if (!CBitcoinAddress(address).GetKeyID(id)) return RecoveryPolicy{};
         policy.authorities.emplace(id);
@@ -205,7 +222,17 @@ bool RecoveryQuorumCanSign(Consensus::LLMQType type, const CBlockIndex* quorum, 
     if (!quorum) return false;
     RecoveryState state;
     if (!RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(quorum->pprev ? *quorum->pprev : *quorum, state)) return false;
-    return !state.IsLowAt(quorum->nHeight) || state.AllowsRecoverySigning(quorum->nHeight, signingHeight);
+    if (!state.IsLowAt(quorum->nHeight)) return true;
+    if (!state.AllowsRecoverySigning(quorum->nHeight, signingHeight)) return false;
+    // An open-ended authorization needs the state at signing height too: an
+    // OFF record closes it, and a later ON must not revive the old low quorum.
+    if (state.endHeight == 0) {
+        const CBlockIndex* signingIndex = chainActive[signingHeight];
+        RecoveryState current;
+        if (!signingIndex || !RecoveryStateStore(*evoDb, GetRecoveryPolicy()).ReadState(*signingIndex, current)) return false;
+        return current.startHeight == state.startHeight && current.IsLowAt(signingHeight);
+    }
+    return true;
 }
 
 bool CheckRecoveryTransaction(const CTransaction& tx, const CBlockIndex* parent, CValidationState& state)

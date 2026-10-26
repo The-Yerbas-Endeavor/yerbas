@@ -43,7 +43,7 @@ struct RecoveryRequest {
     int32_t anchorHeight{0};
     uint256 anchorHash;
     int32_t startHeight{0};
-    int32_t endHeight{0}; // exclusive; expiry does not require another message
+    int32_t endHeight{0}; // v1: exclusive expiry. v2: 0=ON, startHeight=OFF.
     std::vector<std::array<unsigned char, 65>> signatures;
 
     // Domain-separated identity excludes signature ordering/encoding.
@@ -75,11 +75,11 @@ struct RecoveryState {
     int32_t startHeight{0};
     int32_t endHeight{0};
 
-    bool IsLowAt(int height) const { return height >= startHeight && height < endHeight; }
+    bool IsLowAt(int height) const { return startHeight > 0 && height >= startHeight && (endHeight == 0 || height < endHeight); }
     // Evaluate against the frozen state that authorized this quorum.
     bool AllowsRecoverySigning(int quorumHeight, int signingHeight) const
     {
-        return IsLowAt(quorumHeight) && signingHeight >= quorumHeight && signingHeight < endHeight;
+        return IsLowAt(quorumHeight) && signingHeight >= quorumHeight && (endHeight == 0 || signingHeight < endHeight);
     }
 
     ADD_SERIALIZE_METHODS;
