@@ -1,0 +1,62 @@
+Signed LOW_LLMQ spork transitions — local implementation status
+
+Scope
+Use the existing spork authority to sign a fee-paying special transaction.
+Manual ON has no automatic expiry. Manual OFF is another signed transaction.
+Existing DKG/PoSe remains the cleanup mechanism. No committee, heartbeat,
+collateral change or new public-network activation is included.
+
+Implementation
+Based on restored 4.0.0.4 code at 4131fba. Published 69703dc only adds its
+CI branch trigger; this patch does not change that workflow.
+The restored branch already contains signed records, signature/anchor checks,
+block-hash-keyed state, reorg handling and historical quorum lookup.
+This change finishes the previously unpublished wallet-facing RPC and adds
+fee, status and activation-boundary regression checks.
+
+Qt console / RPC, on isolated recovery networks only
+  quorum recovery on
+  quorum recovery status
+  quorum recovery off
+
+The legacy `spork SPORK_21_LOW_LLMQ_PARAMS ...` command is not silently
+converted into a wallet transaction. It cannot authorize recorded-history
+LOW_LLMQ on these networks. Use the explicit command above for this prototype.
+
+Submission uses sporkkey from configuration and the selected wallet to fund
+and sign transaction inputs. A wallet must be available, funded and unlocked.
+Do not publish the private spork key. Returned data contains public identifiers
+and the fee, not the key.
+
+States
+awaiting_confirmation: broadcast only, no consensus activation yet. txid,
+pending_authorization and last_inclusion_height identify the pending request.
+scheduled: included in the chain, waiting for effective_height.
+on/off: state applicable at the reported chain height.
+The authorization field is the confirmed history head; pending_authorization
+is deliberately separate. Repeating the same pending command does not pay
+another fee. A conflicting request is rejected until the transition resolves.
+
+Effective height is the second upcoming 30-block boundary under the current
+isolated-test policy. This leaves at least one full DKG interval for inclusion.
+A transaction must be mined before effective_height. If it misses its deadline,
+it must be recreated against the current chain state; broadcast is not a promise
+of mining or activation. Status is the local node's mempool/chain view.
+
+The one-command wallet interface signs with one configured key. It is not a
+multi-authority signature collection UI. The underlying verifier still enforces
+its configured authority threshold. Multi-key collection needs separate work if
+the deployed policy requires more than one signature.
+
+Public-network release blockers
+The mechanism remains restricted to opted-in regtest and isolated devnet.
+Mainnet/testnet activation height, historical migration, signing-authority
+lifecycle, and the complete quorum/consumer policy require explicit definition.
+The current experimental profile retains legacy low-threshold behavior; these
+tests are not an endorsement of its mainnet security.
+Earlier unrecorded spork history cannot be reconstructed merely by introducing
+new transactions. Mainnet replay remains a separate unresolved release gate.
+
+Validation evidence is stored beside this document. The local fixture uses
+three live operators, then two live and one stopped operator. It is a replay
+and transaction-flow regression, not a 450-node mainnet simulation.

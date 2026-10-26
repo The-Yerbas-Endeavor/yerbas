@@ -4,6 +4,13 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "core_io.h"
+#include "txmempool.h"
+#include <limits>
+#ifdef ENABLE_WALLET
+#include "wallet/rpcwallet.h"
+#include "wallet/wallet.h"
+#endif
 #include "server.h"
 #include "validation.h"
 #include "base58.h"
@@ -397,6 +404,7 @@ UniValue quorum_dkgsimerror(const JSONRPCRequest& request)
             "  list              - List of on-chain quorums\n"
             "  info              - Return information about a quorum\n"
             "  dkgsimerror       - Simulates DKG errors and malicious behavior\n"
+            "  recovery          - Manually turn LOW_LLMQ on/off or inspect recorded status\n"
             "  dkgstatus         - Return the status of the current DKG process\n"
             "  memberof          - Checks which quorums the given smartnode is a member of\n"
             "  sign              - Threshold-sign a message\n"
@@ -463,6 +471,122 @@ static UniValue quorum_recovery_test(const JSONRPCRequest& request, bool create)
     return result;
 }
 
+// Operator-facing interface. Wallet routing is preserved for every nested RPC,
+// and cs_main serializes concurrent recovery requests through submission.
+static UniValue quorum_recovery(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 2) {
+        throw std::runtime_error(
+            "quorum recovery on|off|status\n"
+            "Manually enable or disable LOW_LLMQ with a signed chain record.\n"
+            "Uses sporkkey from yerbas.conf and the selected wallet for transaction fees.\n"
+            "ON has no automatic expiry. Confirmation precedes activation at a quorum boundary.\n"
+            "An unconfirmed request must be included by last_inclusion_height or resubmitted.\n"
+            "Status reports confirmed authorization separately from pending_authorization.\n"
+            "Currently available only on isolated recovery test networks.\n");
+    }
+    const std::string action = request.params[1].get_str();
+    if (action != "on" && action != "off" && action != "status")
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Expected on, off, or status");
+    if (!llmq::RecoveryProtocolEnabled())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Signed LOW_LLMQ history is not activated on this network");
+    LOCK(cs_main);
+    const auto* tip = chainActive.Tip();
+    const auto policy = llmq::GetRecoveryPolicy();
+    llmq::RecoveryState current;
+    if (!tip || !llmq::RecoveryStateStore(*evoDb, policy).ReadState(*tip, current))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Recovery history is unavailable");
+    UniValue result(UniValue::VOBJ);
+    const bool active = current.IsLowAt(tip->nHeight);
+    result.pushKV("active", active);
+    result.pushKV("height", tip->nHeight);
+    result.pushKV("authorization", current.lastAuthorization.ToString());
+    result.pushKV("automatic_expiry", false);
+
+    // Report unconfirmed authorizations before accepting another request.
+    std::vector<uint256> hashes;
+    mempool.queryHashes(hashes);
+    for (const auto& hash : hashes) {
+        const auto tx = mempool.get(hash);
+        llmq::RecoveryRequest pending;
+        if (!tx || tx->nVersion != 3 || tx->nType != TRANSACTION_LLMQ_RECOVERY ||
+            !GetTxPayload(*tx, pending) || pending.previousAuthorization != current.lastAuthorization) continue;
+        const std::string pendingAction = pending.endHeight == 0 ? "on" : "off";
+        if (action != "status" && (pending.version != 2 || action != pendingAction))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Another recovery transition is awaiting confirmation");
+        result.pushKV("status", "awaiting_confirmation");
+        result.pushKV("requested_action", pendingAction);
+        result.pushKV("txid", hash.ToString());
+        result.pushKV("pending_authorization", pending.GetAuthorizationHash().ToString());
+        result.pushKV("last_inclusion_height", pending.startHeight - 1);
+        result.pushKV("effective_height", pending.startHeight);
+        result.pushKV("submitted", false);
+        return result;
+    }
+    const int pendingHeight = current.startHeight > tip->nHeight ? current.startHeight :
+        (current.endHeight > tip->nHeight ? current.endHeight : 0);
+    if (pendingHeight) {
+        const std::string pendingAction = current.startHeight > tip->nHeight ? "on" : "off";
+        if (action != "status" && action != pendingAction)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Another recovery transition is confirmed and awaiting its effective height");
+        result.pushKV("status", "scheduled");
+        result.pushKV("requested_action", pendingAction);
+        result.pushKV("effective_height", pendingHeight);
+        result.pushKV("submitted", false);
+        return result;
+    }
+    if (action == "status" || (action == "on") == active) {
+        result.pushKV("status", active ? "on" : "off");
+        result.pushKV("submitted", false);
+        return result;
+    }
+#ifndef ENABLE_WALLET
+    throw JSONRPCError(RPC_METHOD_NOT_FOUND, "A wallet-enabled build is required to submit recovery transitions");
+#else
+    CWallet* const wallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(wallet, false)) return NullUniValue;
+    LOCK(wallet->cs_wallet);
+    EnsureWalletIsUnlocked(wallet);
+    // Allow at least one full DKG interval for inclusion. Never expire an ON.
+    const int64_t effective = (int64_t(tip->nHeight) / policy.dkgInterval + 2) * policy.dkgInterval;
+    if (effective > std::numeric_limits<int32_t>::max())
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Recovery height exceeds the supported range");
+    JSONRPCRequest signing = request;
+    signing.params = UniValue(UniValue::VARR);
+    signing.params.push_back("recoveryrequest");
+    signing.params.push_back(effective);
+    signing.params.push_back(action == "on" ? int64_t(0) : effective);
+    signing.params.push_back(2);
+    const auto record = quorum_recovery_test(signing, true);
+    CMutableTransaction tx;
+    tx.nVersion = 3;
+    tx.nType = TRANSACTION_LLMQ_RECOVERY;
+    tx.vExtraPayload = ParseHex(record["payload"].get_str());
+    tx.vout.emplace_back(0, CScript() << OP_RETURN);
+    auto call = [&](const std::string& method, const UniValue& value) {
+        JSONRPCRequest nested = request;
+        nested.strMethod = method;
+        nested.params = UniValue(UniValue::VARR);
+        nested.params.push_back(value);
+        return tableRPC.execute(nested);
+    };
+    const auto funded = call("fundrawtransaction", UniValue(EncodeHexTx(tx)));
+    const auto signedTx = call("signrawtransaction", funded["hex"]);
+    if (!signedTx["complete"].get_bool())
+        throw JSONRPCError(RPC_WALLET_ERROR, "Wallet could not sign the recovery transaction");
+    const auto txid = call("sendrawtransaction", signedTx["hex"]);
+    result.pushKV("status", "awaiting_confirmation");
+    result.pushKV("requested_action", action);
+    result.pushKV("txid", txid.get_str());
+    result.pushKV("pending_authorization", record["authorization"]);
+    result.pushKV("last_inclusion_height", effective - 1);
+    result.pushKV("effective_height", effective);
+    result.pushKV("fee", funded["fee"]);
+    result.pushKV("submitted", true);
+    return result;
+#endif
+}
+
 UniValue quorum(const JSONRPCRequest& request)
 {
     if (request.fHelp && request.params.empty()) {
@@ -474,7 +598,9 @@ UniValue quorum(const JSONRPCRequest& request)
         command = request.params[0].get_str();
     }
 
-    if (command == "recoveryrequest" || command == "recoverystate") {
+    if (command == "recovery") {
+        return quorum_recovery(request);
+    } else if (command == "recoveryrequest" || command == "recoverystate") {
         return quorum_recovery_test(request, command == "recoveryrequest");
     } else if (command == "list") {
         return quorum_list(request);

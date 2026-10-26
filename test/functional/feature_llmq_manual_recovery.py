@@ -8,8 +8,7 @@ spec = importlib.util.spec_from_file_location('pose', functional / 'llmq-lowpara
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 from test_framework.key import CECKey
-from test_framework.messages import CTransaction, FromHex
-from test_framework.util import connect_nodes, assert_equal, wait_until, force_finish_mnsync, p2p_port
+from test_framework.util import connect_nodes, assert_equal, assert_raises_rpc_error, wait_until, force_finish_mnsync, p2p_port
 
 class ManualRecovery(module.LowLLMQPoSeTest):
 
@@ -41,7 +40,9 @@ class ManualRecovery(module.LowLLMQPoSeTest):
             config = Path(self.options.tmpdir) / ('node%d' % i) / 'yerbas.conf'
             config.chmod(384)
             with config.open('a') as output:
-                output.write('sporkaddr=' + authority + '\nsporkkey=' + private + '\n')
+                output.write('sporkaddr=' + authority + '\n')
+                if i == 0:
+                    output.write('sporkkey=' + private + '\n')
 
     def setup_network(self):
         self.options.chain_recovery = True
@@ -52,17 +53,32 @@ class ManualRecovery(module.LowLLMQPoSeTest):
             connect_nodes(self.nodes[0], i)
         self.sync_blocks(self.nodes[:4], timeout=30)
 
-    def record(self, start, active):
-        c = self.nodes[0]
-        record = c.quorum('recoveryrequest', start, 0 if active else start, 2)
-        tx = FromHex(CTransaction(), c.createrawtransaction([], {c.getnewaddress(): 1}))
-        tx.nVersion, tx.nType = (3, 10)
-        tx.vExtraPayload = bytes.fromhex(record['payload'])
-        signed = c.signrawtransaction(c.fundrawtransaction(tx.serialize().hex())['hex'])
-        assert signed['complete']
-        c.sendrawtransaction(signed['hex'])
+    def record(self, active):
+        controller = self.nodes[0]
+        action, opposite = ('on', 'off') if active else ('off', 'on')
+        response = controller.quorum('recovery', action)
+        assert response['submitted']
+        assert response['fee'] > 0
+        assert_equal(-controller.gettransaction(response['txid'])['fee'], response['fee'])
+        assert_equal(response['last_inclusion_height'], response['effective_height'] - 1)
+        assert_equal(response['active'], not active)
+        assert response['pending_authorization'] != response['authorization']
+        assert_equal(response['status'], 'awaiting_confirmation')
+        repeat = controller.quorum('recovery', action)
+        assert not repeat['submitted']
+        assert_equal(repeat['txid'], response['txid'])
+        assert_equal(repeat['pending_authorization'], response['pending_authorization'])
+        assert_equal(controller.quorum('recovery', 'status')['txid'], response['txid'])
+        assert_raises_rpc_error(-8, 'awaiting confirmation', controller.quorum, 'recovery', opposite)
         self.mine(1)
-        return c.getbestblockhash()
+        scheduled = controller.quorum('recovery', 'status')
+        assert_equal(scheduled['status'], 'scheduled')
+        assert_equal(scheduled['active'], not active)
+        assert_equal(scheduled['authorization'], response['pending_authorization'])
+        assert_equal(scheduled['effective_height'], response['effective_height'])
+        assert not controller.quorum('recovery', action)['submitted']
+        assert_raises_rpc_error(-8, 'awaiting its effective height', controller.quorum, 'recovery', opposite)
+        return controller.getbestblockhash(), response['effective_height']
 
     def observer(self, i):
         self.start_node(i)
@@ -78,11 +94,19 @@ class ManualRecovery(module.LowLLMQPoSeTest):
 
     def run_test(self):
         c = self.nodes[0]
+        assert_equal(c.quorum('recovery', 'status')['status'], 'off')
+        assert not c.quorum('recovery', 'off')['submitted']
+        assert_raises_rpc_error(-8, 'Expected on, off, or status', c.quorum, 'recovery', 'invalid')
+        assert_raises_rpc_error(-8, 'No test authority key configured', self.nodes[1].quorum, 'recovery', 'on')
+        assert_raises_rpc_error(-4, 'Insufficient funds', c.quorum, 'recovery', 'on')
+        assert_equal(c.getrawmempool(), [])
         c.spork('SPORK_21_LOW_LLMQ_PARAMS', 0)
         c.spork('SPORK_17_QUORUM_DKG_ENABLED', 0)
         wait_until(lambda: all((n.spork('active')['SPORK_17_QUORUM_DKG_ENABLED'] for n in self.nodes[:4])))
         self.mine(110)
-        self.record(120, True)
+        # A gossip spork alone cannot authorize recorded-history LOW_LLMQ.
+        assert not c.quorum('recoverystate')['active']
+        _, on_height = self.record(True)
         self.registrations = []
         keys = []
         for i in range(1, 4):
@@ -115,15 +139,18 @@ class ManualRecovery(module.LowLLMQPoSeTest):
                 break
         assert c.protx('info', self.registrations[2])['state']['PoSeBanHeight'] >= 0
         self.dkg(2)
-        assert c.getblockcount() > 180 and c.quorum('recoverystate')['active']
+        assert c.getblockcount() > on_height + 60 and c.quorum('recoverystate')['active']
         self.log.info('Manual ON remains active beyond the old automatic expiry; real DKG and PoSe pass')
         self.observer(4)
         self.stop_node(4)
         self.log.info('Fresh signed-history replay while ON passed')
-        off = (c.getblockcount() // 30 + 1) * 30
-        boundary = self.record(off, False)
-        self.mine(off - c.getblockcount())
+        boundary, off = self.record(False)
+        self.mine(off - c.getblockcount() - 1)
+        assert c.quorum('recoverystate')['active']
+        self.mine(1)
         assert not c.quorum('recoverystate')['active']
+        assert_equal(c.quorum('recovery', 'status')['status'], 'off')
+        assert not c.quorum('recovery', 'off')['submitted']
         for i in (1, 2):
             assert not self.nodes[i].quorum('sign', 1, '22' * 32, '33' * 32)
         self.log.info('Manual OFF retires old low quorums for signing')
