@@ -98,7 +98,7 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
     auto pDistributeSnapshotDb = (*p_wallet).assetDistributions.get();
     auto pAssetSnapshotDb = (*p_wallet).assetSnapshots.get();
 
-    if (p_rewardSnapshot.nStatus == CRewardSnapshot::PAUSED || p_rewardSnapshot.nStatus == CRewardSnapshot::COMPLETE) return;
+    if (p_rewardSnapshot.nStatus == CRewardSnapshot::PAUSED) return;
     if (p_wallet->IsLocked()) {
         LogPrint(BCLog::REWARDS, "Skipping distribution: Wallet is locked!\n");
         return;
@@ -125,7 +125,15 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
     }
 
     int nNumberOfTransactions = ((int)paymentDetails.size() + MAX_PAYMENTS_PER_TRANSACTION - 1) / MAX_PAYMENTS_PER_TRANSACTION;
-    CRewardSnapshot copyRewardSnapshot = p_rewardSnapshot;
+    auto setStatus = [&](int status) {
+        CRewardSnapshot updated = p_rewardSnapshot;
+        updated.nStatus = status;
+        if (updated.nStatus == p_rewardSnapshot.nStatus) return;
+        if (!pDistributeSnapshotDb->OverrideDistributeSnapshot(updated.GetHash(), updated))
+            throw std::runtime_error("Cannot save reward distribution status");
+        p_wallet->rewardSnapshots[updated.GetHash()] = updated;
+    };
+    bool allConfirmed = true;
     for (int i = 0; i < nNumberOfTransactions; i++) {
         uint256 txid;
         if (pDistributeSnapshotDb->GetDistributeTransaction(p_rewardSnapshot.GetHash(), i, txid)) {
@@ -135,9 +143,11 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
             if (walletTx) {
                 int depth = walletTx->GetDepthInMainChain();
                 if (depth < 0) {
+                    setStatus(CRewardSnapshot::STUCK_TX);
                     LogPrint(BCLog::REWARDS, "Failed distribution: Tx conflict with another tx: %s: number of block back %d!\n", txid.GetHex(), depth);
                     return;
                 } else if (depth == 0) {
+                    setStatus(CRewardSnapshot::PROCESSING);
                     LogPrint(BCLog::REWARDS, "Tx is in the mempool! %s\n", txid.GetHex());
                     return;
                 } else if (depth > 0) {
@@ -145,10 +155,19 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                     continue;
                 }
             } else {
+                setStatus(CRewardSnapshot::STUCK_TX);
                 LogPrint(BCLog::REWARDS, "Failed to get wallet Tx: %s\n", txid.GetHex());
                 return; // Do not advance a plan whose recorded payment is absent.
             }
         } else {
+            // Never recreate a payment from a completed or inconsistent plan
+            // merely because its transaction reference cannot be read.
+            if (p_rewardSnapshot.nStatus == CRewardSnapshot::COMPLETE ||
+                p_rewardSnapshot.nStatus == CRewardSnapshot::STUCK_TX) {
+                setStatus(CRewardSnapshot::STUCK_TX);
+                return;
+            }
+            allConfirmed = false;
             LogPrint(BCLog::REWARDS, "Didn't find transaction in database creating new transaction: %s %s %d %d\n", p_rewardSnapshot.strOwnershipAsset, p_rewardSnapshot.strDistributionAsset, p_rewardSnapshot.nDistributionAmount, i);
             // Create a new transaction and database it
             int start = i * MAX_PAYMENTS_PER_TRANSACTION;
@@ -162,6 +181,9 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                 throw std::runtime_error("Cannot save reward payment transaction");
         }
     }
+    // Recheck even completed plans: a reorganization can unconfirm a payment.
+    // Never mark a newly broadcast batch complete before it is mined.
+    setStatus(allConfirmed ? CRewardSnapshot::COMPLETE : CRewardSnapshot::PROCESSING);
 }
 
 bool BuildTransaction(

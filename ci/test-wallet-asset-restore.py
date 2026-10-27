@@ -14,6 +14,14 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.error
+import urllib.parse
+
+
+class RPCError(RuntimeError):
+    def __init__(self, error):
+        self.code = error['code']
+        super().__init__(error['message'])
 
 
 def wait_for(check, description, timeout=90):
@@ -26,7 +34,7 @@ def wait_for(check, description, timeout=90):
 
 
 class Node:
-    def __init__(self, binary, directory):
+    def __init__(self, binary, directory, extra_args=()):
         self.binary = binary
         self.directory = directory
         self.directory.mkdir(parents=True)
@@ -36,17 +44,34 @@ class Node:
                 sock.bind(('127.0.0.1', 0))
                 self.ports.append(sock.getsockname()[1])
         self.process = None
+        self.extra_args = extra_args
+        self.wallet = None
+        self.mock_time = 1417713337
 
-    def rpc(self, method, *params):
-        body = json.dumps(dict(jsonrpc='1.0', id='restore-test', method=method, params=params)).encode()
-        request = urllib.request.Request('http://127.0.0.1:' + str(self.ports[0]), body)
+    def rpc(self, method, *params, _wallet=None, **named):
+        if params and named:
+            raise ValueError('Use positional or named RPC parameters, not both')
+        body = json.dumps(dict(jsonrpc='1.0', id='restore-test', method=method, params=named or params)).encode()
+        url = 'http://127.0.0.1:' + str(self.ports[0])
+        wallet = self.wallet if _wallet is None else _wallet
+        if wallet is not None:
+            url += '/wallet/' + urllib.parse.quote(wallet, safe='')
+        request = urllib.request.Request(url, body)
         request.add_header('Authorization', 'Basic ' + base64.b64encode(b'restore-test:isolated-test-only').decode())
         # Ignore desktop HTTP proxy settings for these loopback-only requests.
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(request, timeout=180 if method == 'generate' else 10) as response:
+        try:
+            response = opener.open(request, timeout=180 if method == 'generate' else 60)
+        except urllib.error.HTTPError as exc:
+            # JSON-RPC errors use HTTP 500; retain their code and message so
+            # negative acceptance checks cannot mistake transport failure for rejection.
+            response = exc
+        with response:
             result = json.load(response)
         if result['error']:
-            raise RuntimeError(str(result['error']))
+            raise RPCError(result['error'])
+        if method == 'setmocktime':
+            self.mock_time = params[0]
         return result['result']
 
     def start(self, rescan=False):
@@ -54,9 +79,10 @@ class Node:
         args = [str(self.binary), '-regtest', '-server', '-datadir=' + str(self.directory),
                 '-rpcuser=restore-test', '-rpcpassword=isolated-test-only',
                 '-rpcport=' + str(self.ports[0]), '-port=' + str(self.ports[1]),
-                '-mocktime=1417713337', '-bind=127.0.0.1', '-connect=0', '-dnsseed=0', '-discover=0', '-upnp=0']
+                '-mocktime=' + str(self.mock_time), '-bind=127.0.0.1', '-connect=0', '-dnsseed=0', '-discover=0', '-upnp=0']
         if rescan:
             args.append('-rescan')
+        args.extend(self.extra_args)
         self.process = subprocess.Popen(args, stdout=self.log, stderr=self.log)
         def ready():
             if self.process.poll() is not None:

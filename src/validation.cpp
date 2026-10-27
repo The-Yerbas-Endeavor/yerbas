@@ -1961,6 +1961,13 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                 int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
                 if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
                 fClean = fClean && res != DISCONNECT_UNCLEAN;
+                // Restoring the UTXO must also restore its asset address balance.
+                // This is needed for both real reorgs and VerifyDB's temporary undo.
+                if (isAssetsactive && assetsCache) {
+                    const Coin& restored = view.AccessCoin(out);
+                    if (restored.IsAsset() && !assetsCache->UndoAssetCoin(restored, out))
+                        return DISCONNECT_FAILED;
+                }
 
                 const CTxIn input = tx.vin[j];
 
@@ -2992,6 +2999,10 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         bool flushed = view.Flush();
         assert(flushed);
+        // Publish the asset undo changes just as ConnectTip publishes additions.
+        // Otherwise restrictions, supply and address balances retain the removed block.
+        if (!assetCache.Flush())
+            return AbortNode(state, "Failed to apply disconnected block asset state");
         dbTx->Commit();
     }
     LogPrint(BCLog::BENCHMARK, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);

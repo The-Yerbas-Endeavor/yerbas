@@ -313,7 +313,7 @@ UniValue UpdateAddressRestriction(const JSONRPCRequest &request, const int8_t &f
 
 UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t &flag)
 {
-    /*CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
@@ -333,14 +333,6 @@ UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t
 
     if (assetType != AssetType::RESTRICTED) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Unsupported asset type: ") + AssetTypeToString(assetType));
-    }
-
-    if (flag == 1 && mempool.mapGlobalFreezingAssetTransactions.count(restricted_name)){
-        throw JSONRPCError(RPC_TRANSACTION_REJECTED, std::string("Freezing transaction already in mempool"));
-    }
-
-    if (flag == 0 && mempool.mapGlobalUnFreezingAssetTransactions.count(restricted_name)){
-        throw JSONRPCError(RPC_TRANSACTION_REJECTED, std::string("Unfreezing transaction already in mempool"));
     }
 
     // Get the optional change address
@@ -403,7 +395,7 @@ UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t
     // Display the transaction id
     UniValue result(UniValue::VARR);
     result.push_back(txid);
-    return result;*/
+    return result;
 }
 
 UniValue issue(const JSONRPCRequest& request)
@@ -3036,7 +3028,7 @@ static const CRPCCommand commands[] =
     { "restricted assets",   "transferqualifier",          &transferqualifier,          true, {"qualifier_name", "qty", "to_address", "change_address", "message", "expire_time"}},
     { "restricted assets",   "issuerestrictedasset",       &issuerestrictedasset,       true, {"asset_name","qty","verifier","to_address","change_address","units","reissuable","has_ipfs","ipfs_hash"} },
     { "restricted assets",   "issuequalifierasset",        &issuequalifierasset,        true, {"asset_name","qty","to_address","change_address","has_ipfs","ipfs_hash"} },
-    { "restricted assets",   "reissuerestrictedasset",     &reissuerestrictedasset,     true, {"asset_name", "qty", "change_verifier", "new_verifier", "to_address", "change_address", "new_units", "reissuable", "new_ipfs"}},
+    { "restricted assets",   "reissuerestrictedasset",     &reissuerestrictedasset,     true, {"asset_name", "qty", "to_address", "change_verifier", "new_verifier", "change_address", "new_units", "reissuable", "new_ipfs"}},
     { "restricted assets",   "addtagtoaddress",            &addtagtoaddress,            true, {"tag_name", "to_address", "change_address", "asset_data"}},
     { "restricted assets",   "removetagfromaddress",       &removetagfromaddress,       true, {"tag_name", "to_address", "change_address", "asset_data"}},
     { "restricted assets",   "freezeaddress",              &freezeaddress,              true, {"asset_name", "address", "change_address", "asset_data"}},

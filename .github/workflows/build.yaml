@@ -2,7 +2,7 @@ name: Yerbas Build and Tests
 
 on:
   push:
-    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6"]
+    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0"]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -183,6 +183,14 @@ jobs:
           set -euo pipefail
           python3 ci/test-wallet-asset-restore.py "$PWD/src/yerbasd" \
             --workdir "$PWD/ci-logs/asset-restore" 2>&1 | tee ci-logs/asset-restore.log
+
+      - name: Test asset acceptance and wallet isolation
+        if: matrix.platform.id == 'ubuntu26'
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          python3 ci/test-asset-acceptance.py "$PWD/src/yerbasd" \
+            --workdir "$RUNNER_TEMP/yerbas-asset-acceptance" 2>&1 | tee ci-logs/asset-acceptance.log
 
       - name: Test signed LOW_LLMQ transactions and replay audit
         if: matrix.platform.id == 'ubuntu26'
