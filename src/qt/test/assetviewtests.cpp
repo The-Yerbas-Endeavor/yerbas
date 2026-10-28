@@ -1,6 +1,10 @@
 // Copyright (c) 2026 The Yerbas developers
 // Distributed under the MIT software license, see the accompanying COPYING file.
 #include "assetviewtests.h"
+#include "assetmanagerpage.h"
+#include <QLineEdit>
+#include <QTableView>
+#include <QSignalSpy>
 #include "assetdetailsdialog.h"
 #include "assetfilterproxy.h"
 #include "assetrecord.h"
@@ -118,4 +122,45 @@ void AssetViewTests::imagePreview()
     QTRY_VERIFY(load->isEnabled());
     QCOMPARE(requests, 1);
     QCOMPARE(fullSize->isEnabled(), !redirect);
+}
+
+void AssetViewTests::assetManagerSelection()
+{
+    QStandardItemModel wallet;
+    wallet.setColumnCount(2);
+    for (const QString& name : {"ALPHA", "BETA!"}) {
+        auto* item = new QStandardItem(name);
+        item->setData(name, AssetTableModel::AssetNameRole);
+        item->setData("1", AssetTableModel::FormattedAmountRole);
+        item->setData(name.endsWith('!'), AssetTableModel::AdministratorRole);
+        wallet.appendRow({item, new QStandardItem("1")});
+    }
+    AssetManagerPage page;
+    page.setModel(&wallet);
+    auto* table = page.findChild<QTableView*>("assetManagerTable");
+    auto* search = page.findChild<QLineEdit*>("assetManagerSearch");
+    auto* send = page.findChild<QPushButton*>("assetManagerSend");
+    auto* details = page.findChild<QPushButton*>("assetManagerDetails");
+    auto* selection = page.findChild<QLabel*>("assetManagerSelection");
+    QVERIFY(!send->isEnabled());
+    QVERIFY(!details->isEnabled());
+    QSignalSpy sends(&page, &AssetManagerPage::sendRequested);
+    table->selectRow(1);
+    QVERIFY(send->isEnabled());
+    QVERIFY(selection->text().contains("ownership token"));
+    send->click();
+    QCOMPARE(sends.size(), 1);
+    QCOMPARE(qvariant_cast<QModelIndex>(sends.first().first()).data(AssetTableModel::AssetNameRole).toString(), QString("BETA!"));
+    search->setText("alpha");
+    QCOMPARE(table->model()->rowCount(), 1);
+    QVERIFY(!send->isEnabled()); // Filtering must not send a previously selected asset.
+    table->selectRow(0);
+    QVERIFY(details->isEnabled());
+    wallet.clear();
+    QVERIFY(!send->isEnabled());
+    QVERIFY(!details->isEnabled());
+    QStandardItemModel otherWallet;
+    page.setModel(&otherWallet);
+    QCOMPARE(table->model()->rowCount(), 0);
+    QVERIFY(!send->isEnabled());
 }

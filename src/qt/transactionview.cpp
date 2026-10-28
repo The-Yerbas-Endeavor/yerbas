@@ -751,6 +751,9 @@ void TransactionView::showAssets()
         typeWidget->addItem(tr("Asset Reissued"), TransactionFilterProxy::TYPE(TransactionRecord::Reissue));
         typeWidget->addItem(tr("Asset Received"), TransactionFilterProxy::TYPE(TransactionRecord::TransferFrom));
         typeWidget->addItem(tr("Asset Sent"), TransactionFilterProxy::TYPE(TransactionRecord::TransferTo));
+        typeWidget->addItem(tr("All asset transactions"), TransactionFilterProxy::TYPE(TransactionRecord::Issue) |
+            TransactionFilterProxy::TYPE(TransactionRecord::Reissue) | TransactionFilterProxy::TYPE(TransactionRecord::TransferFrom) |
+            TransactionFilterProxy::TYPE(TransactionRecord::TransferTo));
 
         assetNameWidget->show();
 
@@ -764,5 +767,19 @@ void TransactionView::showAssets()
     if (!AreAssetsDeployed())
     {
         assetNameWidget->hide();
+    }
+}
+void TransactionView::showAssetHistory()
+{
+    showAssets();
+    const quint32 assetTypes = TransactionFilterProxy::TYPE(TransactionRecord::Issue) |
+        TransactionFilterProxy::TYPE(TransactionRecord::Reissue) | TransactionFilterProxy::TYPE(TransactionRecord::TransferFrom) |
+        TransactionFilterProxy::TYPE(TransactionRecord::TransferTo);
+    const int index = typeWidget->findData(assetTypes);
+    if (index >= 0) {
+        typeWidget->setCurrentIndex(index);
+        chooseType(index);
+        assetNameWidget->clear();
+        changedAssetName();
     }
 }

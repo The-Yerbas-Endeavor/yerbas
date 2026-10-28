@@ -7,6 +7,7 @@ class AssetViewTests : public QObject
 {
     Q_OBJECT
 private Q_SLOTS:
+    void assetManagerSelection();
     void contentUrls();
     void filteringAndSorting();
     void quantities();

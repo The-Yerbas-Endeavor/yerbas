@@ -21,6 +21,8 @@ class TransactionView;
 class WalletModel;
 class AddressBookPage;
 
+class AssetManagerPage;
+class QTabWidget;
 class AssetsDialog;
 class CreateAssetDialog;
 class ReissueAssetDialog;
@@ -79,6 +81,9 @@ private:
     QLabel *transactionSum;
     const PlatformStyle *platformStyle;
 
+    bool firstAssetSendVisit = true;
+    QTabWidget *assetManagerTabs;
+    AssetManagerPage *assetManagerPage;
     AssetsDialog *assetsPage;
     CreateAssetDialog *createAssetsPage;
     ReissueAssetDialog *manageAssetsPage;

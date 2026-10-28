@@ -392,8 +392,8 @@ void BitcoinGUI::createActions()
         connect(smartnodeAction, SIGNAL(triggered()), this, SLOT(gotoSmartnodePage()));
     }
 
-    TransferAssetsAction = new QAction(tr("&Transfer Assets"), this);
-    TransferAssetsAction->setStatusTip(tr("Transfer assets to YERB addresses"));
+    TransferAssetsAction = new QAction(tr("&Asset Manager"), this);
+    TransferAssetsAction->setStatusTip(tr("View, send, create and manage assets in this wallet"));
     TransferAssetsAction->setCheckable(true);
     tabGroup->addAction(TransferAssetsAction);
 
@@ -629,9 +629,7 @@ void BitcoinGUI::createToolBars()
         toolbar->setMovable(false); // remove unused icon in upper left corner
         overviewAction->setChecked(true);
         toolbar->addAction(TransferAssetsAction);
-        toolbar->addAction(CreateAssetsAction);
-        toolbar->addAction(ManageAssetsAction);
-        toolbar->addAction(RestrictedAssetsAction);
+
 
         // Add Yerbas logo on the right side
         QWidget* spacer = new QWidget();
@@ -1019,19 +1017,19 @@ void BitcoinGUI::gotoAssetsPage()
 
 void BitcoinGUI::gotoCreateAssetsPage()
 {
-    CreateAssetsAction->setChecked(true);
+    TransferAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoCreateAssetsPage();
 }
 
 void BitcoinGUI::gotoManageAssetsPage()
 {
-    ManageAssetsAction->setChecked(true);
+    TransferAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoManageAssetsPage();
 };
 
 void BitcoinGUI::gotoRestrictedAssetsPage()
 {
-    RestrictedAssetsAction->setChecked(true);
+    TransferAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoRestrictedAssetsPage();
 };
 
@@ -1476,7 +1474,7 @@ void BitcoinGUI::checkAssets()
     // Check that status of RIP2 and activate the assets icon if it is active
     if(AreAssetsDeployed()) {
         TransferAssetsAction->setDisabled(false);
-        TransferAssetsAction->setToolTip(tr("Transfer assets to YERB addresses"));
+        TransferAssetsAction->setToolTip(tr("View, send, create and manage assets in this wallet"));
         CreateAssetsAction->setDisabled(false);
         CreateAssetsAction->setToolTip(tr("Create new assets"));
         ManageAssetsAction->setDisabled(false);

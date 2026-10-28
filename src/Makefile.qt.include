@@ -66,6 +66,7 @@ QT_MOC_CPP = \
   qt/moc_askpassphrasedialog.cpp \
   qt/moc_assetcontroldialog.cpp \
   qt/moc_assetcontroltreewidget.cpp \
+  qt/moc_assetmanagerpage.cpp \
   qt/moc_assetfilterproxy.cpp \
   qt/moc_assetsdialog.cpp \
   qt/moc_assettablemodel.cpp \
@@ -148,6 +149,7 @@ BITCOIN_QT_H = \
   qt/assetcontroldialog.h\
   qt/assetcontroltreewidget.h \
   qt/assetfilterproxy.h \
+  qt/assetmanagerpage.h \
   qt/assetdetailsdialog.h \
   qt/assetrecord.h \
   qt/assetsdialog.h \
@@ -275,6 +277,7 @@ RES_ICONS = \
   qt/res/icons/network_disabled.png
 
 BITCOIN_QT_BASE_CPP = \
+  qt/assetmanagerpage.cpp \
   qt/assetdetailsdialog.cpp \
   qt/assettablemodel.cpp \
   qt/bantablemodel.cpp \
