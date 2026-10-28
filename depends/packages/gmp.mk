@@ -1,6 +1,6 @@
 package=gmp
 $(package)_version=6.3.0
-$(package)_download_path=https://mirrors.kernel.org/gnu/gmp
+$(package)_download_path=https://ftp.gnu.org/gnu/gmp
 $(package)_file_name=gmp-$($(package)_version).tar.bz2
 $(package)_sha256_hash=ac28211a7cfb609bae2e2c8d6058d66c8fe96434f740cf6fe2e47b000d1c20cb
 
