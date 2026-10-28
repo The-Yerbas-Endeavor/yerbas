@@ -146,6 +146,9 @@ bool CFinalCommitment::VerifyNull() const
     if (nVersion == 0 || nVersion > CURRENT_VERSION || !IsNull() || signers.size() != validMembers.size()) {
         return false;
     }
+    // Mainnet must retain the old exact-size rule until recorded cutover.
+    // Broad legacy sizes remain a replay accommodation on non-mainnet networks.
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN) return VerifyNull(params);
     // An empty historical record does not create a quorum, change membership,
     // or authorize signatures. Do not reinterpret it using today's live DKG
     // size. The caller still checks type, quorum ancestry and mining window.

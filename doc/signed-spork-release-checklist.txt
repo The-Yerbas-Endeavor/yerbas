@@ -40,8 +40,11 @@ Do not use the legacy gossip spork command to activate recorded LOW_LLMQ;
 it does not create a transaction.
 
 History and upgrades
-Before the first record's effective height, validation retains the existing legacy path and established
-legacy spork setting. This does not reconstruct missing old spork messages.
+Before the first record's effective height, mainnet retains the legacy exact-size
+null-commitment check, hard-coded historical LOW_LLMQ windows, and established
+legacy spork setting. The broad legacy null-size replay accommodation is not
+used on mainnet. Historical windows already encoded in chainparams are preserved;
+this does not reconstruct any additional unrecorded spork transitions.
 Above activation, the chain records determine recovery history. Do not change
 the legacy spork setting as part of a recorded transition.
 Upgrade before the first transaction. Existing unpruned nodes automatically
@@ -68,3 +71,17 @@ The local tests cover signed ON/OFF, exact effective boundaries, fresh sync,
 reindex, rollback, preserved registrations, real DKG/PoSe, legacy quorum
 retirement, and late-upgrade recovery. Cross-platform CI and testnet results must
 be recorded separately; local passes are not a mainnet deployment approval.
+
+V4 wallet asset activation safeguard
+Mainnet asset creation and sending unlock at tip height 1,195,400. This is
+estimated to be near 2027-01-01 00:00 UTC from explorer block 1,149,666 at
+2026-10-28 03:20:02 UTC and the preceding 10,080 blocks averaging 122.5578 seconds.
+It is a fixed block height, not a clock-time guarantee (nominal 120-second
+spacing instead projects height 1,196,366). Recheck the estimate before release.
+Qt, issuance/transfer/reissue RPCs, asset builders, and wallet commit enforce it.
+This includes asset ownership transfers, reissuance and asset reward payouts.
+Ordinary YERB payments and testnet/regtest asset use remain enabled. Receiving,
+viewing and validating assets are unchanged. A rollback below the height relocks.
+This v4 wallet policy does not change consensus, affect old binaries, or prevent
+older/custom clients and raw tools from submitting transactions. A protocol
+version advertisement alone does not disable older wallets' asset issuance.

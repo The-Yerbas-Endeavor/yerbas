@@ -376,3 +376,21 @@ BOOST_AUTO_TEST_CASE(resize_across_low_llmq_sessions_retains_peer_limits)
 }
 
 BOOST_AUTO_TEST_SUITE_END()
+
+// Exercise the public-network dispatch, not just the explicit-size overload.
+struct MainnetCommitmentSetup : TestingSetup {
+    MainnetCommitmentSetup() : TestingSetup(CBaseChainParams::MAIN) {}
+};
+BOOST_FIXTURE_TEST_SUITE(mainnet_legacy_commitment_tests, MainnetCommitmentSetup)
+BOOST_AUTO_TEST_CASE(precutover_null_sizes_match_legacy_validator)
+{
+    const auto configured = Params().GetConsensus().llmqs.at(Consensus::LLMQ_50_60);
+    for (int size : {3, 10, 50, 200}) {
+        auto profile = configured;
+        profile.size = size;
+        llmq::CFinalCommitment qc(profile, Params().GenesisBlock().GetHash());
+        BOOST_CHECK_EQUAL(qc.VerifyNull(), size == configured.size);
+        BOOST_CHECK_EQUAL(qc.VerifyNull(), qc.VerifyNull(configured));
+    }
+}
+BOOST_AUTO_TEST_SUITE_END()

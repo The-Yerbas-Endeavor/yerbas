@@ -30,6 +30,7 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "wallet/coincontrol.h"
+#include "wallet/assetissuance.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 
@@ -400,6 +401,10 @@ UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t
 
 UniValue issue(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 1 || request.params.size() > 8)
         throw std::runtime_error(
             "issue \"asset_name\" qty \"( to_address )\" \"( change_address )\" ( units ) ( reissuable ) ( has_ipfs ) \"( ipfs_hash )\"\n"
@@ -573,6 +578,10 @@ UniValue issue(const JSONRPCRequest& request)
 
 UniValue issueunique(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 2 || request.params.size() > 5)
         throw std::runtime_error(
                 "issueunique \"root_name\" [asset_tags] ( [ipfs_hashes] ) \"( to_address )\" \"( change_address )\"\n"
@@ -1130,6 +1139,10 @@ UniValue listaddressesbyasset(const JSONRPCRequest &request)
 
 UniValue transfer(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 3 || request.params.size() > 7)
         throw std::runtime_error(
                 "transfer \"asset_name\" qty \"to_address\" \"message\" expire_time \"change_address\" \"asset_change_address\"\n"
@@ -1248,6 +1261,10 @@ UniValue transfer(const JSONRPCRequest& request)
 
 UniValue transferfromaddresses(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 4 || request.params.size() > 8)
         throw std::runtime_error(
             "transferfromaddresses \"asset_name\" [\"from_addresses\"] qty \"to_address\" \"message\" expire_time \"yerb_change_address\" \"asset_change_address\"\n"
@@ -1400,6 +1417,10 @@ UniValue transferfromaddresses(const JSONRPCRequest& request)
 
 UniValue transferfromaddress(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 4 || request.params.size() > 8)
         throw std::runtime_error(
                 "transferfromaddress \"asset_name\" \"from_address\" qty \"to_address\" \"message\" expire_time \"yerb_change_address\" \"asset_change_address\"\n"
@@ -1545,6 +1566,10 @@ UniValue transferfromaddress(const JSONRPCRequest& request)
 
 UniValue reissue(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() > 7 || request.params.size() < 3)
         throw std::runtime_error(
                 "reissue \"asset_name\" qty \"to_address\" \"change_address\" ( reissuable ) ( new_units) \"( new_ipfs )\" \n"
@@ -2301,6 +2326,10 @@ UniValue checkglobalrestriction(const JSONRPCRequest& request)
 
 UniValue issuequalifierasset(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 1 || request.params.size() > 6)
         throw std::runtime_error(
                 "issuequalifierasset \"asset_name\" qty \"( to_address )\" \"( change_address )\" ( has_ipfs ) \"( ipfs_hash )\"\n"
@@ -2457,6 +2486,10 @@ UniValue issuequalifierasset(const JSONRPCRequest& request)
 
 UniValue issuerestrictedasset(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || request.params.size() < 4 || request.params.size() > 9)
         throw std::runtime_error(
                 "issuerestrictedasset \"asset_name\" qty \"verifier\" \"to_address\" \"( change_address )\" (units) ( reissuable ) ( has_ipfs ) \"( ipfs_hash )\"\n"
@@ -2605,6 +2638,10 @@ UniValue issuerestrictedasset(const JSONRPCRequest& request)
 
 UniValue reissuerestrictedasset(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || request.params.size() < 3 || request.params.size() > 9)
         throw std::runtime_error(
                 "reissuerestrictedasset \"asset_name\" qty to_address ( change_verifier ) ( \"new_verifier\" ) \"( change_address )\" ( new_units ) ( reissuable ) \"( new_ipfs )\"\n"
@@ -2747,6 +2784,10 @@ UniValue reissuerestrictedasset(const JSONRPCRequest& request)
 
 UniValue transferqualifier(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 3 || request.params.size() > 6)
         throw std::runtime_error(
                 "transferqualifier \"qualifier_name\" qty \"to_address\" (\"change_address\") (\"message\") (expire_time) \n"

@@ -340,11 +340,11 @@ public:
         return true;
     }
 
-    bool TxnCommit()
+    bool TxnCommit(bool sync = false)
     {
         if (!pdb || !activeTxn)
             return false;
-        int ret = activeTxn->commit(0);
+        int ret = activeTxn->commit(sync ? DB_TXN_SYNC : 0);
         activeTxn = nullptr;
         return (ret == 0);
     }

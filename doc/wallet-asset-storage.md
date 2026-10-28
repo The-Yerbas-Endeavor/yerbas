@@ -94,3 +94,14 @@ wallet-enabled unit-test discovery and CI.
 
 Focused tests and compilation are not a substitute for a complete application
 build and full regression suite. Those results are reported separately.
+
+Reward payment interruption handling
+-----------------------------------
+Each distribution batch saves its intended transaction ID in wallet.dat using a
+synchronous database transaction before committing or broadcasting the payment.
+An existing reservation is never overwritten by an automatic retry. If a process
+stops after reservation but before the wallet transaction is saved, the batch
+stops for review instead of generating another payment. A failed transaction
+commit also retains the reservation. This trades automatic retry for protection
+against duplicate payouts; it does not make an old backup current or guarantee
+exactly-once payment after restoring a backup predating the reservation.

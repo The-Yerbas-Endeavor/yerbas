@@ -156,6 +156,8 @@ bool CalculateRewardPayments(CAmount budget, int units, const std::vector<OwnerA
 bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList);
 bool AddDistributeRewardSnapshot(CWallet& wallet, CRewardSnapshot& p_rewardSnapshot);
 
+bool ReserveRewardPayment(CWallet& wallet, const uint256& plan, int batch, const uint256& txid);
+
 void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewardSnapshot);
 
 bool BuildTransaction(

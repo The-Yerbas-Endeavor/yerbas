@@ -177,7 +177,7 @@ bool OverrideDistributeSnapshot(const uint256& hash, const CRewardSnapshot& p_re
 // Add a new distribution transaction
 bool CDistributeSnapshotRequestDB::AddDistributeTransaction(const uint256& hash, const int& nBatchNumber, const uint256& txid)
 {
-    return Write(std::make_pair(DISTRIBUTETRANSACTION_FLAG, std::make_pair(hash, nBatchNumber)), txid);
+    return Write(std::make_pair(DISTRIBUTETRANSACTION_FLAG, std::make_pair(hash, nBatchNumber)), txid, true);
 }
 
 // Find a distribution transaction from the database

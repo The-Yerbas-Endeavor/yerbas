@@ -2,7 +2,7 @@ name: Yerbas Build and Tests
 
 on:
   push:
-    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1"]
+    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2"]
     tags: ['v*']
   pull_request:
   workflow_dispatch:

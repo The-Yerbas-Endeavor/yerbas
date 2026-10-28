@@ -1,3 +1,4 @@
+#include "wallet/assetissuance.h"
 // Copyright (c) 2017-2021 The Yerbas Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -3688,6 +3689,29 @@ std::string EncodeIPFS(std::string decoded){
 };
 
 #ifdef ENABLE_WALLET
+bool IsWalletAssetTransaction(const CTransaction& tx)
+{
+    if (tx.nType == TRANSACTION_ASSET_REGISTER || tx.nType == TRANSACTION_ASSET_REISUE) return true;
+    for (const auto& output : tx.vout) {
+        const auto& script = output.scriptPubKey;
+        if (script.IsAssetScript() || script.IsNullAssetTxDataScript() ||
+            script.IsNullAssetVerifierTxDataScript() || script.IsNullGlobalRestrictionAssetTxDataScript()) return true;
+    }
+    return false;
+}
+
+bool WalletAssetOperationsAllowed(std::string& reason)
+{
+    LOCK(cs_main);
+    reason.clear();
+    if (WalletAssetHeightReached(Params().NetworkIDString() == CBaseChainParams::MAIN,
+                                       chainActive.Height(), MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT)) return true;
+    reason = MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT < 0
+        ? "Asset creation and sending are temporarily disabled on mainnet. The activation height has not been set."
+        : strprintf("Asset creation and sending are disabled until mainnet block %d (estimated January 1, 2027 UTC).", MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT);
+    return false;
+}
+
 bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const CNewAsset& asset, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string)
 {
     std::vector<CNewAsset> assets;
@@ -3697,6 +3721,11 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const C
 
 bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const std::vector<CNewAsset> assets, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string)
 {
+    std::string issuanceReason;
+    if (!WalletAssetOperationsAllowed(issuanceReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, issuanceReason);
+        return false;
+    }
     std::string change_address = EncodeDestination(coinControl.destChange);
 
     auto currentActiveAssetCache = GetCurrentAssetCache();
@@ -3857,6 +3886,12 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
 
 bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const CReissueAsset& reissueAsset, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string)
 {
+    std::string activationReason;
+    if (!WalletAssetOperationsAllowed(activationReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, activationReason);
+        return false;
+    }
+
     // Create transaction variables
     std::string strTxError;
     std::vector<CRecipient> vecSend;
@@ -4038,6 +4073,12 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
 // nullGlobalRestrictionData -> Use this to globally freeze/unfreeze a restricted asset.
 bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinControl, const std::vector< std::pair<CAssetTransfer, std::string> >vTransfers, const std::string& changeAddress, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::vector<std::pair<CNullAssetTxData, std::string> >* nullAssetTxData, std::vector<CNullAssetTxData>* nullGlobalRestrictionData)
 {
+    std::string activationReason;
+    if (!WalletAssetOperationsAllowed(activationReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, activationReason);
+        return false;
+    }
+
     // Initialize Values for transaction
     std::string strTxError;
     std::vector<CRecipient> vecSend;
@@ -4187,6 +4228,12 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
 
 bool SendAssetTransaction(CWallet* pwallet, CWalletTx& transaction, CReserveKey& reserveKey, std::pair<int, std::string>& error, std::string& txid)
 {
+    std::string activationReason;
+    if (!WalletAssetOperationsAllowed(activationReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, activationReason);
+        return false;
+    }
+
     CValidationState state;
     if (!pwallet->CommitTransaction(transaction, reserveKey, g_connman.get(), state)) {
         error = std::make_pair(RPC_WALLET_ERROR, strprintf("Error: The transaction was rejected! Reason given: %s", state.GetRejectReason()));

@@ -907,9 +907,9 @@ bool CWalletDB::TxnBegin()
     return batch.TxnBegin();
 }
 
-bool CWalletDB::TxnCommit()
+bool CWalletDB::TxnCommit(bool sync)
 {
-    return batch.TxnCommit();
+    return batch.TxnCommit(sync);
 }
 
 bool CWalletDB::TxnAbort()

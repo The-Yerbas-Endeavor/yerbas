@@ -93,6 +93,17 @@ bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& plan, std:
     return CalculateRewardPayments(plan.nDistributionAmount, units, owners, payments);
 }
 
+// Never replace an existing reservation, even if its wallet transaction is
+// missing. An interrupted commit needs operator review, not a second payment.
+bool ReserveRewardPayment(CWallet& wallet, const uint256& plan, int batch, const uint256& txid)
+{
+    LOCK(wallet.cs_wallet);
+    uint256 existing;
+    if (batch < 0 || txid.IsNull() || !wallet.assetDistributions ||
+        wallet.assetDistributions->GetDistributeTransaction(plan, batch, existing)) return false;
+    return wallet.assetDistributions->AddDistributeTransaction(plan, batch, txid);
+}
+
 void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewardSnapshot)
 {
     auto pDistributeSnapshotDb = (*p_wallet).assetDistributions.get();
@@ -177,8 +188,7 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                 LogPrint(BCLog::REWARDS, "Failed to build Tx: distribute: %s, amount: %d\n", p_rewardSnapshot.strDistributionAsset, p_rewardSnapshot.nDistributionAmount);
                 return;
             }
-            if (!pDistributeSnapshotDb->AddDistributeTransaction(p_rewardSnapshot.GetHash(), i, retTxid))
-                throw std::runtime_error("Cannot save reward payment transaction");
+            // BuildTransaction reserves the batch durably before committing it.
         }
     }
     // Recheck even completed plans: a reorganization can unconfirm a payment.
@@ -271,6 +281,11 @@ bool BuildTransaction(
             return false;
         }
 
+        if (!ReserveRewardPayment(*p_walletPtr, rewardSnapshotHash,
+                                  start / MAX_PAYMENTS_PER_TRANSACTION, txnPtr->GetHash())) {
+            LogPrint(BCLog::REWARDS, "Cannot reserve reward payment; refusing to commit\n");
+            return false;
+        }
         if (!p_walletPtr->CommitTransaction(*txnPtr.get(), *reserveKeyPtr.get(), g_connman.get(), state)) {
             mapRewardSnapshots[rewardSnapshotHash].nStatus = CRewardSnapshot::FAILED_COMMIT_TRANSACTION;
             pDistributeSnapshotDb->OverrideDistributeSnapshot(rewardSnapshotHash, mapRewardSnapshots.at(rewardSnapshotHash));
@@ -314,6 +329,11 @@ bool BuildTransaction(
             return false;
         }
 
+        if (!ReserveRewardPayment(*p_walletPtr, rewardSnapshotHash,
+                                  start / MAX_PAYMENTS_PER_TRANSACTION, txnPtr->GetHash())) {
+            LogPrint(BCLog::REWARDS, "Cannot reserve reward payment; refusing to commit\n");
+            return false;
+        }
         if (!p_walletPtr->CommitTransaction(*txnPtr.get(), *reserveKeyPtr.get(), g_connman.get(), state)) {
             mapRewardSnapshots[rewardSnapshotHash].nStatus = CRewardSnapshot::FAILED_COMMIT_TRANSACTION;
             pDistributeSnapshotDb->OverrideDistributeSnapshot(rewardSnapshotHash, mapRewardSnapshots.at(rewardSnapshotHash));

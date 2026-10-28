@@ -1,3 +1,4 @@
+#include "wallet/assetissuance.h"
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
 // Copyright (c) 2014-2020 The Dash Core developers
@@ -5229,6 +5230,9 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
 {
     {
         LOCK2(cs_main, cs_wallet);
+        std::string activationReason;
+        if (IsWalletAssetTransaction(*wtxNew.tx) && !WalletAssetOperationsAllowed(activationReason))
+            return state.Invalid(false, REJECT_INVALID, "wallet-assets-not-active", activationReason);
         LogPrintf("CommitTransaction:\n%s", wtxNew.tx->ToString());
         {
             // Take key pair from key pool so it won't be used again

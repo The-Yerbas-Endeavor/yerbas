@@ -349,14 +349,14 @@ bool CWalletAssetDB::WriteSerialized(const CDataStream& key, const CDataStream* 
 #ifdef ENABLE_WALLET
     if (wallet) {
         LOCK(wallet->cs_wallet);
-        if (!Persist(key, value)) return false;
+        if (!Persist(key, value, sync)) return false;
         return value ? CDBWrapper::Write(key, *value, sync) : CDBWrapper::Erase(key, sync);
     }
 #endif
     return value ? CDBWrapper::Write(key, *value, sync) : CDBWrapper::Erase(key, sync);
 }
 
-bool CWalletAssetDB::Persist(const CDataStream& key, const CDataStream* value)
+bool CWalletAssetDB::Persist(const CDataStream& key, const CDataStream* value, bool sync)
 {
 #ifdef ENABLE_WALLET
     if (wallet) {
@@ -365,7 +365,14 @@ bool CWalletAssetDB::Persist(const CDataStream& key, const CDataStream* value)
         CWalletDB db(wallet->GetDBHandle());
         if (value) {
             std::vector<unsigned char> bytes(value->begin(), value->end());
-            if (!ValidateWalletAssetRecord(recordKey, bytes) || !db.WriteAssetRecord(recordKey, bytes)) return false;
+            if (!ValidateWalletAssetRecord(recordKey, bytes)) return false;
+            if (sync && !db.TxnBegin()) return false;
+            if (!db.WriteAssetRecord(recordKey, bytes)) {
+                if (sync) db.TxnAbort();
+                return false;
+            }
+            // Payment reservations must reach durable storage before broadcast.
+            if (sync && !db.TxnCommit(true)) return false;
             wallet->walletAssetRecords[recordKey] = std::move(bytes);
         } else {
             if (!db.EraseAssetRecord(recordKey)) return false;

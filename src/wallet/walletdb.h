@@ -199,7 +199,7 @@ public:
     //! Begin a new transaction
     bool TxnBegin();
     //! Commit current transaction
-    bool TxnCommit();
+    bool TxnCommit(bool sync = false);
     //! Abort current transaction
     bool TxnAbort();
     //! Read wallet version

@@ -14,7 +14,7 @@ class CWallet;
 class CWalletAssetDB : public CDBWrapper {
     CWallet* wallet = nullptr;
     std::string section;
-    bool Persist(const CDataStream& key, const CDataStream* value);
+    bool Persist(const CDataStream& key, const CDataStream* value, bool sync);
     bool WriteSerialized(const CDataStream& key, const CDataStream* value, bool sync);
 public:
     using CDBWrapper::CDBWrapper;

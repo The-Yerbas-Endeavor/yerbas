@@ -2,6 +2,11 @@
 // Distributed under the MIT software license, see the accompanying COPYING file.
 #include "assetviewtests.h"
 #include "assetmanagerpage.h"
+#include "createassetdialog.h"
+#include "assetsdialog.h"
+#include "platformstyle.h"
+#include "chainparams.h"
+#include <memory>
 #include <QLineEdit>
 #include <QTableView>
 #include <QSignalSpy>
@@ -163,4 +168,30 @@ void AssetViewTests::assetManagerSelection()
     page.setModel(&otherWallet);
     QCOMPARE(table->model()->rowCount(), 0);
     QVERIFY(!send->isEnabled());
+}
+
+void AssetViewTests::mainnetIssuanceLock()
+{
+    QCOMPARE(Params().NetworkIDString(), std::string(CBaseChainParams::MAIN));
+    std::unique_ptr<const PlatformStyle> style(PlatformStyle::instantiate("other"));
+    CreateAssetDialog dialog(style.get());
+    auto* button = dialog.findChild<QPushButton*>("createAssetButton");
+    auto* notice = dialog.findChild<QLabel*>("issuanceAvailabilityLabel");
+    QVERIFY(button);
+    QVERIFY(notice);
+    QVERIFY(!button->isEnabled());
+    QVERIFY(!notice->isHidden());
+    QVERIFY(notice->text().contains("1195400"));
+    auto* name = dialog.findChild<QLineEdit*>("nameText");
+    QVERIFY(name);
+    name->setText("LOCKTEST");
+    QVERIFY(!button->isEnabled());
+    AssetsDialog sendDialog(style.get());
+    auto* send = sendDialog.findChild<QPushButton*>("sendButton");
+    auto* sendNotice = sendDialog.findChild<QLabel*>("assetAvailabilityLabel");
+    QVERIFY(send);
+    QVERIFY(sendNotice);
+    QVERIFY(!send->isEnabled());
+    QVERIFY(!sendNotice->isHidden());
+    QVERIFY(sendNotice->text().contains("1195400"));
 }
