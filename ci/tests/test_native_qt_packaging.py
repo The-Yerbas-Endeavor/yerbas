@@ -33,7 +33,7 @@ class NativeQtPackagingTests(unittest.TestCase):
             moved = root / 'relocated wallet'
             (root / 'package').rename(moved)
             shutil.rmtree(prefix)
-            output = subprocess.check_output([str(moved / 'bin/yerbas-qt'), 'argument with spaces'], text=True).splitlines()
+            output = subprocess.check_output([str(moved / 'yerbas-qt'), 'argument with spaces'], text=True).splitlines()
             self.assertEqual(output[0].split(':')[0], str(moved / 'lib'))
             self.assertEqual(output[1], str(moved / 'plugins'))
             self.assertEqual(output[2], 'argument with spaces')

@@ -233,14 +233,14 @@ jobs:
             python3 contrib/windeploy/package.py --depends "depends/$HOST_TRIPLE" \
               --output package --tests-output test-binaries
           else
-            mkdir -p package/bin test-binaries
+            mkdir -p package test-binaries
             for name in yerbasd yerbas-cli; do
-              install -m755 "src/${name}${BINARY_EXTENSION}" package/bin/
+              install -m755 "src/${name}${BINARY_EXTENSION}" package/
             done
             install -m755 "src/test/test_yerbas${BINARY_EXTENSION}" test-binaries/
             if [[ "$PLATFORM_ID" == ubuntu26 ]]; then
               # Copy real executables when libtool generated launcher scripts.
-              for entry in "src/qt/yerbas-qt:package/bin" "src/qt/test/test_yerbas-qt:test-binaries"; do
+              for entry in "src/qt/yerbas-qt:package" "src/qt/test/test_yerbas-qt:test-binaries"; do
                 source="${entry%%:*}"
                 destination="${entry#*:}"
                 real="$(dirname "$source")/.libs/$(basename "$source")"
@@ -401,7 +401,7 @@ jobs:
           elif [[ "${{ matrix.platform.id }}" == ubuntu26 ]]; then
             QT_QPA_PLATFORM=minimal ./test-binaries/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
           else
-            QT_QPA_PLATFORM=minimal ./test-binaries/bin/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
+            QT_QPA_PLATFORM=minimal ./test-binaries/test_yerbas-qt 2>&1 | tee test-results/qt-tests.log
           fi
 
       - name: Run Windows Qt and asset viewer tests

@@ -29,10 +29,9 @@ def linux_bundle(prefix, target, source, name):
     for item in (prefix / 'lib').glob('*.so*'):
         shutil.copy2(item, libraries / item.name, follow_symlinks=False)
     shutil.copytree(prefix / 'plugins', target / 'plugins', dirs_exist_ok=True, symlinks=True)
-    (target / 'bin').mkdir(exist_ok=True)
-    launcher = target / 'bin' / name
+    launcher = target / name
     launcher.write_text('#!/bin/sh\nset -eu\n'
-                        'root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)\n'
+                        'root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\n'
                         'export LD_LIBRARY_PATH="$root/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
                         'export QT_PLUGIN_PATH="$root/plugins"\n'
                         f'exec "$root/libexec/{name}" "$@"\n')
@@ -108,7 +107,7 @@ def main():
         linux_bundle(args.prefix, args.output, 'src/qt/yerbas-qt', 'yerbas-qt')
         linux_bundle(args.prefix, args.tests_output, 'src/qt/test/test_yerbas-qt', 'test_yerbas-qt')
         (args.output / 'README-Qt.txt').write_text(
-            'Run bin/yerbas-qt; keep the entire extracted directory together.\n'
+            'Run ./yerbas-qt; keep the entire extracted directory together.\n'
             'Qt libraries and plugins are included. Use the Ubuntu version/architecture in the archive name.\n'
             'Desktop runtime: sudo apt-get install libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 '
             'libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0\n')

@@ -84,7 +84,7 @@ def main():
     for dest in (output, tests):
         if dest.exists() and any(dest.iterdir()):
             parser.error(f'Output directory must be empty: {dest}')
-    bin_dir = output / 'bin'
+    bin_dir = output
     bin_dir.mkdir(parents=True, exist_ok=True)
     tests.mkdir(parents=True, exist_ok=True)
     for binary in ('yerbasd.exe', 'yerbas-cli.exe', 'qt/yerbas-qt.exe'):
