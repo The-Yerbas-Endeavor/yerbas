@@ -30,15 +30,20 @@ def main():
     parser.add_argument('--prefix', type=Path, required=True)
     parser.add_argument('--cmake', required=True)
     parser.add_argument('--jobs', type=int, default=2)
+    parser.add_argument('--static', action='store_true',
+                        help='Build static Qt for the standalone Linux wallet experiment')
     args = parser.parse_args()
     prefix = args.prefix.resolve()
+    if args.static and not sys.platform.startswith('linux'):
+        parser.error('--static is currently supported only for the Linux build')
     sources = ROOT / 'depends/sources'
-    work = ROOT / 'qt-native-work'
+    work = ROOT / ('qt-native-static-work' if args.static else 'qt-native-work')
     sources.mkdir(parents=True, exist_ok=True)
     common = ['-G', 'Unix Makefiles', f'-DCMAKE_INSTALL_PREFIX={prefix}',
               f'-DCMAKE_PREFIX_PATH={prefix}', f'-DCMAKE_INSTALL_RPATH={prefix}/lib',
               '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_INSTALL_LIBDIR=lib',
-              '-DBUILD_SHARED_LIBS=ON', '-DQT_BUILD_TESTS=OFF', '-DQT_BUILD_EXAMPLES=OFF']
+              f'-DBUILD_SHARED_LIBS={"OFF" if args.static else "ON"}',
+              '-DQT_BUILD_TESTS=OFF', '-DQT_BUILD_EXAMPLES=OFF']
     if sys.platform == 'darwin':
         common += ['-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0', '-DFEATURE_framework=OFF']
     for package in ('qt', 'native_qttools', 'qt5compat'):

@@ -92,6 +92,8 @@ dnl Outputs: See _BITCOIN_QT_FIND_LIBS
 dnl Outputs: Sets variables for all qt-related tools.
 dnl Outputs: bitcoin_enable_qt, bitcoin_enable_qt_dbus, bitcoin_enable_qt_test
 AC_DEFUN([BITCOIN_QT_CONFIGURE],[
+  AC_ARG_VAR([QT_STATIC_LIBS], [Static Qt link flags from ci/static-qt-link.py])
+  AC_ARG_VAR([QT_STATIC_TEST_LIBS], [Static Qt test link flags from ci/static-qt-link.py])
   qt_version=">= $1"
   qt_lib_prefix="Qt6"
   BITCOIN_QT_CHECK([_BITCOIN_QT_FIND_LIBS])
@@ -102,7 +104,11 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
     _BITCOIN_QT_IS_STATIC
     CPPFLAGS=$TEMP_CPPFLAGS
     if test "x$bitcoin_cv_static_qt" = xyes; then
-      BITCOIN_QT_FAIL([Static Qt is unsupported; use shared Qt 6 development packages])
+      if test -z "$QT_STATIC_LIBS" || test -z "$QT_STATIC_TEST_LIBS"; then
+        BITCOIN_QT_FAIL([Static Qt requires QT_STATIC_LIBS and QT_STATIC_TEST_LIBS from ci/static-qt-link.py])
+      else
+        QT_LIBS="$QT_STATIC_LIBS"
+      fi
     fi
     if test "x$qt_libexec_path" = x; then
       qt_libexec_path="`$PKG_CONFIG --variable=libexecdir Qt6Core`"
@@ -234,6 +240,11 @@ AC_DEFUN([BITCOIN_QT_CONFIGURE],[
 
   AC_SUBST(QT_PIE_FLAGS)
   AC_SUBST(QT_INCLUDES)
+  QT_TEST_ALL_LIBS="$QT_TEST_LIBS $QT_LIBS"
+  if test "x$bitcoin_cv_static_qt" = xyes; then
+    QT_TEST_ALL_LIBS="$QT_STATIC_TEST_LIBS"
+  fi
+  AC_SUBST(QT_TEST_ALL_LIBS)
   AC_SUBST(QT_LIBS)
   AC_SUBST(QT_LDFLAGS)
   AC_SUBST(QT_DBUS_INCLUDES)

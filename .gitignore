@@ -151,3 +151,7 @@ dist/
 /yerbas.iml
 /testnet3_binary/
 /testnet4/
+# Local static-Qt validation outputs.
+/qt-native-static-work/
+/qt-static/
+/qt-static-link/
