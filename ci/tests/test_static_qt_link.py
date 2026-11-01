@@ -21,7 +21,7 @@ class StaticQtLinkTests(unittest.TestCase):
 
     def test_windows_response_files_keep_runtime_and_plugins(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             (root / 'objects.rsp').write_text('CMakeFiles/wallet.dir/probe.cpp.obj plugins/init.obj')
             (root / 'libs.rsp').write_text('/qt/lib/libQt6Widgets.a -luser32 -lwinpthread')
             flags = link.link_flags('g++ -static @objects.rsp -o wallet.exe '
@@ -32,6 +32,16 @@ class StaticQtLinkTests(unittest.TestCase):
     def test_paths_with_spaces_fail_instead_of_silently_mislinking(self):
         with self.assertRaises(ValueError):
             link.link_flags('c++ "plugin directory/import.o" -o wallet', Path('/build'))
+
+    def test_symlinked_build_directory_resolves_plugin_object(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            actual = root / 'actual'
+            actual.mkdir()
+            alias = root / 'alias'
+            alias.symlink_to(actual, target_is_directory=True)
+            flags = link.link_flags('c++ plugins/init.obj -o wallet', alias)
+            self.assertEqual(flags, str(actual / 'plugins/init.obj'))
 
 
 if __name__ == '__main__':
