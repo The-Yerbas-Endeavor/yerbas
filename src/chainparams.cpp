@@ -467,10 +467,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = 1230767999; // December 31, 2008
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000001e1313d2e73a"); // 0
+        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000001e92d1d15b16"); // Block 1152420
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0x7168c4a4f4ac744d2047e64a1291aecf9fe1bc1cca0f0f80c0d5522d4c890b37"); // 0
+        consensus.defaultAssumeValid = uint256S("0x53c34a2a736776ec3ff6ca11bcaa05c6fe3e4b52853352ab76608b3ff80428fa"); // Block 1152420
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -564,7 +564,8 @@ public:
 	         {410420, uint256S("0xb21e783ad0b134010e08f1641e425fc4cf74db586bf928ca4ed202da21c50be5")},
              {811220, uint256S("0xbe1c1caf6166786435a81c81b61d809f98823641dbe64b15516ad59b3e4bce10")},
              {1060820, uint256S("0xf70aa712f4d467d4e28e431ac2b8851c37e9335669075b4c25f072b1b032feb0")},
-             {1078436, uint256S("0x7168c4a4f4ac744d2047e64a1291aecf9fe1bc1cca0f0f80c0d5522d4c890b37")}
+             {1078436, uint256S("0x7168c4a4f4ac744d2047e64a1291aecf9fe1bc1cca0f0f80c0d5522d4c890b37")},
+             {1152420, uint256S("0x53c34a2a736776ec3ff6ca11bcaa05c6fe3e4b52853352ab76608b3ff80428fa")}
           }
 	};
 

@@ -66,6 +66,38 @@ activation; merely connecting to older peers does not make their validation
 compatible. Do not submit the first mainnet record before successful testnet validation
 and a coordinated rollout.
 
+Deployment gates and rollback limits
+Before installation, back up wallet and node data and verify the package checksum
+and source commit. Confirm miner/pool transaction validation and block-template
+software, smartnode daemons, and exchange/service validators have upgraded;
+wallet counts or protocol advertisements alone are not deployment confirmation.
+Verify control of the configured MAINNET authority (distinct from the testnet
+authority) without disclosing its private key, and have funds for transaction fees.
+Keep recovery OFF throughout the software-distribution and observation phase.
+
+Record a common chain height/hash and recovery status from independent upgraded
+nodes before and after the first transaction. Track its inclusion, effective
+height, actual mined commitments, and live-node penalties separately. Do not
+equate an RPC broadcast success or a minable commitment with a mined commitment.
+
+OFF is not a protocol rollback: it leaves the recorded-history cutover in place.
+After a recovery transaction is mined, do not downgrade validators to legacy
+software or restore an old snapshot expecting it to follow the new chain.
+Keep a compatible recovery build available for troubleshooting. A repair must
+preserve the accepted transaction history; snapshot restoration alone does not
+undo network consensus. The first effective cutover also retires old signing
+quorums, so plan for a quorum-service interruption while replacements form.
+
+Assess cleanup and full quorum-service availability separately. At 600 or more
+total registrations, the larger profiles select 400 members and require 300/350
+valid participants within those committees. Mainnet ChainLocks uses the former;
+LOW_LLMQ changes type 1, not these larger profiles. A sufficiently live type-1
+recovery quorum can clean up ghosts without establishing ChainLocks availability.
+Reward-eligible, registered, banned, and actually online counts are different.
+Banning or undercollateralization does not remove an entry from the profile-size
+count. Recheck these counts and observed commitments before declaring normal
+services restored or scheduling OFF.
+
 Acceptance
 The local tests cover signed ON/OFF, exact effective boundaries, fresh sync,
 reindex, rollback, preserved registrations, real DKG/PoSe, legacy quorum

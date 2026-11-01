@@ -2,7 +2,7 @@ name: Yerbas Build and Tests
 
 on:
   push:
-    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2"]
+    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2", "4.0.1.3"]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -270,10 +270,13 @@ jobs:
           )
           version="$(sed -n 's/^release-version=//p' build.properties)"
           archive="yerbas-${version}-${PLATFORM_ID}-${GITHUB_SHA}"
+          # Give every platform archive the same extraction root while preserving
+          # the relative paths required by Qt launchers and bundled libraries.
+          mv package yerbas-build
           if [[ "$BINARY_EXTENSION" == .exe ]]; then
-            (cd package && zip -r "../artifacts/$archive.zip" .)
+            zip -r "artifacts/$archive.zip" yerbas-build
           else
-            tar -czf "artifacts/$archive.tar.gz" -C package .
+            tar -czf "artifacts/$archive.tar.gz" yerbas-build
           fi
           (cd artifacts && sha256sum yerbas-* > SHA256SUMS)
 
