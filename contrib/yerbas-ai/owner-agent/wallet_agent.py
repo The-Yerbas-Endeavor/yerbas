@@ -149,6 +149,11 @@ class Agent:
         self.db = sqlite3.connect(dbpath)
         self.db.execute('CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, response TEXT)')
         self.db.commit()
+        from cancellation_outbox import Outbox
+        self.cancellations=Outbox(self.db)
+
+    def flush_cancellations(self):
+        self.cancellations.tick(provider_control,self.reward_client,socket.gethostname())
 
     def identity_snapshot(self):
         try:
@@ -297,11 +302,14 @@ class Agent:
                 row=self.db.execute('SELECT fingerprint,response FROM requests WHERE id=?',(rid,)).fetchone()
                 if row:
                     if row[0]!=fingerprint:raise AgentError('request_id_conflict')
+                    if method=='provider.cancel':self.cancellations.enqueue(params['run_id'],rid)
                     if row[1]:return json.loads(row[1])
                 else:
                     if method=='provider.submit' and not self.submission_enabled():raise AgentError('submission_disabled')
                     if self.db.execute('SELECT count(*) FROM requests').fetchone()[0]>=10000:raise AgentError('journal_full')
-                    self.db.execute('INSERT INTO requests VALUES (?,?,NULL)',(rid,fingerprint));self.db.commit()
+                    self.db.execute('INSERT INTO requests VALUES (?,?,NULL)',(rid,fingerprint))
+                    if method=='provider.cancel':self.cancellations.enqueue(params['run_id'],rid)
+                    self.db.commit()
                 # A lost reply leaves intent pending. Reuse this ID at the root
                 # broker after restart; never guess whether stopping occurred.
                 try:
@@ -359,10 +367,12 @@ def serve(agent, path):
         if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid(): raise ValueError('refusing to replace non-socket')
         path.unlink()  # Singleton lock is already held; only our private stale socket.
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(str(path)); os.chmod(path, 0o600); server.listen(4)
+    server.bind(str(path)); os.chmod(path, 0o600); server.listen(4); server.settimeout(1)
     try:
         while True:
-            connection, _ = server.accept()
+            agent.flush_cancellations()
+            try: connection, _ = server.accept()
+            except socket.timeout: continue
             with connection:
                 connection.settimeout(2)
                 try:

@@ -57,3 +57,5 @@ class SocketClient:
   try:return self.exchange('rewards.capabilities',{})=={'requests_enabled':True,'payments_enabled':False}
   except Exception:return False
  def reward(self,action,receipt):return self.exchange('rewards.'+action,{'receipt':receipt})
+
+ def cancel_contribution(self,contribution):return self.exchange('contributions.cancel',{'contribution':contribution})

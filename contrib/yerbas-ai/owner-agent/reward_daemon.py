@@ -13,6 +13,18 @@ class Client:
   if set(c)!={'url','token','ca','provider'} or c['url']!=ORIGIN or c['ca']!=CA or c['provider']!=self.config['provider'] or not isinstance(c['token'],str) or not 20<=len(c['token'])<=256:raise ValueError('Existing enrollment differs')
   if hashlib.sha256(trusted(CA)).hexdigest()!=CA_SHA:raise ValueError('CA binding differs')
   self.context=ssl.create_default_context(cafile=CA);self.context.minimum_version=ssl.TLSVersion.TLSv1_2
+ def cancel_contribution(self,contribution):
+  return self.request('/v4/text/cancel/'+contribution,'cancellation')
+ def request(self,path,field):
+  c=http.client.HTTPSConnection('127.0.0.1',19444,context=self.context,timeout=3)
+  try:
+   c.request('POST',path,b'{}',{'Content-Type':'application/json','Authorization':'Bearer '+self.credentials['token']})
+   r=c.getresponse();raw=r.read(8193)
+   if r.status!=200 or len(raw)>8192:raise ValueError('Coordinator request unavailable')
+   value=json.loads(raw,object_pairs_hook=unique)
+   if set(value)!={field}:raise ValueError('Invalid response')
+   return value[field]
+  finally:c.close()
  def reward(self,action,receipt):
   c=http.client.HTTPSConnection('127.0.0.1',19444,context=self.context,timeout=3)
   try:
@@ -29,7 +41,10 @@ def dispatch(client,uid,request):
   if uid!=client.config['owner_uid']:raise ValueError('Unauthorized owner')
   if type(request) is not dict or set(request)!={'v','id','method','params'} or type(request['v']) is not int or request['v']!=1 or not isinstance(request['id'],str) or not re.fullmatch('[a-f0-9]{32}',request['id']):raise ValueError('Invalid frame')
   response['id']=request['id'];method=request['method'];params=request['params']
-  if method=='rewards.capabilities':
+  if method=='contributions.cancel':
+   if type(params) is not dict or set(params)!={'contribution'} or not isinstance(params['contribution'],str) or not re.fullmatch('[A-Za-z0-9_-]{1,64}',params['contribution']):raise ValueError('Contribution identifier required')
+   result=client.cancel_contribution(params['contribution'])
+  elif method=='rewards.capabilities':
    if params!={}:raise ValueError('Empty parameters required')
    result={'requests_enabled':True,'payments_enabled':False}
   else:

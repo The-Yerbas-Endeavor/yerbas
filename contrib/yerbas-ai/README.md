@@ -55,3 +55,5 @@ No wallet, live database, credential, TLS key or signed transaction belongs here
 Run `python3 -B ci/check-ai-source.py` and `python3 -B ci/test-ai.py` from the
 repository root. Linux Qt checks build separately with qmake6; the CI script
 selects disposable tests and does not contact any live service or run a GPU.
+
+Owner cancellation uses a durable retry queue. After the local job reaches a terminal state, the authenticated relay releases its coordinator reservation once. Completed, settled work is never refunded; network failures remain pending across agent restarts.

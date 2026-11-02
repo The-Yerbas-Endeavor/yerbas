@@ -4,6 +4,7 @@ from reward_socket import frame
 class Fake:
  config={'owner_uid':1000}
  def __init__(self):self.calls=[]
+ def cancel_contribution(self,key):self.calls.append(('cancel',key));return {'state':'cancelled'}
  def reward(self,*args):self.calls.append(args);return {'status':'pending_review'}
 class Tests(unittest.TestCase):
  def setUp(self):self.c=Fake();self.r=dict(v=1,id='a'*32,method='rewards.request',params={'receipt':'b'*32})
@@ -22,6 +23,12 @@ class Tests(unittest.TestCase):
   self.c.reward=fail;r=dispatch(self.c,1000,self.r);self.assertFalse(r['ok']);self.assertNotIn('private details',str(r))
  def test_capabilities_no_network(self):
   r=dispatch(self.c,1000,dict(self.r,method='rewards.capabilities',params={}));self.assertEqual(r['result'],{'requests_enabled':True,'payments_enabled':False});self.assertEqual(self.c.calls,[])
+ def test_cancellation_owner_and_parameter_binding(self):
+  request=dict(self.r,method='contributions.cancel',params={'contribution':'text-'+('c'*32)})
+  self.assertFalse(dispatch(self.c,1001,request)['ok']);self.assertEqual(self.c.calls,[])
+  self.assertTrue(dispatch(self.c,1000,request)['ok']);self.assertEqual(self.c.calls,[('cancel','text-'+('c'*32))])
+  self.assertFalse(dispatch(self.c,1000,dict(request,params={'contribution':'../escape'}))['ok'])
+  self.assertFalse(dispatch(self.c,1000,dict(request,params={'contribution':'x','provider':'other'}))['ok'])
  def test_framing(self):
   for payload in (b'{"v":1,"v":2}\n',b'{}\n{}\n',b'x'*8193):
    a,b=socket.socketpair()
