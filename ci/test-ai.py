@@ -10,3 +10,7 @@ if sys.platform.startswith('linux'):
  subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(root/'contrib/yerbas-ai/payments'),'-v'],check=True,env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1'))
 
  subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(root/'contrib/yerbas-ai/provider/verification-control/tests'),'-v'],check=True)
+
+ if sys.platform.startswith('linux'):
+  phase=root/'contrib/yerbas-ai/provider/provider-phase-cupti-v1'
+  subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(phase/'tests'),'-v'],check=True,env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1',PYTHONPATH=os.pathsep.join((str(phase),str(phase/'payload')))))
