@@ -106,6 +106,7 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
     progressDialog(0),
     appMenuBar(0),
     overviewAction(0),
+    yerbasAIAction(0),
     historyAction(0),
     smartnodeAction(0),
     quitAction(0),
@@ -392,6 +393,13 @@ void BitcoinGUI::createActions()
         connect(smartnodeAction, SIGNAL(triggered()), this, SLOT(gotoSmartnodePage()));
     }
 
+    yerbasAIAction = new QAction(tr("Yerbas &AI"), this);
+    yerbasAIAction->setCheckable(true);
+    yerbasAIAction->setStatusTip(tr("Use local AI and view the private contribution pilot"));
+    tabGroup->addAction(yerbasAIAction);
+    connect(yerbasAIAction, &QAction::triggered, this, [this] { showNormalIfMinimized(); });
+    connect(yerbasAIAction, &QAction::triggered, this, &BitcoinGUI::gotoYerbasAIPage);
+
     TransferAssetsAction = new QAction(tr("&Asset Manager"), this);
     TransferAssetsAction->setStatusTip(tr("View, send, create and manage assets in this wallet"));
     TransferAssetsAction->setCheckable(true);
@@ -629,6 +637,7 @@ void BitcoinGUI::createToolBars()
         toolbar->setMovable(false); // remove unused icon in upper left corner
         overviewAction->setChecked(true);
         toolbar->addAction(TransferAssetsAction);
+        toolbar->addAction(yerbasAIAction);
 
 
         // Add Yerbas logo on the right side
@@ -795,6 +804,7 @@ void BitcoinGUI::removeAllWallets()
 void BitcoinGUI::setWalletActionsEnabled(bool enabled)
 {
     overviewAction->setEnabled(enabled);
+    if (yerbasAIAction) yerbasAIAction->setEnabled(enabled);
     sendCoinsAction->setEnabled(enabled);
     sendCoinsMenuAction->setEnabled(enabled);
     receiveCoinsAction->setEnabled(enabled);
@@ -1007,6 +1017,12 @@ void BitcoinGUI::gotoSendCoinsPage(QString addr)
 {
     sendCoinsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoSendCoinsPage(addr);
+}
+
+void BitcoinGUI::gotoYerbasAIPage()
+{
+    yerbasAIAction->setChecked(true);
+    if (walletFrame) walletFrame->gotoYerbasAIPage();
 }
 
 void BitcoinGUI::gotoAssetsPage()

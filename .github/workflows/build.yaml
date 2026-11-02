@@ -2,7 +2,7 @@ name: Yerbas Build and Tests
 
 on:
   push:
-    branches: [dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2", "4.0.1.3"]
+    branches: ["5.0.0.0", dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2", "4.0.1.3"]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -107,6 +107,9 @@ jobs:
             echo "$(brew --prefix "$formula")/libexec/gnubin" >> "$GITHUB_PATH"
           done
 
+      - name: Verify AI source and owner relay
+        run: python3 -B ci/test-ai.py
+
       - name: Check native Qt packaging logic
         run: python3 -m unittest discover -s ci/tests -v
 
@@ -175,6 +178,11 @@ jobs:
         run: |
           set -euo pipefail
           make -j"$BUILD_JOBS" 2>&1 | tee ci-logs/build.log
+
+      - name: Test AI wallet controls without live services
+        if: matrix.platform.id == 'ubuntu26'
+        timeout-minutes: 5
+        run: bash ci/test-ai-qt.sh
 
       - name: Test wallet.dat-only asset recovery
         if: matrix.platform.id == 'ubuntu26'
@@ -259,6 +267,8 @@ jobs:
             mkdir test-binaries
             mv test-runtime.tar.gz test-binaries/
           fi
+          cp -R contrib/yerbas-ai package/yerbas-ai-source
+          cp doc/yerbas-ai.md package/README-AI.md
           {
             echo "commit=$GITHUB_SHA"
             cat build.properties

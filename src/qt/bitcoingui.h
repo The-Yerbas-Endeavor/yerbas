@@ -96,6 +96,7 @@ private:
 
     QMenuBar *appMenuBar;
     QAction *overviewAction;
+    QAction *yerbasAIAction;
     QAction *historyAction;
     QAction *smartnodeAction;
     QAction *quitAction;
@@ -250,6 +251,7 @@ private Q_SLOTS:
     void gotoSendCoinsPage(QString addr = "");
     /** Switch to Transfer Assets page */
     void gotoAssetsPage();
+    void gotoYerbasAIPage();
     /** Switch to Create Assets page */
     void gotoCreateAssetsPage();
     void gotoManageAssetsPage();

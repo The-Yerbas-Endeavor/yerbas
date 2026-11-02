@@ -143,6 +143,11 @@ void WalletFrame::gotoSendCoinsPage(QString addr)
         i.value()->gotoSendCoinsPage(addr);
 }
 
+void WalletFrame::gotoYerbasAIPage()
+{
+    for (auto view : mapWalletViews) view->gotoYerbasAIPage();
+}
+
 void WalletFrame::gotoAssetsPage()
 {
     QMap<QString, WalletView*>::const_iterator i;

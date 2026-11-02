@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "walletview.h"
+#include "yerbasaipage.h"
 
 #include "addressbookpage.h"
 #include "askpassphrasedialog.h"
@@ -83,6 +84,8 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     usedReceivingAddressesPage = new AddressBookPage(platformStyle, AddressBookPage::ForEditing, AddressBookPage::ReceivingTab, this);
 
     addWidget(overviewPage);
+    yerbasAIPage = new YerbasAIPage(this);
+    addWidget(yerbasAIPage);
     addWidget(transactionsPage);
     addWidget(receiveCoinsPage);
     addWidget(sendCoinsPage);
@@ -485,6 +488,11 @@ void WalletView::requestedSyncWarningInfo()
 void WalletView::trxAmount(QString amount)
 {
     transactionSum->setText(amount);
+}
+
+void WalletView::gotoYerbasAIPage()
+{
+    setCurrentWidget(yerbasAIPage);
 }
 
 void WalletView::gotoAssetsPage()

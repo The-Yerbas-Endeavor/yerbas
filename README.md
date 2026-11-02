@@ -52,3 +52,9 @@ Changes should be tested by somebody other than the developer who wrote the
 code. This is especially important for large or high-risk changes. It is useful
 to add a test plan to the pull request description if testing the changes is
 not straightforward.
+
+## Yerbas AI wallet 5.0.0.0
+
+AI wallet/provider development is maintained on the `5.0.0.0` branch. See
+[AI build and usage notes](doc/yerbas-ai.md). Coordinator development remains
+in [YERB-Coordinator](https://github.com/The-Yerbas-Endeavor/YERB-Coordinator).

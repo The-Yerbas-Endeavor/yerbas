@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "kind": "approved-text-corpus",
+  "encoding": "UTF-8",
+  "permission": "Lewis Carroll, Alice\u2019s Adventures in Wonderland; Project Gutenberg ebook 11 lists public domain in USA. Original source and license retained alongside dataset.",
+  "split_policy": "normalized-document-sha256-order; lowest 10 percent validation",
+  "input_files": 12,
+  "unique_documents": 12,
+  "duplicate_documents_removed": 0,
+  "splits": [
+    {
+      "split": "validation",
+      "documents": 1,
+      "bytes": 14579,
+      "sha256": "3b4402864bafb8f305d493c5eb4e4a0fc3beefe96cd6337af92aba054b4585c8"
+    },
+    {
+      "split": "train",
+      "documents": 11,
+      "bytes": 140243,
+      "sha256": "d78ec2c19bc097fc92ba62ef3797530ef4aadefb4968fe29145bf36f8e19a7f6"
+    }
+  ],
+  "limitations": [
+    "Near-duplicates and semantic leakage require human review",
+    "Permission note is an operator assertion, not a license verification"
+  ],
+  "training_performed": false,
+  "network_transfer_performed": false
+}
