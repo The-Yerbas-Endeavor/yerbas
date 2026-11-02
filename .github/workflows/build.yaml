@@ -69,6 +69,13 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          # The consensus selector needs the complete push/PR diff on one runner.
+          fetch-depth: ${{ matrix.platform.id == 'ubuntu26' && '0' || '1' }}
+
+      - name: Select LOW_LLMQ coverage
+        if: matrix.platform.id == 'ubuntu26'
+        id: llmq
+        run: python3 ci/select-llmq-tests.py
 
       - name: Install Linux build tools
         if: runner.os == 'Linux'
@@ -118,7 +125,7 @@ jobs:
         run: python3 -B ci/check-ai-source.py
 
       # Keep one Linux run plus the real macOS dylib relocation check.
-      - name: Check native Qt packaging logic
+      - name: Check CI selection and native Qt packaging logic
         if: matrix.platform.id == 'ubuntu26' || runner.os == 'macOS'
         run: python3 -m unittest discover -s ci/tests -v
 
@@ -210,7 +217,7 @@ jobs:
             --workdir "$RUNNER_TEMP/yerbas-asset-acceptance" 2>&1 | tee ci-logs/asset-acceptance.log
 
       - name: Test signed LOW_LLMQ transactions and replay audit
-        if: matrix.platform.id == 'ubuntu26'
+        if: matrix.platform.id == 'ubuntu26' && steps.llmq.outputs.run == 'true'
         timeout-minutes: 30
         run: |
           set -euo pipefail
