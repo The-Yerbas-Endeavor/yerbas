@@ -142,7 +142,7 @@
     "provider/verification-control/README.md": "1360be7b2e97c59c5bcf9e5e44be3fd3b3de6efab0e2ee2a019f22aae799cd51",
     "provider/verification-control/runtime/relay_guard.py": "b15defa6d35c3ed8f8c8bf7d2e5b3da5e63e9b09fa18fd9726322e634e7a8239",
     "provider/verification-control/tests/test_relay_guard.py": "df470ba937127e6dd4b6f14472a705b45c001ca30ca4799e378a8a81a8075145",
-    "tests/qt/page_test.cpp": "3b51c4fbf4adeb5dd640e4cbf0f1feab09986208fe8589a438f4322feb933a5a",
+    "tests/qt/page_test.cpp": "8e32744cbb5eefad6e456b66c03359cb89b9fdc47248d3258e005fd10a9f9e15",
     "tests/qt/page_test.pro": "74fbe7ce0fc1eb24941c3eeea879daf1d97d60e1a96acb6739adf4cec41d3fc3",
     "text-inference/generate.py": "f3c55fc3d74d87cc391bd0ba8f9a4936e51fbe7eb107cd3fcaa8a3f334a8b87e",
     "text-inference/runtime/text_baseline.py": "cc7059a7095d3c5604f66a36acc7d8ee0ffbe7f95d76b09256deac53d8679dd6",

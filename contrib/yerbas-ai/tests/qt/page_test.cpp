@@ -182,7 +182,7 @@ private slots:
     }
     void rewardRequestWireAndDuplicate() {
         QTemporaryDir tmp;QLocalServer server;QVERIFY(server.listen(tmp.path()+"/control.sock"));
-        QJsonObject stored;int requests=0;bool enabled=false;
+        QJsonObject stored;int requests=0;int rewardCalls=0;bool enabled=false;
         connect(&server,&QLocalServer::newConnection,this,[&] {
             auto* client=server.nextPendingConnection();
             connect(client,&QLocalSocket::disconnected,client,&QObject::deleteLater);
@@ -191,6 +191,7 @@ private slots:
                 auto wire=QJsonDocument::fromJson(client->readLine()).object();const auto method=wire.value("method").toString();QJsonObject result;
                 if(method=="status")result=QJsonObject{{"reward_requests_ready",enabled}};
                 else if(method=="rewards.request" || method=="rewards.status") {
+                    ++rewardCalls;
                     QCOMPARE(wire.value("params").toObject().size(),1);
                     QCOMPARE(wire.value("params").toObject().value("receipt").toString(),QString(32,'a'));
                     if(method=="rewards.request") {++requests;stored=QJsonObject{{"schema",1},{"receipt",QString(32,'a')},{"provider",QSysInfo::machineHostName()},{"request_id",QString(64,'b')},{"status","pending_review"},{"requested_at",1},{"payment_authorized",false},{"gpu_time_approved",false}};}
@@ -209,7 +210,18 @@ private slots:
         check->click();QTRY_VERIFY(check->isEnabled());QVERIFY(status->text().contains("pending review"));
         const auto screenshot=qEnvironmentVariable("YERBAS_TEST_REQUEST_SCREENSHOT");
         if(!screenshot.isEmpty()) QVERIFY(page.grab().save(screenshot));
-        receipt->setText("invalid");QVERIFY(!request->isEnabled());
+        const int callsBeforeEdit=rewardCalls;
+        receipt->setText(QString(32,'c'));
+        QVERIFY(request->isEnabled());QVERIFY(check->isEnabled());
+        QVERIFY(status->text().contains("not checked for this receipt"));
+        QVERIFY(!status->text().contains("pending review"));
+        receipt->setText("invalid");QVERIFY(!request->isEnabled());QVERIFY(!check->isEnabled());
+        receipt->clear();QVERIFY(!request->isEnabled());QVERIFY(!check->isEnabled());
+        receipt->setText(QString(32,'a'));
+        QVERIFY(status->text().contains("not checked for this receipt"));
+        QTest::qWait(50);QCOMPARE(rewardCalls,callsBeforeEdit);
+        check->click();QTRY_VERIFY(status->text().contains("pending review"));
+        QCOMPARE(rewardCalls,callsBeforeEdit+1);QCOMPARE(requests,2);
     }
     void installedRewardRequest() {
         const auto path=qEnvironmentVariable("YERBAS_TEST_INSTALLED_AGENT");

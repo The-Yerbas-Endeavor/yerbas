@@ -171,7 +171,10 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     rewardCheck=new QPushButton(tr("Check request"),this);rewardCheck->setObjectName("aiRewardCheck");
     rewardRow->addWidget(rewardReceipt,1);rewardRow->addWidget(rewardRequest);rewardRow->addWidget(rewardCheck);layout->addLayout(rewardRow);
     rewardRequestStatus=new QLabel(tr("Reward requests unavailable until the connected agent supports them."),this);rewardRequestStatus->setObjectName("aiRewardRequestStatus");rewardRequestStatus->setWordWrap(true);rewardRequestStatus->setTextFormat(Qt::PlainText);layout->addWidget(rewardRequestStatus);
-    connect(rewardReceipt,&QLineEdit::textChanged,this,[this]{updateRewardControls();});
+    connect(rewardReceipt,&QLineEdit::textChanged,this,[this]{
+        rewardRequestStatus->setText(tr("Reward status not checked for this receipt. Enter a completed contribution receipt ID, then choose Check request."));
+        updateRewardControls();
+    });
     connect(rewardRequest,&QPushButton::clicked,this,[this]{agentRequest("rewards.request");});
     connect(rewardCheck,&QPushButton::clicked,this,[this]{agentRequest("rewards.status");});
     updateRewardControls();
