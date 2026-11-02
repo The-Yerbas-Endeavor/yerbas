@@ -8,3 +8,5 @@ if sys.platform.startswith('linux'):
  local=root/'contrib/yerbas-ai/local-service'
  subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(local/'tests'),'-v'],cwd=local,check=True,env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1',PYTHONPATH=str(local)))
  subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(root/'contrib/yerbas-ai/payments'),'-v'],check=True,env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1'))
+
+ subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(root/'contrib/yerbas-ai/provider/verification-control/tests'),'-v'],check=True)
