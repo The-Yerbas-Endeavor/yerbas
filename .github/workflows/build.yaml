@@ -107,10 +107,19 @@ jobs:
             echo "$(brew --prefix "$formula")/libexec/gnubin" >> "$GITHUB_PATH"
           done
 
+      # Python AI behavior is platform-independent within the supported Linux
+      # runtime. Run it once, not again for every binary/cross-compile target.
       - name: Verify AI source and owner relay
+        if: matrix.platform.id == 'ubuntu26'
         run: python3 -B ci/test-ai.py
 
+      - name: Verify packaged AI source integrity
+        if: matrix.platform.id != 'ubuntu26'
+        run: python3 -B ci/check-ai-source.py
+
+      # Keep one Linux run plus the real macOS dylib relocation check.
       - name: Check native Qt packaging logic
+        if: matrix.platform.id == 'ubuntu26' || runner.os == 'macOS'
         run: python3 -m unittest discover -s ci/tests -v
 
       - name: Check Windows packaging logic
