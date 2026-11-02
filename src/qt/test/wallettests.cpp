@@ -14,6 +14,7 @@
 #include "wallet/wallet.h"
 
 #include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -125,18 +126,24 @@ void TestSendCoins()
     auto* target = sendCoinsDialog.findChild<QComboBox*>("confTargetSelector");
     auto* amount = sendCoinsDialog.findChild<BitcoinAmountField*>("customFee");
     QVERIFY(smartFee && customFee && minimumFee && target && amount);
+    auto* feeEditor = amount->findChild<QAbstractSpinBox*>();
+    auto* feeUnit = amount->findChild<QComboBox*>();
+    QVERIFY(feeEditor && feeUnit);
     minimumFee->setChecked(false);
     smartFee->click();
     QVERIFY(target->isEnabled());
-    QVERIFY(!amount->isEnabled());
+    QVERIFY(!feeEditor->isEnabled());
+    QVERIFY(!feeUnit->isEnabled());
     customFee->click();
     QVERIFY(!target->isEnabled());
     QVERIFY(minimumFee->isEnabled());
-    QVERIFY(amount->isEnabled());
+    QVERIFY(feeEditor->isEnabled());
+    QVERIFY(feeUnit->isEnabled());
     smartFee->click();
     QVERIFY(target->isEnabled());
     QVERIFY(!minimumFee->isEnabled());
-    QVERIFY(!amount->isEnabled());
+    QVERIFY(!feeEditor->isEnabled());
+    QVERIFY(!feeUnit->isEnabled());
 
     // Send two transactions within the mature Yerbas reward, and verify the transaction list.
     TransactionTableModel* transactionTableModel = walletModel.getTransactionTableModel();
