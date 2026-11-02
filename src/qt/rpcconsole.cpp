@@ -622,7 +622,7 @@ void RPCConsole::setClientModel(ClientModel *model)
         connect(banAction24h, SIGNAL(triggered()), signalMapper, SLOT(map()));
         connect(banAction7d, SIGNAL(triggered()), signalMapper, SLOT(map()));
         connect(banAction365d, SIGNAL(triggered()), signalMapper, SLOT(map()));
-        connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(banSelectedNode(int)));
+        connect(signalMapper, &QSignalMapper::mappedInt, this, &RPCConsole::banSelectedNode);
 
         // peer table context menu signals
         connect(ui->peerWidget, SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(showPeersTableContextMenu(const QPoint&)));

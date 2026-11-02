@@ -212,7 +212,7 @@ TransactionView::TransactionView(const PlatformStyle *platformStyle, QWidget *pa
     mapperThirdPartyTxUrls = new QSignalMapper(this);
 
     // Connect actions
-    connect(mapperThirdPartyTxUrls, SIGNAL(mapped(QString)), this, SLOT(openThirdPartyTxUrl(QString)));
+    connect(mapperThirdPartyTxUrls, &QSignalMapper::mappedString, this, &TransactionView::openThirdPartyTxUrl);
 
     connect(dateWidget, SIGNAL(activated(int)), this, SLOT(chooseDate(int)));
     connect(typeWidget, SIGNAL(activated(int)), this, SLOT(chooseType(int)));

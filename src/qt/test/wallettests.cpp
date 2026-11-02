@@ -15,6 +15,9 @@
 
 #include <QAbstractButton>
 #include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QRadioButton>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -114,6 +117,26 @@ void TestSendCoins()
     OptionsModel optionsModel;
     WalletModel walletModel(platformStyle.get(), &wallet, &optionsModel);
     sendCoinsDialog.setModel(&walletModel);
+
+    // Exercise real clicks: removed Qt signal names previously left these controls stale.
+    auto* smartFee = sendCoinsDialog.findChild<QRadioButton*>("radioSmartFee");
+    auto* customFee = sendCoinsDialog.findChild<QRadioButton*>("radioCustomFee");
+    auto* minimumFee = sendCoinsDialog.findChild<QCheckBox*>("checkBoxMinimumFee");
+    auto* target = sendCoinsDialog.findChild<QComboBox*>("confTargetSelector");
+    auto* amount = sendCoinsDialog.findChild<BitcoinAmountField*>("customFee");
+    QVERIFY(smartFee && customFee && minimumFee && target && amount);
+    minimumFee->setChecked(false);
+    smartFee->click();
+    QVERIFY(target->isEnabled());
+    QVERIFY(!amount->isEnabled());
+    customFee->click();
+    QVERIFY(!target->isEnabled());
+    QVERIFY(minimumFee->isEnabled());
+    QVERIFY(amount->isEnabled());
+    smartFee->click();
+    QVERIFY(target->isEnabled());
+    QVERIFY(!minimumFee->isEnabled());
+    QVERIFY(!amount->isEnabled());
 
     // Send two transactions within the mature Yerbas reward, and verify the transaction list.
     TransactionTableModel* transactionTableModel = walletModel.getTransactionTableModel();
