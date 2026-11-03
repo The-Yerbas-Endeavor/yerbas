@@ -11,10 +11,13 @@ def relevant(path):
     name = PurePosixPath(path).name
     if name.startswith(('Makefile', 'CMakeLists')) or name.endswith(('.mk', '.cmake', '.pro', '.pri')):
         return True
+    # AI-only test orchestration and source manifests do not build or exercise
+    # consensus. Keep this exemption exact: other CI changes still run.
     # Everything not explicitly excluded runs the suite, including new core
     # directories, dependencies, CI, functional tests and unknown root files.
     return not (path.startswith(('src/qt/', 'contrib/yerbas-ai/', 'doc/', 'docs/'))
-                or path in ('README.md', 'COPYING', 'CONTRIBUTING.md'))
+                or path in ('README.md', 'COPYING', 'CONTRIBUTING.md',
+                            'ci/test-ai.py', 'ci/check-ai-source.py'))
 
 
 def select(event_name, event, git):
