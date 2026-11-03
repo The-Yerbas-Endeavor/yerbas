@@ -410,6 +410,21 @@ private slots:
         }
         QVERIFY2(cancelled,qPrintable(status->toPlainText()));QVERIFY(!stop->isEnabled());
     }
+    void marketplaceTermsRemainVisible() {
+        YerbasAIPage page;
+        auto* terms=page.findChild<QLabel*>("aiJobTerms");QVERIFY(terms);
+        QCOMPARE(terms->textFormat(),Qt::PlainText);QVERIFY(terms->wordWrap());
+        const QString original=terms->text();
+        QVERIFY(original.contains("Completion alone does not approve a reward"));
+        QVERIFY(original.contains("9 simulated job credits are not YERB"));
+        QVERIFY(original.contains("No YERB amount is promised"));
+        QVERIFY(original.contains("automatic GPU-time rewards are disabled"));
+        page.findChild<QLineEdit*>("aiContribution")->setText("manual-job");
+        page.findChild<QLineEdit*>("aiProviderRun")->setText(QString(32,'a'));
+        QVERIFY(!page.loadPreparedJob("/missing-job.json"));
+        QCOMPARE(terms->text(),original);
+        QVERIFY(!page.findChild<QPushButton*>("aiProviderSubmit")->isEnabled());
+    }
     void preparedJobValidation() {
         QTemporaryDir tmp;YerbasAIPage page;page.connectAgent(QString());
         const QString path=tmp.path()+"/job.json";

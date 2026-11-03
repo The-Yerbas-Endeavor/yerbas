@@ -193,7 +193,12 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     });
     auto* expiryTimer=new QTimer(this);expiryTimer->setInterval(1000);
     connect(expiryTimer,&QTimer::timeout,this,[this] { if(preparedDeadline)updateProviderControls(); });expiryTimer->start();
-    layout->addWidget(new QLabel(tr("Fixed approved recipe only; bounded GPU runtime and simulated credits. A contribution must already be assigned to this computer."),this));
+    auto* terms = new QLabel(tr("Approved job: public-text training (byte-context-mlp-v1). Only preassigned work can run.\n"
+        "Verification: a separate provider reproduces the result; the operator reviews reward eligibility. Completion alone does not approve a reward.\n"
+        "Rewards: 9 simulated job credits are not YERB. No YERB amount is promised by this job file. Testnet allowances require separate approval; automatic GPU-time rewards are disabled.\n"
+        "Owner control: you can request a stop. Recovery uses saved checkpoints within the original deadline; interrupted work is not automatically payable."), this);
+    terms->setObjectName("aiJobTerms");terms->setWordWrap(true);terms->setTextFormat(Qt::PlainText);
+    terms->setTextInteractionFlags(Qt::TextSelectableByMouse);layout->addWidget(terms);
     connect(newRun,&QPushButton::clicked,this,[this] { if (agentRequestId.isEmpty()) providerRunInput->setText(QUuid::createUuid().toString(QUuid::Id128)); });
     connect(providerContribution,&QLineEdit::textChanged,this,[this] { preparedDeadline=0;preparedDetails->clear();updateProviderControls(); });
     connect(providerSubmit,&QPushButton::clicked,this,[this] { agentRequest("provider.submit"); });
