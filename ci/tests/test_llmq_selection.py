@@ -38,6 +38,24 @@ class LlmqSelectionTests(unittest.TestCase):
         self.commit('src/qt/yerbasaipage.cpp')
         self.assertFalse(self.push(self.commit('contrib/yerbas-ai/owner-agent/wallet_agent.py')))
 
+    def test_ai_test_orchestration_and_manifest_skip(self):
+        self.commit('ci/test-ai.py')
+        self.commit('ci/check-ai-source.py')
+        head = self.commit('contrib/yerbas-ai/SOURCE.json')
+        self.assertFalse(self.push(head))
+        event = {'pull_request': {'base': {'sha': self.base}, 'head': {'sha': head}}}
+        self.assertFalse(SELECTOR.select('pull_request', event, self.git)[0])
+
+    def test_ai_scripts_do_not_hide_consensus_changes(self):
+        self.commit('ci/test-ai.py')
+        self.assertTrue(self.push(self.commit('src/llmq/quorums.cpp')))
+
+    def test_ai_exemptions_are_exact(self):
+        for path in ('ci/test-ai.py.bak', 'ci/check-ai-source.py/new.py',
+                     'ci/test-consensus.py', 'ci/tests/test_llmq_selection.py'):
+            with self.subTest(path=path):
+                self.assertTrue(SELECTOR.relevant(path))
+
     def test_core_in_multi_commit_push_runs(self):
         self.commit('src/llmq/quorums.cpp')
         self.assertTrue(self.push(self.commit('doc/readme.md')))
