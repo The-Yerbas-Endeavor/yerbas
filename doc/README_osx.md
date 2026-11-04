@@ -1,3 +1,12 @@
+# Historical macOS cross-build / DMG notes
+
+This legacy Linux/Gitian recipe is not the 4.0.1.3 release build process.
+Current CI builds natively on macOS 15 Intel and distributes `Yerbas-Qt.app`
+inside `yerbas-build/` in a tar.gz archive. See [CI artifacts](ci-qt-artifacts.md)
+and [release notes](release-notes.md) for current installation details.
+
+---
+
 Deterministic OS X DMG Notes.
 
 Working OS X DMGs are created in Linux by combining a recent clang,

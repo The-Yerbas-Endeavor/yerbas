@@ -1,3 +1,7 @@
+Historical development record. Version numbers and validation results below
+refer to that development stage. For the current 4.0.1.3 dependency, wallet, and
+upgrade information see [release notes](release-notes.md).
+
 # Dependency modernization — 2026-10-20
 
 This follow-up updates the active dependency graph for Yerbas 4.0.0.1 and removes

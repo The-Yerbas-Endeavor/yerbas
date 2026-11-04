@@ -28,6 +28,7 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "wallet/coincontrol.h"
+#include "wallet/assetissuance.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 #include "assets/snapshotrequestdb.h"
@@ -304,6 +305,9 @@ UniValue distributereward(const JSONRPCRequest& request) {
                 "distributereward \"asset_name\" snapshot_height \"distribution_asset_name\" gross_distribution_amount ( \"exception_addresses\" ) (\"change_address\") (\"dry_run\")\n"
                 "\nSplits the specified amount of the distribution asset to all owners of asset_name that are not in the optional exclusion_addresses\n"
 
+                + strprintf("\nV4 mainnet asset payouts are locked below tip height %d. YERB payments remain available.\n"
+                            "Testnet/regtest are unaffected; activation follows block height, not a calendar date.\n",
+                            MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT) +
                 "\nArguments:\n"
                 "1. \"asset_name\"                 (string, required) The reward will be distributed all owners of this asset\n"
                 "2. \"snapshot_height\"            (number, required) The block height of the ownership snapshot\n"

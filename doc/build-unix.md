@@ -2,7 +2,8 @@ UNIX BUILD NOTES
 ====================
 Some notes on how to build Yerbas Core in Unix.
 
-(for OpenBSD specific instructions, see [build-openbsd.md](build-openbsd.md))
+Release CI validates the Ubuntu targets listed in [CI artifacts](ci-qt-artifacts.md).
+The other platform examples below are general build notes, not release validation.
 
 Base build dependencies
 -----------------------

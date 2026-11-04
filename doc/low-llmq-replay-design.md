@@ -1,3 +1,15 @@
+# Historical recovery development record
+
+**Archived design/investigation; not 4.0.1.3 operating instructions.** The text
+below describes earlier experiments, including expiring recovery windows and
+regtest-only proposals. Current public-network recovery uses manual signed ON/OFF
+transactions with no automatic expiry. Follow the
+[current operator guide](signed-spork-release-checklist.txt) and
+[4.0.1.3 release notes](release-notes.md). Historical results below apply only to
+the builds and test profiles described.
+
+---
+
 # Proposed deterministic LOW_LLMQ recovery protocol
 
 Status: integrated experimental regtest implementation. Authenticated records

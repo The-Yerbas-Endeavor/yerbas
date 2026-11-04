@@ -1,15 +1,16 @@
 # Local Linux GUI build: Qt 6
 
-Yerbas 4.0.0.1 now uses shared Qt **6.8 or newer**, including Core5Compat.
+Yerbas 4.0.1.3 uses shared Qt **6.8 or newer**, including Core5Compat.
 Boost is pinned to **1.92.0**. The native Linux build uses the operating system's
-Qt packages; it does not download or pin Qt itself. Compatibility checks use
-Ubuntu's Qt 6.10.2 development files. Upstream Qt 6.12 is the current LTS
-release; a full 6.12 build has not been validated here.
+Qt packages or an explicitly supplied Qt SDK. The release workflow builds pinned
+Qt 6.12.0 for Ubuntu 22/24/ARM64 and macOS, while Ubuntu 26 uses distribution Qt.
+See [CI artifacts](ci-qt-artifacts.md) for runtime packaging details.
 
-The bundled Qt 5 build path is retired. `depends` automatically selects `USE_SYSTEM_QT=1`
-for a native Linux GUI when you run plain `make`. Use `NO_QT=1` for headless builds.
-This builds the other dependencies; it does not install Qt itself. Windows GUI builds and ZIP packaging run in GitHub Actions; see
-[Windows build instructions](build-windows.md). Other CI platforms remain headless.
+The bundled Qt 5 path is retired. For native Linux, depends defaults to
+`USE_SYSTEM_QT=1`; `NO_QT=1` selects a headless build. Supply Qt separately when
+using this native path. Windows uses matching cross-built Qt and host tools.
+All six release CI platforms build Qt wallets and run dependent tests.
+
 
 ## Features and compatibility
 

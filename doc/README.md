@@ -11,12 +11,16 @@ The following are some helpful notes on how to run Yerbas on your native platfor
 
 Unpack the files into a directory and run:
 
-- `bin/yerbas-qt` (GUI) or
-- `bin/yerbasd` (headless)
+- `./yerbas-build/yerbas-qt` (GUI) or
+- `./yerbas-build/yerbasd` (headless)
+
+Keep the complete extracted folder, including libraries and plugins. Bundled Linux
+Qt packages use a launcher and `libexec/yerbas-qt`. Ubuntu 26 requires system Qt;
+see the [4.0.1.3 release notes](release-notes.md).
 
 ### Windows
 
-Unpack the files into a directory, and then run yerbas-qt.exe.
+Unpack the files into a directory, and then run `yerbas-build/yerbas-qt.exe`. Keep its DLLs and plugins together.
 
 ### OS X
 
@@ -38,7 +42,6 @@ The following are developer notes on how to build Yerbas Core on your native pla
 - [OS X Build Notes](build-osx.md)
 - [Unix Build Notes](build-unix.md)
 - [Windows Build Notes](build-windows.md)
-- [OpenBSD Build Notes](build-openbsd.md)
 - [Gitian Building Guide](gitian-building.md)
 
 Development
@@ -46,7 +49,10 @@ Development
 The Yerbas Core repo's [root README](/README.md) contains relevant information on the development process and automated testing.
 
 - [Developer Notes](developer-notes.md)
-- [Release Notes](release-notes.md)
+- [4.0.1.3 Release Notes and Upgrade Guide](release-notes.md)
+- [Recorded LOW_LLMQ Operator Guide](signed-spork-release-checklist.txt)
+- [Asset Manager](asset-manager.md)
+- [Wallet Asset Storage and Recovery](wallet-asset-storage.md)
 - [Release Process](release-process.md)
 - Source Code Documentation ***TODO***
 - [Translation Process](translation_process.md)

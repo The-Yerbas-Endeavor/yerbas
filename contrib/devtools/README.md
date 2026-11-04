@@ -79,13 +79,19 @@ gen-manpages.sh
 A small script to automatically create manpages in ../../doc/man by running the release binaries with the -help option.
 This requires help2man which can be found at: https://www.gnu.org/software/help2man/
 
-With in-tree builds this tool can be run from any directory within the
-repostitory. To use this tool with out-of-tree builds set `BUILDDIR`. For
-example:
+Run from the repository root after building matching-version daemon, CLI,
+transaction utility and Qt executables. The script rejects mixed release
+versions. Use `QT_QPA_PLATFORM=offscreen` for Qt help without a desktop.
+For out-of-tree builds set `BUILDDIR`, for example:
 
 ```bash
-BUILDDIR=$PWD/build contrib/devtools/gen-manpages.sh
+QT_QPA_PLATFORM=offscreen BUILDDIR=$PWD/build contrib/devtools/gen-manpages.sh
 ```
+
+`BINDIR`, `MANDIR`, `HELP2MAN`, `BITCOIND`, `BITCOINCLI`, `BITCOINTX` and
+`BITCOINQT` can override individual locations. Release archives omit the
+transaction utility, so supply a matching source-built `yerbas-tx` when using
+archive binaries. Generation only invokes help/version; it does not start a node.
 
 github-merge.py
 ===============

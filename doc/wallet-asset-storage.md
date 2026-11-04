@@ -1,4 +1,4 @@
-# Wallet asset backups (4.0.0.1)
+# Wallet asset backups and migration (4.0.1.3)
 
 Asset-bearing transactions and keys already belong to the Berkeley DB wallet.
 This change also stores wallet-specific asset metadata in that same `wallet.dat`:
@@ -19,6 +19,13 @@ outside the wallet. They serve blockchain validation and can be rebuilt from the
 chain; a wallet backup is not a copy of the blockchain. Balances and global asset
 metadata still require synchronized chain state. Asset content referenced by IPFS
 is not downloaded or embedded by this change.
+
+## Mainnet asset payout availability
+
+V4 wallet asset operations, including asset-denominated payouts, are locked below
+tip height 1,195,400. Ordinary YERB payments remain available. Resuming a reward
+plan does not bypass this policy. See [release notes](release-notes.md) for the
+activation-height rule and [Asset Manager](asset-manager.md) for UI behavior.
 
 ## Migration and multiple wallets
 

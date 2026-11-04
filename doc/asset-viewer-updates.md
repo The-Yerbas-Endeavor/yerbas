@@ -1,3 +1,7 @@
+Historical development record. Version numbers and validation results below
+refer to that development stage. For the current 4.0.1.3 dependency, wallet, and
+upgrade information see [release notes](release-notes.md).
+
 > Dependency/configure notes below describe the original asset-viewer batch.
 > The later [Qt 6 migration](local-gui-build.md) supersedes its Qt/protobuf
 > requirements: protobuf and the protoc probe have been removed.

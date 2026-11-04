@@ -5,12 +5,12 @@ suites and Qt wallet tests on every platform in its matrix:
 
 | Artifact platform | Qt source | Wallet entry point |
 | --- | --- | --- |
-| Ubuntu 22 x86_64 | Pinned Qt sources from depends | `bin/yerbas-qt` |
-| Ubuntu 24 x86_64 | Pinned Qt sources from depends | `bin/yerbas-qt` |
-| Ubuntu 26 x86_64 | Ubuntu Qt packages, minimum 6.8 enforced | `bin/yerbas-qt` |
-| Ubuntu 24 ARM64 | Pinned Qt sources from depends | `bin/yerbas-qt` |
-| macOS 15 Intel | Pinned Qt sources from depends | `Yerbas-Qt.app` |
-| Windows x86_64 | Pinned cross-built Qt from depends | See Windows package README |
+| Ubuntu 22 x86_64 | Pinned Qt sources from depends | `yerbas-build/yerbas-qt` |
+| Ubuntu 24 x86_64 | Pinned Qt sources from depends | `yerbas-build/yerbas-qt` |
+| Ubuntu 26 x86_64 | Ubuntu Qt packages, minimum 6.8 enforced | `yerbas-build/yerbas-qt` |
+| Ubuntu 24 ARM64 | Pinned Qt sources from depends | `yerbas-build/yerbas-qt` |
+| macOS 15 Intel | Pinned Qt sources from depends | `yerbas-build/Yerbas-Qt.app` |
+| Windows x86_64 | Pinned cross-built Qt from depends | `yerbas-build/yerbas-qt.exe` |
 
 Download the matching `yerbas-<platform>-binaries` artifact from a successful
 workflow run, then extract the versioned archive inside. Version metadata comes
@@ -19,7 +19,7 @@ and host and includes checksums. Use the artifact matching your OS and CPU.
 This matrix does not provide a native Apple Silicon build.
 
 Ubuntu 22/24 and ARM64 packages include shared Qt libraries, plugins and licenses.
-Keep the extracted directory together and run the launcher under `bin`; it sets
+Keep the extracted directory together and run the `yerbas-qt` launcher at the root of `yerbas-build/`; it sets
 the runtime paths relative to its location. The package README lists the required
 Ubuntu desktop libraries. Ubuntu 26 uses the distribution Qt runtime listed in
 its package README. These are not distribution-independent Linux binaries.

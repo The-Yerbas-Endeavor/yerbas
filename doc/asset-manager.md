@@ -18,6 +18,18 @@ network-wide index of every asset or administrative event.
 Backup and recovery explains wallet backups, restore/rescan, and separate storage
 for referenced metadata, with a button to invoke the existing wallet backup dialog.
 
+## Mainnet availability in 4.0.1.3
+
+Creation, sending, reissuance, ownership transfers and asset reward payouts are
+blocked by v4 wallet policy below tip height **1,195,400**. The estimated date was
+January 1, 2027, 00:00 UTC; block height controls activation. A rollback below the
+height relocks the operations. Receiving/viewing assets and ordinary YERB payments
+remain available. Testnet/regtest are unaffected. Older wallets and raw transaction
+tools are not restricted by this wallet policy.
+
+Back up the complete `wallet.dat`; keys alone do not restore every local reward or
+payout-job record. See [wallet asset storage](wallet-asset-storage.md).
+
 ## Local validation
 
 The Qt AssetViewTests suite covers search and sorting, selection invalidation,

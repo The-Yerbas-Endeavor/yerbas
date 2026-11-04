@@ -484,6 +484,10 @@ static UniValue quorum_recovery(const JSONRPCRequest& request)
             "ON has no automatic expiry. Confirmation precedes activation at a quorum boundary.\n"
             "An unconfirmed request must be included by last_inclusion_height or resubmitted.\n"
             "Status reports confirmed authorization separately from pending_authorization.\n"
+            "The first ON cutover uses a 720-block boundary; later transitions use 30-block boundaries.\n"
+            "Validators must upgrade before the first record is mined, not only before its effective height.\n"
+            "OFF does not undo cutover or permit downgrade to legacy software.\n"
+            "The legacy SPORK_21 command does not create a recovery transaction.\n"
             "Requires signed recovery support in the network software.\n");
     }
     const std::string action = request.params[1].get_str();

@@ -64,7 +64,11 @@ void CheckRestrictedAssetTransferInputs(const CWalletTx& transaction, const std:
 
 std::string AssetActivationWarning()
 {
-    return AreAssetsDeployed() ? "" : "\nTHIS COMMAND IS NOT YET ACTIVE!\nhttps://github.com/The-Yerbas-Endeavor/yerbas\n";
+    return (AreAssetsDeployed() ? std::string() : "\nTHIS COMMAND IS NOT YET ACTIVE!\nhttps://github.com/The-Yerbas-Endeavor/yerbas\n") +
+        strprintf("\nV4 mainnet wallet policy: asset creation, sending, reissuance, ownership transfers, and asset reward payouts\n"
+                  "are locked below tip height %d. Receiving/viewing assets and ordinary YERB payments remain available.\n"
+                  "Testnet/regtest are unaffected. This is wallet policy, not a consensus restriction on raw transactions.\n",
+                  MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT);
 }
 
 

@@ -2,8 +2,9 @@
 
 `.github/workflows/build.yaml` is the single **Yerbas Build and Tests** workflow.
 It replaces the separate build and test workflows. It runs on pushes to `dev`
-and `main`, `v*` tags, pull requests, and manual dispatch. Feature branch pushes
-are tested through pull requests, avoiding duplicate push/PR runs. A newer run
+and `main`, the explicit version branches listed in the workflow (including
+`4.0.1.3`), `v*` tags, pull requests, and manual dispatch. Other branches are
+tested through pull requests. A newer run
 for the same workflow/ref cancels its predecessor. Manual dispatch becomes
 available in the Actions UI once the workflow exists on the default branch.
 
@@ -16,15 +17,14 @@ available in the Actions UI once the workflow exists on the default branch.
 | Ubuntu 26 | Ubuntu 26.04, x86_64 | Ubuntu 26.04 |
 | Ubuntu 24 ARM64 | Ubuntu 24.04 ARM64, native aarch64 | Ubuntu 24.04 ARM64 |
 | macOS 15 Intel | macOS 15, native Apple Clang x86_64 | macOS 15 Intel |
-| Windows 64-bit | Ubuntu 22.04, MinGW POSIX | Windows Server 2022 |
+| Windows 64-bit | Ubuntu 26.04, MinGW POSIX | Windows Server 2022 |
 
-Each build compiles `yerbasd`, `yerbas-cli`, and `test_yerbas`, with
-the wallet and tests explicitly enabled. It builds the repository's pinned
-`depends` libraries, with Qt and UPnP omitted. The duplicate GUI/release workflow has been retired; this consolidated workflow
-builds headless binaries for CI and does not create or publish a GitHub release.
-Linux ARM64 uses the native `ubuntu-24.04-arm` runner. macOS uses
-`macos-15-intel`, Homebrew build tools, and a minimum deployment target of macOS
-11. Apple Silicon builds are not included in this matrix.
+Each build compiles the Qt wallet, daemon, CLI, core unit tests and Qt wallet tests.
+Pinned depends libraries are combined with the platform's Qt build described in
+[CI artifacts](ci-qt-artifacts.md). UPnP is disabled in these release builds.
+The workflow builds and tests archives; it does not publish a GitHub release.
+Linux ARM64 uses `ubuntu-24.04-arm`; macOS uses `macos-15-intel`, targets macOS 15,
+and bundles Qt. Apple Silicon is not included.
 
 Artifacts are kept for 14 days:
 
@@ -82,13 +82,12 @@ pass locally after aligning the older fixtures with active Yerbas rules. See
 CI continues to run every enabled unit suite and reports remaining legacy test
 failures rather than excluding them. Ubuntu 26.04 build and native test jobs use
 the explicit `ubuntu-26.04` runner label and have their own dependency caches and
-artifacts. Each new platform must complete its first hosted build before its toolchain
-compatibility is confirmed.
+artifacts. All six platform builds and dependent test jobs passed for release
+commit f8cb58e in run 41326902278. Future changes require fresh CI validation.
 
-This workflow runs native C++ unit tests. The Python functional/P2P suite is a
-separate next step: it still needs its inherited chain assumptions and hash
-adapter reconciled with Yerbas before it can provide reliable coverage. Merely
-installing Dash's hash adapter would not validate Yerbas GhostRider blocks.
+This workflow runs C++ core and Qt tests. Python functional/P2P recovery and asset
+acceptance tests are separate local validation; a green CI run alone does not
+establish full mainnet replay or complete functional-suite coverage.
 
 ## macOS native CMake bootstrap
 

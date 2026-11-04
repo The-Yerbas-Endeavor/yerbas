@@ -1,3 +1,7 @@
+Historical development record. Version numbers and validation results below
+refer to that development stage. For the current 4.0.1.3 dependency, wallet, and
+upgrade information see [release notes](release-notes.md).
+
 # Headless dependency updates
 
 This batch updates the pinned dependencies used by `Yerbas Build and Tests`.

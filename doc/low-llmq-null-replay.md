@@ -1,3 +1,9 @@
+Historical development record. This describes the change at the time it was
+written, not the complete 4.0.1.3 release. For current behavior and upgrade
+instructions see doc/release-notes.md and doc/signed-spork-release-checklist.txt.
+In particular, mainnet retains exact-size legacy null validation before cutover;
+recorded recovery uses manual ON/OFF with no automatic expiry.
+
 # Legacy LOW_LLMQ null-commitment replay
 
 This change fixes fresh synchronization failing with `bad-qc-invalid-null` when

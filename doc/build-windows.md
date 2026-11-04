@@ -8,11 +8,11 @@ sources. The wallet includes the existing asset viewer.
 
 ## GitHub build and download
 
-Push to dev or manually run **Yerbas Build and Tests**. Windows selects GUI
-dependencies and `--with-gui=qt6`; other platform jobs retain headless builds.
-The `yerbas-win64-binaries` artifact contains a ZIP with `bin/yerbas-qt.exe`, daemon,
+Push to a branch matched by the workflow or manually run **Yerbas Build and Tests**. Windows selects GUI
+dependencies and `--with-gui=qt6`; the Linux and macOS jobs also build Qt wallets.
+The `yerbas-win64-binaries` artifact contains a ZIP with `yerbas-build/yerbas-qt.exe`, daemon,
 CLI, required DLLs/plugins, checksums, licenses and build information. Extract the
-whole ZIP and launch `bin/yerbas-qt.exe`. Packaging fails on missing non-system
+whole ZIP and launch `yerbas-build/yerbas-qt.exe`. Packaging fails on missing non-system
 DLLs or required plugins.
 
 The Windows test job runs every enabled core suite, Qt tests including the asset
@@ -44,9 +44,10 @@ matching host tools from depends rather than the system's Qt version.
 
 ## Validation status
 
-Qt host configuration and focused package checks pass locally. Complete Windows
-compilation, packaging and runtime tests require the hosted run. No complete local
-Windows build was launched for this change.
+The 4.0.1.3 release build at f8cb58e passed its Windows build and dependent test
+job in [run 41326902278](https://github.com/The-Yerbas-Endeavor/yerbas/actions/runs/41326902278).
+Future binaries require their own successful build and test jobs; local packaging
+checks alone do not validate a Windows executable.
 
 Upstream references: [cross-compilation](https://doc.qt.io/qt-6/cross-compiling-qt.html)
 and [Windows](https://doc.qt.io/qt-6/windows.html). Ubuntu's MinGW compiler is

@@ -2,11 +2,15 @@ GENERIC BUILD NOTES
 ====================
 Some notes on how to build Yerbas Core based on the [depends](../depends/README.md) build system.
 
-Note on old build instructions
-------------------------------
-In the past, the build documentation contained instructions on how to build Yerbas with system-wide installed dependencies
-like BerkeleyDB 4.8, boost and Qt. Building this way is considered deprecated and only building with the `depends` prefix
-is supported today.
+Build paths for 4.0.1.3
+-----------------------
+The depends build below remains available. Release CI also builds native/system
+Qt configurations; it does not exclusively use depends Qt. For the exact tested
+platform packages, flags, and packaging steps, use
+[build.yaml](../.github/workflows/build.yaml). Qt GUI builds require Qt 6 and its
+Core5Compat module. Historical 32-bit/older macOS triplets below are examples,
+not the current release matrix. Current archives target Ubuntu 22/24/26 x86-64,
+Ubuntu 24 ARM64, Windows x86-64, and macOS 15 Intel.
 
 Required build tools and environment
 ------------------------------------
