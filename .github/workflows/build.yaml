@@ -150,10 +150,11 @@ jobs:
         if: matrix.platform.id != 'win64' && matrix.platform.id != 'ubuntu26'
         run: |
           set -euo pipefail
-          qt_args=()
+          # Keep the array nonempty for macOS Bash 3.2 with set -u.
+          qt_args=(--prefix "$PWD/qt-native")
           if [[ "$RUNNER_OS" == Linux ]]; then qt_args+=(--static-linux); fi
           if [[ ! -f qt-native/.complete ]]; then
-            python3 ci/build-native-qt.py --prefix "$PWD/qt-native" "${qt_args[@]}" \
+            python3 ci/build-native-qt.py "${qt_args[@]}" \
               --cmake "$PWD/depends/$HOST_TRIPLE/native/bin/cmake" --jobs "$BUILD_JOBS" \
               2>&1 | tee ci-logs/native-qt.log
           fi
