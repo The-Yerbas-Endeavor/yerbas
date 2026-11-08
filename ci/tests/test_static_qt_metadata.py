@@ -22,12 +22,20 @@ class StaticMetadataTests(unittest.TestCase):
             (target / 'objects1.rsp').write_text('CMakeFiles/qt_link_probe.dir/main.cpp.obj CMakeFiles/qt_link_probe.dir/plugin.cpp.obj')
             (target / 'linkLibs.rsp').write_text('/qt/lib/libQt6Core.a -lkernel32')
             (target / 'flags.make').write_text('CXX_DEFINES = -DQT_STATIC\nCXX_INCLUDES = @CMakeFiles/qt_link_probe.dir/includes_CXX.rsp\n')
-            (target / 'link.txt').write_text('g++ @CMakeFiles/qt_link_probe.dir/objects1.rsp -o qt_link_probe.exe @CMakeFiles/qt_link_probe.dir/linkLibs.rsp')
+            (target / 'link.txt').write_text(
+                'cmake -E rm -f CMakeFiles/qt_link_probe.dir/objects.a\n'
+                'ar qc CMakeFiles/qt_link_probe.dir/objects.a @CMakeFiles/qt_link_probe.dir/objects1.rsp\n'
+                'g++ -Wl,--whole-archive CMakeFiles/qt_link_probe.dir/objects.a '
+                '-Wl,--no-whole-archive -o qt_link_probe.exe '
+                '@CMakeFiles/qt_link_probe.dir/linkLibs.rsp\n')
             with patch.object(BUILD, 'run'):
                 BUILD.static_metadata(prefix, 'cmake', 2, 'x86_64-w64-mingw32')
             pc = (prefix / 'lib/pkgconfig/Qt6Core.pc').read_text()
             self.assertNotIn('@CMakeFiles', pc)
             self.assertNotIn('main.cpp.obj', pc)
+            self.assertNotIn('objects.a', pc)
+            self.assertNotIn(' -f ', pc)
+            self.assertNotIn('cmake -E', pc)
             self.assertIn(str(target / 'plugin.cpp.obj'), pc)
             self.assertIn('/qt/lib/libQt6Core.a -lkernel32', pc)
             self.assertIn('-I/qt headers/QtCore', pc)

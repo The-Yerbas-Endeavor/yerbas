@@ -63,7 +63,20 @@ qt_import_plugins(qt_link_probe INCLUDE Qt6::PLATFORM_PLUGIN Qt6::QMinimalIntegr
         f'-DCMAKE_PREFIX_PATH={prefix}', '-DCMAKE_BUILD_TYPE=Release', *cross_args)
     run(cmake, '--build', build, '--parallel', jobs)
     target = build / 'CMakeFiles/qt_link_probe.dir'
-    link = expand_response_files(shlex.split((target / 'link.txt').read_text()), build)
+    # MinGW Makefiles can emit cleanup, archive, and compiler commands on
+    # separate lines. Only the compiler command supplies linker flags.
+    commands = [expand_response_files(shlex.split(line), build)
+                for line in (target / 'link.txt').read_text().splitlines() if line.strip()]
+    links = [command for command in commands if '-o' in command]
+    if len(links) != 1:
+        raise ValueError('Expected exactly one compiler link command in link.txt')
+    link = links[0]
+    # CMake's MinGW workaround packs all probe objects into objects.a. Expand
+    # that archive back to its inputs so main() can be excluded while keeping
+    # Qt plugin initialization objects.
+    archives = {command[2]: command[3:] for command in commands
+                if len(command) > 3 and command[1] == 'qc'}
+    link = [item for token in link for item in archives.get(token, [token])]
     output = link.index('-o')
     # Preserve Qt-generated plugin initialization objects, but not probe main().
     # Libtool moves shared libraries before static archives. Keep those
