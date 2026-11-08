@@ -102,7 +102,7 @@ class RuntimePackagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'yerbas-qt.exe').touch()
-            for dependency in ('Qt6Core.dll', 'libwinpthread-1.dll', 'libstdc++-6.dll'):
+            for dependency in ('Qt6Core.dll', 'libwinpthread-1.dll', 'libssp-0.dll', 'libstdc++-6.dll'):
                 with patch.object(package, 'imports', return_value=['KERNEL32.dll', dependency]):
                     with self.assertRaisesRegex(RuntimeError, 'requires external DLLs'):
                         package.verify_system_imports(root, 'objdump')
