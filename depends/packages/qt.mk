@@ -10,7 +10,7 @@ define $(package)_config_cmds
   $(build_prefix)/bin/cmake -S . -B build -G "Unix Makefiles" \
     -DCMAKE_INSTALL_PREFIX=$(host_prefix) \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_SHARED_LIBS=ON \
+    -DBUILD_SHARED_LIBS=OFF \
     -DQT_BUILD_TESTS=OFF \
     -DQT_BUILD_EXAMPLES=OFF \
     -DCMAKE_INSTALL_LIBDIR=lib \
