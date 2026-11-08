@@ -26,6 +26,20 @@ def run(*args):
     subprocess.run([str(x) for x in args], check=True)
 
 
+def expand_response_files(tokens, build, active=()):
+    """Resolve CMake response files before exporting flags to another build."""
+    result = []
+    for token in tokens:
+        if not token.startswith('@'):
+            result.append(token)
+            continue
+        path = (build / token[1:]).resolve()
+        if path in active:
+            raise ValueError(f'Recursive response file: {path}')
+        result.extend(expand_response_files(shlex.split(path.read_text()), build, (*active, path)))
+    return result
+
+
 def static_metadata(prefix, cmake, jobs, host=None):
     """Resolve static plugins with Qt's CMake targets for our Autotools build."""
     probe = prefix / 'static-link'
@@ -49,7 +63,7 @@ qt_import_plugins(qt_link_probe INCLUDE Qt6::PLATFORM_PLUGIN Qt6::QMinimalIntegr
         f'-DCMAKE_PREFIX_PATH={prefix}', '-DCMAKE_BUILD_TYPE=Release', *cross_args)
     run(cmake, '--build', build, '--parallel', jobs)
     target = build / 'CMakeFiles/qt_link_probe.dir'
-    link = shlex.split((target / 'link.txt').read_text())
+    link = expand_response_files(shlex.split((target / 'link.txt').read_text()), build)
     output = link.index('-o')
     # Preserve Qt-generated plugin initialization objects, but not probe main().
     # Libtool moves shared libraries before static archives. Keep those
@@ -67,6 +81,7 @@ qt_import_plugins(qt_link_probe INCLUDE Qt6::PLATFORM_PLUGIN Qt6::QMinimalIntegr
     cflags = []
     for key in ('CXX_DEFINES', 'CXX_INCLUDES'):
         cflags += shlex.split(re.search(r'^' + key + r' = (.*)$', makeflags, re.M).group(1))
+    cflags = expand_response_files(cflags, build)
     # Autotools also passes these flags to moc, which accepts -I, not -isystem.
     raw_cflags = iter(cflags)
     cflags = []
