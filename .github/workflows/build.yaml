@@ -22,6 +22,7 @@ jobs:
   build:
     name: ${{ matrix.platform.name }} Build
     runs-on: ${{ matrix.platform.runner }}
+    container: ${{ matrix.platform.container }}
     timeout-minutes: 240
     strategy:
       fail-fast: false
@@ -40,6 +41,12 @@ jobs:
           - name: Ubuntu 26
             id: ubuntu26
             runner: ubuntu-26.04
+            host: x86_64-pc-linux-gnu
+            extension: ''
+          - name: Debian 13
+            id: debian13
+            runner: ubuntu-24.04
+            container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
             host: x86_64-pc-linux-gnu
             extension: ''
           - name: Ubuntu 24 ARM64
@@ -65,6 +72,13 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Bootstrap Debian container
+        if: matrix.platform.id == 'debian13'
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates git sudo python3 python-is-python3
+
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -75,7 +89,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential autoconf automake libtool \
-            autotools-dev pkg-config curl ca-certificates python3 python3-venv bsdextrautils cmake zip
+            autotools-dev pkg-config curl ca-certificates python3 python3-venv bsdextrautils cmake zip file
           if [[ "$HOST_TRIPLE" == x86_64-w64-mingw32 ]]; then
             sudo apt-get install -y g++-mingw-w64-x86-64
             sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
@@ -365,6 +379,7 @@ jobs:
     # Still test artifacts from successful platforms if another build fails.
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.platform.runner }}
+    container: ${{ matrix.platform.container }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -382,6 +397,11 @@ jobs:
             id: ubuntu26
             runner: ubuntu-26.04
             binary: test_yerbas
+          - name: Debian 13
+            id: debian13
+            runner: ubuntu-24.04
+            container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
+            binary: test_yerbas
           - name: Ubuntu 24 ARM64
             id: ubuntu24-arm64
             runner: ubuntu-24.04-arm
@@ -395,6 +415,13 @@ jobs:
             runner: windows-2022
             binary: test_yerbas.exe
     steps:
+      - name: Bootstrap Debian container
+        if: matrix.platform.id == 'debian13'
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates git sudo python3 python-is-python3
+
       - name: Checkout test runner
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:

@@ -8,6 +8,7 @@ suites and Qt wallet tests on every platform in its matrix:
 | Ubuntu 22 x86_64 | Pinned static Qt sources from depends | `yerbas-build/yerbas-qt` |
 | Ubuntu 24 x86_64 | Pinned static Qt sources from depends | `yerbas-build/yerbas-qt` |
 | Ubuntu 26 x86_64 | Ubuntu Qt packages, minimum 6.8 enforced | `yerbas-build/yerbas-qt` |
+| Debian 13 x86_64 | Pinned static Qt sources from depends | `yerbas-build/yerbas-qt` |
 | Ubuntu 24 ARM64 | Pinned static Qt sources from depends | `yerbas-build/yerbas-qt` |
 | macOS 15 Intel | Pinned Qt sources from depends | `yerbas-build/Yerbas-Qt.app` |
 | Windows x86_64 | Pinned cross-built Qt from depends | `yerbas-build/yerbas-qt.exe` |
@@ -59,3 +60,15 @@ Qt's minimal platform on Linux and the native macOS platform. The local packagin
 unit tests exercise relocation and missing-binary failure; they do not establish
 that a real wallet builds or starts. Successful target build and test jobs are
 required before treating those platform artifacts as validated.
+
+## Debian 13 CI build
+
+The `debian13` build and test jobs run inside pinned Debian 13 containers on an
+x86-64 GitHub-hosted runner. The `yerbas-debian13-binaries` artifact contains a
+portable archive with only `yerbas-cli`, `yerbasd`, and `yerbas-qt` in
+`yerbas-build/`. Qt is linked into the wallet; Debian's normal system libraries
+remain runtime dependencies. Build metadata, checksums, and Qt licensing notices
+are provided alongside the archive. No `.deb` installer is generated.
+
+The Debian test job runs the packaged unit and Qt test executables in a separate
+Debian 13 container. Release publication should wait for both jobs to pass.
