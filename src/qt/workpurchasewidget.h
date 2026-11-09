@@ -12,8 +12,10 @@
 #include <QPlainTextEdit>
 #include <QHBoxLayout>
 #include <QUuid>
+#ifdef Q_OS_LINUX
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 #include <memory>
 
 // Buyer protocol UI. Keys and WalletModel remain in WalletView's callback.
@@ -132,7 +134,13 @@ public:
   details=new QPlainTextEdit(this);details->setObjectName("paidDetails");details->setReadOnly(true);details->setMaximumHeight(180);box->addWidget(details);
   deadline.setSingleShot(true);connect(&deadline,&QTimer::timeout,this,[this]{fail(tr("Request timed out. Reconcile the existing order before retrying; no automatic payment retry."));});
   connect(&socket,&QLocalSocket::errorOccurred,this,[this](QLocalSocket::LocalSocketError){if(!request.isEmpty())fail(tr("Owner agent unavailable. No automatic payment retry."));});
-  connect(&socket,&QLocalSocket::connected,this,[this]{struct ucred peer;socklen_t n=sizeof(peer);if(::getsockopt(socket.socketDescriptor(),SOL_SOCKET,SO_PEERCRED,&peer,&n)||peer.uid!=::geteuid()){fail(tr("Owner agent authentication failed."));return;}socket.write(QJsonDocument(QJsonObject{{"v",1},{"id",request},{"method","marketplace."+action},{"params",pending}}).toJson(QJsonDocument::Compact)+"\n");});
+  connect(&socket,&QLocalSocket::connected,this,[this]{
+#ifdef Q_OS_LINUX
+  struct ucred peer;socklen_t n=sizeof(peer);if(::getsockopt(socket.socketDescriptor(),SOL_SOCKET,SO_PEERCRED,&peer,&n)||peer.uid!=::geteuid()){fail(tr("Owner agent authentication failed."));return;}socket.write(QJsonDocument(QJsonObject{{"v",1},{"id",request},{"method","marketplace."+action},{"params",pending}}).toJson(QJsonDocument::Compact)+"\n");
+#else
+  fail(tr("Owner agent connections are supported only on Linux."));
+#endif
+  });
   connect(&socket,&QLocalSocket::readyRead,this,[this]{read();});
   connect(get,&QPushButton::clicked,this,[this]{if(parallel->value()>units->value())return;if(attempted){details->setPlainText(tr("An existing deposit attempt must be reconciled before a new work request. Check the wallet transaction and retained deposit journal."));return;}send("capabilities",{});});
   connect(fund,&QPushButton::clicked,this,[this]{if(!fund->isEnabled())return;modal=true;controls();WorkFundingDialog dialog(quote,context,this);auto accepted=dialog.exec()==QDialog::Accepted&&dialog.reviewedTerms(reviewed);modal=false;if(accepted){fundAfterNegotiation=true;send("capabilities",{});}else controls();});

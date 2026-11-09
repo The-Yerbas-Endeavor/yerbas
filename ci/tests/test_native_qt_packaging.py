@@ -15,6 +15,23 @@ SPEC.loader.exec_module(PACKAGE)
 
 
 class NativeQtPackagingTests(unittest.TestCase):
+    def test_archive_checksums_ignore_source_directory(self):
+        workflow = (Path(__file__).parents[2] / '.github/workflows/build.yaml').read_text()
+        command = next(line.strip() for line in workflow.splitlines()
+                       if '(cd artifacts && sha256sum' in line)
+        for extension in ('tar.gz', 'zip'):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as tmp:
+                artifacts = Path(tmp) / 'artifacts'
+                artifacts.mkdir()
+                (artifacts / 'yerbas-ai-source').mkdir()
+                archive = 'yerbas-5.0.0.0-test-commit'
+                (artifacts / (archive + '.' + extension)).write_bytes(b'archive fixture')
+                subprocess.run(['bash', '-euo', 'pipefail', '-c', command],
+                               cwd=tmp, env={**os.environ, 'archive': archive}, check=True)
+                subprocess.run(['sha256sum', '-c', 'SHA256SUMS'], cwd=artifacts, check=True,
+                               stdout=subprocess.DEVNULL)
+                self.assertEqual(len((artifacts / 'SHA256SUMS').read_text().splitlines()), 1)
+
     def test_relocated_linux_launcher_preserves_arguments_and_runtime(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

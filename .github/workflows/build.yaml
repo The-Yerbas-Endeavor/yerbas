@@ -364,7 +364,7 @@ jobs:
           else
             tar -czf "artifacts/$archive.tar.gz" yerbas-build
           fi
-          (cd artifacts && sha256sum yerbas-* > SHA256SUMS)
+          (cd artifacts && sha256sum "$archive".* > SHA256SUMS)
 
       - name: Upload binaries
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
