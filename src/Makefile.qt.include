@@ -152,6 +152,22 @@ BITCOIN_QT_H = \
   qt/assetfilterproxy.h \
   qt/assetmanagerpage.h \
   qt/yerbasaipage.h \
+  qt/smartnodeidentitywidget.h \
+  qt/capacitywidget.h \
+  qt/providerinboxwidget.h \
+  qt/networkaiwidget.h \
+  qt/rentalwidget.h \
+  qt/workfundingreview.h \
+  qt/workfundingdialog.h \
+  qt/workdepositjournal.h \
+  qt/workfundingsession.h \
+  qt/workfundingnative.h \
+  qt/workfundingpayment.h \
+  qt/workrefunddialog.h \
+  qt/workorderrecovery.h \
+  qt/workpurchasewidget.h \
+  qt/workdispatchjournal.h \
+  qt/offerwidget.h \
   qt/rewarddisplay.h \
   qt/requestdisplay.h \
   qt/assetdetailsdialog.h \
@@ -374,6 +390,10 @@ RES_IMAGES = \
   qt/res/images/unchecked.png
 
 RES_CSS = \
+  qt/res/css/modern-dark.css \
+  qt/res/css/modern-light.css \
+  qt/res/css/chevron-up.svg \
+  qt/res/css/chevron-down.svg \
   qt/res/css/dark.css \
   qt/res/css/light.css \
   qt/res/css/scrollbars.css \

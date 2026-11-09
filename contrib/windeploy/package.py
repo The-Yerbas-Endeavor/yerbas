@@ -71,12 +71,21 @@ def built_executable(path):
     return real if real.is_file() else path
 
 
+def verify_system_imports(directory, objdump):
+    for binary in directory.glob('*.exe'):
+        unexpected = [name for name in imports(binary, objdump) if not is_system(name)]
+        if unexpected:
+            raise RuntimeError(f'{binary.name} requires external DLLs: {unexpected}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--depends', required=True, type=Path)
     parser.add_argument('--build', default=Path('.'), type=Path)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--tests-output', required=True, type=Path)
+    parser.add_argument('--static', action='store_true', help='Require only Windows system DLL imports')
+    parser.add_argument('--notices-output', type=Path, help='Store notices outside the binary directory')
     parser.add_argument('--host', default='x86_64-w64-mingw32')
     args = parser.parse_args()
     prefix, build = args.depends.resolve(), args.build.resolve()
@@ -89,26 +98,33 @@ def main():
     tests.mkdir(parents=True, exist_ok=True)
     for binary in ('yerbasd.exe', 'yerbas-cli.exe', 'qt/yerbas-qt.exe'):
         shutil.copy2(built_executable(build / 'src' / binary), bin_dir / Path(binary).name)
-    for group in ('platforms', 'imageformats', 'tls', 'styles'):
-        plugins = prefix / 'plugins' / group
-        if plugins.exists():
-            for dll in plugins.glob('*.dll'):
-                dest = bin_dir / 'plugins' / group
-                dest.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(dll, dest / dll.name)
-    for required in ('platforms/qwindows.dll', 'platforms/qminimal.dll',
-                     'tls/qschannelbackend.dll', 'imageformats/qjpeg.dll',
-                     'imageformats/qgif.dll'):
-        if not (bin_dir / 'plugins' / required).is_file():
-            raise RuntimeError(f'Missing required Qt plugin: {required}')
-    (bin_dir / 'qt.conf').write_text('[Paths]\nPrefix=.\nPlugins=plugins\n', encoding='utf-8')
-    copy_runtime(prefix, bin_dir, args.host + '-g++', args.host + '-objdump')
+    if not args.static:
+        for group in ('platforms', 'imageformats', 'tls', 'styles'):
+            plugins = prefix / 'plugins' / group
+            if plugins.exists():
+                for dll in plugins.glob('*.dll'):
+                    dest = bin_dir / 'plugins' / group
+                    dest.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dll, dest / dll.name)
+        for required in ('platforms/qwindows.dll', 'platforms/qminimal.dll',
+                         'tls/qschannelbackend.dll', 'imageformats/qjpeg.dll',
+                         'imageformats/qgif.dll'):
+            if not (bin_dir / 'plugins' / required).is_file():
+                raise RuntimeError(f'Missing required Qt plugin: {required}')
+        (bin_dir / 'qt.conf').write_text('[Paths]\nPrefix=.\nPlugins=plugins\n', encoding='utf-8')
+        copy_runtime(prefix, bin_dir, args.host + '-g++', args.host + '-objdump')
     shutil.copytree(bin_dir, tests, dirs_exist_ok=True)
     for binary in ('test/test_yerbas.exe', 'qt/test/test_yerbas-qt.exe'):
         shutil.copy2(built_executable(build / 'src' / binary), tests / Path(binary).name)
-    copy_runtime(prefix, tests, args.host + '-g++', args.host + '-objdump')
-    shutil.copytree(prefix / 'share/licenses', output / 'licenses')
-    notices = output / 'licenses/toolchain'
+    if args.static:
+        for directory in (bin_dir, tests):
+            verify_system_imports(directory, args.host + '-objdump')
+    else:
+        copy_runtime(prefix, tests, args.host + '-g++', args.host + '-objdump')
+    notices_root = args.notices_output.resolve() if args.notices_output else output
+    notices_root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(prefix / 'share/licenses', notices_root / 'licenses')
+    notices = notices_root / 'licenses/toolchain'
     notices.mkdir(parents=True)
     packages = ('gcc-mingw-w64-x86-64-posix-runtime',
                 'g++-mingw-w64-x86-64-posix', 'mingw-w64-common',
@@ -119,8 +135,8 @@ def main():
     for package in packages:
         shutil.copy2(Path('/usr/share/doc') / package / 'copyright', notices / (package + '.copyright'))
     repo = Path(__file__).resolve().parents[2]
-    shutil.copy2(repo / 'COPYING', output / 'COPYING')
-    shutil.copy2(repo / 'doc/windows-runtime-notices.md', output / 'RUNTIME-NOTICES.md')
+    shutil.copy2(repo / 'COPYING', notices_root / 'COPYING')
+    shutil.copy2(repo / 'doc/windows-runtime-notices.md', notices_root / 'RUNTIME-NOTICES.md')
     print(f'Windows wallet package: {output}')
     print(f'Windows runtime and test executables: {tests}')
 

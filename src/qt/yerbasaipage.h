@@ -2,7 +2,11 @@
 #define YERBAS_QT_YERBASAIPAGE_H
 #include <QWidget>
 #include <QByteArray>
+#include "workpurchasewidget.h"
 class QLocalSocket;
+class OfferWidget;
+class RentalWidget;
+class CapacityWidget;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -19,10 +23,20 @@ public:
     explicit YerbasAIPage(QWidget* parent = nullptr);
     ~YerbasAIPage();
     void connectAgent(const QString& path);
+    void setWorkRefundContext(WorkPurchaseWidget::RefundContext callback);
+    void setWorkSavedSelector(std::function<QJsonObject()> callback);
+    void setWorkHistory(std::function<void()> callback);
+    void setWorkPayment(WorkPurchaseWidget::Pay callback);
     void loadPilot(const QString& directory);
     bool loadPackage(const QString& directory);
     bool loadPreparedJob(const QString& path);
+Q_SIGNALS:
+    void marketplaceAgentChanged(const QString& path, bool ready);
 private:
+    OfferWidget* offers;
+    RentalWidget* rentals;
+    WorkPurchaseWidget* purchase;
+    CapacityWidget* capacity;
     QLocalSocket* agentSocket;
     QTimer* agentDeadline;
     QPlainTextEdit* agentStatus;

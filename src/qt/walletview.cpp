@@ -4,6 +4,7 @@
 
 #include "walletview.h"
 #include "yerbasaipage.h"
+#include "workfundingpayment.h"
 
 #include "addressbookpage.h"
 #include "askpassphrasedialog.h"
@@ -86,6 +87,8 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     addWidget(overviewPage);
     yerbasAIPage = new YerbasAIPage(this);
     addWidget(yerbasAIPage);
+    connect(yerbasAIPage, &YerbasAIPage::marketplaceAgentChanged, overviewPage, &OverviewPage::setMarketplaceAgent);
+    connect(overviewPage, &OverviewPage::aiMarketplaceRequested, this, [this]{ setCurrentWidget(yerbasAIPage); });
     addWidget(transactionsPage);
     addWidget(receiveCoinsPage);
     addWidget(sendCoinsPage);
@@ -216,6 +219,16 @@ void WalletView::setClientModel(ClientModel *_clientModel)
 void WalletView::setWalletModel(WalletModel *_walletModel)
 {
     this->walletModel = _walletModel;
+    yerbasAIPage->setWorkPayment([this](const QJsonObject& quote,const WorkFunding::Context& context,const WorkFunding::Review& review){
+        if(!walletModel)throw std::runtime_error("Wallet unavailable");
+        const QString journal=QString::fromStdString((GetDataDir()/"ai-work-deposits").string());
+        return fundWorkFromWallet(*walletModel,quote,context,review,journal,this);
+    });
+
+    yerbasAIPage->setWorkRefundContext([this](const QJsonObject& recovered,const QJsonObject& journal,const WorkFunding::Context& binding){if(!walletModel)throw std::runtime_error("Wallet unavailable");return validateWorkRefundContext(*walletModel,recovered,journal,binding);});
+    yerbasAIPage->setWorkHistory([this]{showSavedWorkDeposits(QString::fromStdString((GetDataDir()/"ai-work-deposits").string()),this);});
+
+    yerbasAIPage->setWorkSavedSelector([this]{return selectSavedWorkDeposit(QString::fromStdString((GetDataDir()/"ai-work-deposits").string()),this);});
 
     // Put transaction list in tabs
     transactionView->setModel(_walletModel);

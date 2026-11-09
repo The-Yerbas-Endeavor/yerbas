@@ -164,6 +164,18 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="showAssetBalances">
+            <property name="text"><string>Show Asset Balances on Overview</string></property>
+            <property name="toolTip"><string>Show the Asset Balances panel and the Asset Manager navigation item. Assets must be available on this network. This changes visibility only.</string></property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="showPrivateSend">
+            <property name="text"><string>Show PrivateSend on Overview</string></property>
+            <property name="toolTip"><string>Show the PrivateSend panel. This changes visibility only; it does not start or stop mixing.</string></property>
+           </widget>
+          </item>
+          <item>
            <widget class="QCheckBox" name="showAdvancedPSUI">
             <property name="toolTip">
              <string>Show additional information and buttons for PrivateSend on overview screen.</string>

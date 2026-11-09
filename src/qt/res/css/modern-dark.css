@@ -1,0 +1,65 @@
+
+/* Modern wallet shell. Semantic state colors and native focus remain visible. */
+QWidget { font-family: "Noto Sans"; font-size: 14px; color: #ecf2ef; }
+QMainWindow, WalletFrame, WalletView, OverviewPage, YerbasAIPage, QDialog { background: #101719; }
+WalletFrame { padding: 0; margin: 0; border: none; }
+QLabel { background: transparent; }
+QLabel[role="pageTitle"] { font-size: 28px; font-weight: 700; color: #ecf2ef; padding: 0; }
+QLabel[role="sectionTitle"] { font-size: 21px; font-weight: 600; padding: 0 0 4px 0; }
+QLabel[role="subtitle"] { color: #a5b8b2; font-size: 14px; }
+QLabel[role="badge"] { color: #7ed5b0; background: #244239; border: 1px solid #35464a; border-radius: 8px; padding: 7px 12px; font-size: 11px; font-weight: 700; }
+QLabel[role="connection"] { color: #a5b8b2; padding: 9px 12px; border: 1px solid #35464a; border-radius: 8px; background: #182225; }
+QWidget#aiSection { background: #182225; }
+QLabel[role="card"] { background: #202d31; border: 1px solid #35464a; border-radius: 12px; padding: 18px; }
+QMenuBar, QStatusBar { background: #101719; color: #a5b8b2; border: none; padding: 5px 10px; }
+QMenuBar::item { background: transparent; color: #a5b8b2; padding: 5px 10px; }
+QMenuBar::item:selected { background: #202d31; color: #ecf2ef; border-radius: 5px; }
+QMenu { background: #182225; border: 1px solid #35464a; padding: 6px; }
+QMenu::item { color: #ecf2ef; padding: 8px 24px; }
+QMenu::item:selected { background: #244239; color: #7ed5b0; border-radius: 5px; }
+QToolBar { background: #182225; border: none; border-right: 1px solid #35464a; padding: 12px; margin: 0; spacing: 6px; }
+QToolBar > QToolButton { background: transparent; color: #a5b8b2; min-width: 160px; max-width: 190px; min-height: 24px; max-height: 32px; padding: 11px 14px; margin: 2px 0; border: none; border-radius: 8px; text-align: left; font-size: 14px; }
+QToolBar > QToolButton:hover { background: #202d31; color: #ecf2ef; }
+QToolBar > QToolButton:checked { background: #244239; color: #7ed5b0; border: none; font-weight: 600; }
+QLabel#walletBrand { font-size: 24px; font-weight: 800; color: #ecf2ef; padding: 16px 12px 4px 12px; }
+QLabel#brandCaption { font-size: 10px; color: #a5b8b2; padding: 0 12px 24px 12px; }
+QPushButton, QToolButton { color: #ecf2ef; background: #202d31; border: 1px solid #35464a; border-radius: 8px; min-height: 22px; padding: 9px 14px; font-size: 13px; }
+QPushButton:hover, QToolButton:hover { background: #2c3d40; border-color: #7ed5b0; }
+QPushButton:pressed { background: #244239; }
+QPushButton[variant="primary"] { background: #7ed5b0; border-color: #7ed5b0; color: #102a20; font-weight: 600; }
+QPushButton[variant="danger"] { color: #ffaaa2; }
+QPushButton:disabled, QToolButton:disabled { background: #101719; color: #788a85; border-color: #35464a; }
+QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox { background: #101719; color: #ecf2ef; border: 1px solid #35464a; border-radius: 8px; padding: 10px; selection-background-color: #244239; selection-color: #ecf2ef; min-height: 22px; }
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid #7ed5b0; }
+QLineEdit:disabled, QSpinBox:disabled { color: #788a85; background: #182225; }
+QLineEdit:read-only { color: #a5b8b2; }
+QAbstractItemView { background: #182225; alternate-background-color: #202d31; color: #ecf2ef; border: 1px solid #35464a; border-radius: 8px; selection-background-color: #244239; selection-color: #ecf2ef; outline: 0; }
+QAbstractItemView::item { min-height: 30px; padding: 5px; border: none; }
+QHeaderView::section { background: #202d31; color: #a5b8b2; border: none; border-bottom: 1px solid #35464a; padding: 10px; font-weight: 600; }
+QTabWidget::pane { background: #182225; border: 1px solid #35464a; border-radius: 12px; top: -1px; }
+QTabBar::tab { background: transparent; color: #a5b8b2; border: none; border-bottom: 3px solid transparent; padding: 13px 16px; margin-right: 4px; font-size: 14px; }
+QTabBar::tab:selected { color: #7ed5b0; border-bottom-color: #7ed5b0; font-weight: 600; }
+QTabBar::tab:hover { background: #202d31; color: #ecf2ef; }
+QScrollArea { background: transparent; border: none; }
+QScrollBar:vertical { background: #182225; width: 9px; margin: 0; border: none; }
+QScrollBar::handle:vertical { background: #35464a; min-height: 28px; border-radius: 4px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
+QGroupBox { border: 1px solid #35464a; border-radius: 12px; margin-top: 18px; padding: 20px; background: #182225; }
+QGroupBox::title { color: #a5b8b2; subcontrol-origin: margin; left: 18px; padding: 0 6px; }
+QProgressBar { background: #202d31; color: #ecf2ef; border: none; border-radius: 5px; text-align: center; min-height: 8px; }
+QProgressBar::chunk { background: #7ed5b0; border-radius: 5px; }
+QToolTip { background: #182225; color: #ecf2ef; border: 1px solid #35464a; padding: 8px; }
+
+QPushButton:focus, QToolButton:focus { border: 2px solid #7ed5b0; }
+OverviewPage QFrame#frame, OverviewPage QFrame#frame_2, OverviewPage QFrame#assetFrame, OverviewPage QFrame#framePrivateSend, QFrame#frameNetworkAI { background: #182225; border: 1px solid #35464a; border-radius: 12px; padding: 12px; }
+OverviewPage QLabel#labelBalance { font-size: 26px; font-weight: 700; color: #7ed5b0; }
+OverviewPage QLabel#labelTotal { font-size: 18px; font-weight: 600; }
+OverviewPage QLabel#label_5, OverviewPage QLabel#labelTransactions, OverviewPage QLabel#assetBalanceLabel { font-size: 18px; font-weight: 600; }
+QSpinBox::up-button, QSpinBox::down-button { width: 18px; border: none; background: transparent; }
+
+QSpinBox { padding-right: 26px; }
+QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right; width: 24px; height: 21px; }
+QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 24px; height: 21px; }
+QSpinBox::up-arrow { image: url(:/css/chevron-up); width: 12px; height: 9px; }
+QSpinBox::down-arrow { image: url(:/css/chevron-down); width: 12px; height: 9px; }

@@ -61,6 +61,10 @@
     </qresource>
     <qresource prefix="/css">
         <file alias="scrollbars">res/css/scrollbars.css</file>
+        <file alias="chevron-up">res/css/chevron-up.svg</file>
+        <file alias="chevron-down">res/css/chevron-down.svg</file>
+        <file alias="modern-dark">res/css/modern-dark.css</file>
+        <file alias="modern-light">res/css/modern-light.css</file>
     </qresource>
     <qresource prefix="/themes">
         <file alias="Dark">res/css/dark.css</file>

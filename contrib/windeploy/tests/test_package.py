@@ -98,6 +98,17 @@ class RuntimePackagingTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'Unresolved DLL missing.dll'):
                     package.copy_runtime(root, root, 'compiler', 'objdump')
 
+    def test_static_package_rejects_qt_and_compiler_runtime_dlls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'yerbas-qt.exe').touch()
+            for dependency in ('Qt6Core.dll', 'libwinpthread-1.dll', 'libssp-0.dll', 'libstdc++-6.dll'):
+                with patch.object(package, 'imports', return_value=['KERNEL32.dll', dependency]):
+                    with self.assertRaisesRegex(RuntimeError, 'requires external DLLs'):
+                        package.verify_system_imports(root, 'objdump')
+            with patch.object(package, 'imports', return_value=['KERNEL32.dll', 'USER32.dll']):
+                package.verify_system_imports(root, 'objdump')
+
     def test_system_dlls_are_not_guessed_for_unknown_libraries(self):
         self.assertTrue(package.is_system('KERNEL32.dll'))
         self.assertTrue(package.is_system('api-ms-win-crt-heap-l1-1-0.dll'))

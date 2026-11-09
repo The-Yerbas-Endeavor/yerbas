@@ -46,11 +46,13 @@ public:
     void openIPFSForAsset(const QModelIndex &index);
 
 public Q_SLOTS:
+    void setMarketplaceAgent(const QString& path, bool ready);
     void privateSendStatus();
     void setBalance(const CAmount& balance, const CAmount& unconfirmedBalance, const CAmount& immatureBalance, const CAmount& anonymizedBalance,
                     const CAmount& watchOnlyBalance, const CAmount& watchUnconfBalance, const CAmount& watchImmatureBalance);
 
 Q_SIGNALS:
+    void aiMarketplaceRequested();
     void transactionClicked(const QModelIndex &index);
     void outOfSyncWarningClicked();
 
@@ -60,6 +62,7 @@ Q_SIGNALS:
     void assetReissueClicked(const QModelIndex &index);
 
 private:
+    class NetworkAIWidget* networkAI;
     QTimer *timer;
     Ui::OverviewPage *ui;
     ClientModel *clientModel;

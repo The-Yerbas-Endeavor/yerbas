@@ -1,3 +1,4 @@
+#include "networkaiwidget.h"
 // Copyright (c) 2011-2015 The Bitcoin Core developers
 // Copyright (c) 2014-2020 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
@@ -299,6 +300,11 @@ OverviewPage::OverviewPage(const PlatformStyle *platformStyle, QWidget *parent) 
     assetdelegate(new AssetViewDelegate(platformStyle, this))
 {
     ui->setupUi(this);
+    ui->topLayout->setContentsMargins(24,24,24,24);
+    ui->topLayout->setSpacing(18);
+    networkAI = new NetworkAIWidget(this);
+    ui->verticalLayout_2->insertWidget(1, networkAI);
+    networkAI->openMarketplace = [this]{ Q_EMIT aiMarketplaceRequested(); };
 
     // Recent transactions
     ui->listTransactions->setItemDelegate(txdelegate);
@@ -615,7 +621,13 @@ void OverviewPage::setWalletModel(WalletModel *model)
         updateWatchOnlyLabels(model->haveWatchOnly());
         connect(model, SIGNAL(notifyWatchonlyChanged(bool)), this, SLOT(updateWatchOnlyLabels(bool)));
 
+        connect(model->getOptionsModel(), &OptionsModel::assetBalancesVisibilityChanged, this, [this](bool){ showAssets(); });
+        showAssets();
+
         // explicitly update PS frame and transaction list to reflect actual settings
+        connect(model->getOptionsModel(), &OptionsModel::privateSendVisibilityChanged, this, [this](bool show){
+            ui->framePrivateSend->setVisible(show && privateSendClient.fEnablePrivateSend);
+        });
         updateAdvancedPSUI(model->getOptionsModel()->getShowAdvancedPSUI());
 
         if(!privateSendClient.fEnablePrivateSend) return;
@@ -777,7 +789,7 @@ void OverviewPage::updateAdvancedPSUI(bool fShowAdvancedPSUI) {
 
     if (!privateSendClient.fEnablePrivateSend) return;
 
-    ui->framePrivateSend->setVisible(true);
+    ui->framePrivateSend->setVisible(QSettings().value("fShowPrivateSend", false).toBool());
     ui->labelCompletitionText->setVisible(fShowAdvancedPSUI);
     ui->privateSendProgress->setVisible(fShowAdvancedPSUI);
     ui->labelSubmittedDenomText->setVisible(fShowAdvancedPSUI);
@@ -985,7 +997,7 @@ void OverviewPage::DisablePrivateSendCompletely() {
 
 void OverviewPage::showAssets()
 {
-    if (AreAssetsDeployed()) {
+    if (AreAssetsDeployed() && QSettings().value("fShowAssetBalances", false).toBool()) {
         ui->assetFrame->show();
     } else {
         ui->assetFrame->hide();
@@ -1074,3 +1086,5 @@ void OverviewPage::showAssetDetails(const QModelIndex& index)
     AssetDetailsDialog dialog(details, hash, walletModel->getOptionsModel()->getIpfsUrl(), proxy, this);
     dialog.exec();
 }
+
+void OverviewPage::setMarketplaceAgent(const QString& path, bool ready) { networkAI->setAgent(path, ready); }

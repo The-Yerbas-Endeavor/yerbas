@@ -206,6 +206,8 @@ void OptionsDialog::setMapper()
     /* Wallet */
     mapper->addMapping(ui->coinControlFeatures, OptionsModel::CoinControlFeatures);
     mapper->addMapping(ui->showSmartnodesTab, OptionsModel::ShowSmartnodesTab);
+    mapper->addMapping(ui->showAssetBalances, OptionsModel::ShowAssetBalances);
+    mapper->addMapping(ui->showPrivateSend, OptionsModel::ShowPrivateSend);
     mapper->addMapping(ui->showAdvancedPSUI, OptionsModel::ShowAdvancedPSUI);
     mapper->addMapping(ui->showPrivateSendPopups, OptionsModel::ShowPrivateSendPopups);
     mapper->addMapping(ui->lowKeysWarning, OptionsModel::LowKeysWarning);

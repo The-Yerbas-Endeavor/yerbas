@@ -2,7 +2,7 @@ name: Yerbas Build and Tests
 
 on:
   push:
-    branches: ["5.0.0.0", dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2", "4.0.1.3"]
+    branches: ["5.0.0.0", dev, main, "4.0.0.3", "4.0.0.4", "4.0.0.6", "4.0.1.0", "4.0.1.1", "4.0.1.2", "4.0.1.3", "4.0.1.4"]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -22,6 +22,7 @@ jobs:
   build:
     name: ${{ matrix.platform.name }} Build
     runs-on: ${{ matrix.platform.runner }}
+    container: ${{ matrix.platform.container }}
     timeout-minutes: 240
     strategy:
       fail-fast: false
@@ -40,6 +41,12 @@ jobs:
           - name: Ubuntu 26
             id: ubuntu26
             runner: ubuntu-26.04
+            host: x86_64-pc-linux-gnu
+            extension: ''
+          - name: Debian 13
+            id: debian13
+            runner: ubuntu-24.04
+            container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
             host: x86_64-pc-linux-gnu
             extension: ''
           - name: Ubuntu 24 ARM64
@@ -65,6 +72,13 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Bootstrap Debian container
+        if: matrix.platform.id == 'debian13'
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates git sudo python3 python-is-python3
+
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -82,7 +96,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential autoconf automake libtool \
-            autotools-dev pkg-config curl ca-certificates python3 python3-venv bsdextrautils cmake zip
+            autotools-dev pkg-config curl ca-certificates python3 python3-venv bsdextrautils cmake zip file
           if [[ "$HOST_TRIPLE" == x86_64-w64-mingw32 ]]; then
             sudo apt-get install -y g++-mingw-w64-x86-64
             sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
@@ -163,14 +177,17 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: qt-native
-          key: native-qt-${{ matrix.platform.id }}-${{ hashFiles('ci/build-native-qt.py', 'depends/packages/qt.mk', 'depends/packages/qt5compat.mk', 'depends/packages/native_qttools.mk') }}
+          key: native-qt-static-linux-v1-${{ matrix.platform.id }}-${{ hashFiles('ci/build-native-qt.py', 'depends/packages/qt.mk', 'depends/packages/qt5compat.mk', 'depends/packages/native_qttools.mk') }}
 
       - name: Build and verify native desktop Qt
         if: matrix.platform.id != 'win64' && matrix.platform.id != 'ubuntu26'
         run: |
           set -euo pipefail
+          # Keep the array nonempty for macOS Bash 3.2 with set -u.
+          qt_args=(--prefix "$PWD/qt-native")
+          if [[ "$RUNNER_OS" == Linux ]]; then qt_args+=(--static-linux); fi
           if [[ ! -f qt-native/.complete ]]; then
-            python3 ci/build-native-qt.py --prefix "$PWD/qt-native" \
+            python3 ci/build-native-qt.py "${qt_args[@]}" \
               --cmake "$PWD/depends/$HOST_TRIPLE/native/bin/cmake" --jobs "$BUILD_JOBS" \
               2>&1 | tee ci-logs/native-qt.log
           fi
@@ -178,11 +195,21 @@ jobs:
           pkg-config --atleast-version=6.8 Qt6Core Qt6Gui Qt6Widgets Qt6Network Qt6Core5Compat Qt6Test
           echo "QT_NATIVE_PREFIX=$PWD/qt-native" >> "$GITHUB_ENV"
 
+      - name: Resolve static Windows Qt linkage
+        if: matrix.platform.id == 'win64'
+        run: |
+          python3 ci/build-native-qt.py --prefix "$PWD/depends/$HOST_TRIPLE" \
+            --metadata-only --windows-host "$HOST_TRIPLE" \
+            --cmake "$PWD/depends/$HOST_TRIPLE/native/bin/cmake" --jobs "$BUILD_JOBS"
+
       - name: Configure with wallet and tests enabled
         run: |
           set -euo pipefail
           if [[ "$RUNNER_OS" == macOS ]]; then
             export CXXFLAGS="-O2 -g1 -Wno-enum-constexpr-conversion -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION"
+          fi
+          if [[ "$PLATFORM_ID" == win64 ]]; then
+            export LDFLAGS="${LDFLAGS:-} -static -static-libgcc -static-libstdc++"
           fi
           gui_args=(--with-gui=qt6 --with-qrencode --with-qtdbus=no)
           ./autogen.sh 2>&1 | tee ci-logs/autogen.log
@@ -255,7 +282,7 @@ jobs:
           mkdir -p artifacts
           if [[ "$PLATFORM_ID" == win64 ]]; then
             python3 contrib/windeploy/package.py --depends "depends/$HOST_TRIPLE" \
-              --output package --tests-output test-binaries
+              --output package --tests-output test-binaries --static --notices-output artifacts
           else
             mkdir -p package test-binaries
             for name in yerbasd yerbas-cli; do
@@ -274,8 +301,31 @@ jobs:
               printf '%s\n' 'Ubuntu 26 Qt wallet: requires the Ubuntu Qt 6 runtime.' \
                 'Install: sudo apt-get install libqt6widgets6 libqt6network6 libqt6core5compat6 qt6-qpa-plugins' \
                 > package/README-Qt.txt
+            elif [[ "$RUNNER_OS" == Linux ]]; then
+              # Copy real executables when libtool generated launcher scripts.
+              for entry in "src/qt/yerbas-qt:package" "src/qt/test/test_yerbas-qt:test-binaries"; do
+                source="${entry%%:*}"
+                destination="${entry#*:}"
+                real="$(dirname "$source")/.libs/$(basename "$source")"
+                if [[ -f "$real" ]]; then source="$real"; fi
+                install -m755 "$source" "$destination/"
+              done
+              for binary in package/* test-binaries/test_yerbas-qt; do
+                file "$binary" | grep -q 'ELF'
+                ldd "$binary" > "ci-logs/$(basename "$binary").ldd"
+                if grep -Eq 'libQt[56]|not found' "ci-logs/$(basename "$binary").ldd"; then
+                  cat "ci-logs/$(basename "$binary").ldd"
+                  exit 1
+                fi
+              done
+              QT_QPA_PLATFORM=minimal ./package/yerbas-qt -version
+              # Keep licensing material alongside the archive, not in yerbas-build.
+              cp -R "$QT_NATIVE_PREFIX/share/licenses" artifacts/licenses
+              cp COPYING artifacts/COPYING
             else
               python3 ci/package-native-qt.py --prefix "$QT_NATIVE_PREFIX"
+              mv package/share artifacts/share
+              mv package/README-Qt.txt artifacts/README-Qt.txt
             fi
             # Preserve executable modes and library symlinks through artifact upload.
             tar -czf test-runtime.tar.gz -C test-binaries .
@@ -283,17 +333,27 @@ jobs:
             mkdir test-binaries
             mv test-runtime.tar.gz test-binaries/
           fi
-          cp -R contrib/yerbas-ai package/yerbas-ai-source
-          cp doc/yerbas-ai.md package/README-AI.md
+          metadata=artifacts
+          if [[ "$PLATFORM_ID" == ubuntu26 ]]; then metadata=package; fi
+          if [[ "$RUNNER_OS" == Linux && "$PLATFORM_ID" != ubuntu26 ]]; then
+            test "$(find package -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 3
+            test "$(find package -mindepth 1 -maxdepth 1 | wc -l)" -eq 3
+          elif [[ "$RUNNER_OS" == macOS ]]; then
+            test -d package/Yerbas-Qt.app
+            test -x package/yerbasd
+            test -x package/yerbas-cli
+            test "$(find package -mindepth 1 -maxdepth 1 | wc -l)" -eq 3
+          fi
+          cp -R contrib/yerbas-ai artifacts/yerbas-ai-source
+          cp doc/yerbas-ai.md artifacts/README-AI.md
           {
             echo "commit=$GITHUB_SHA"
             cat build.properties
             echo "host=$HOST_TRIPLE"
-          } > package/build-info.txt
-          (
-            cd package
-            find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
-          )
+          } > "$metadata/build-info.txt"
+          (cd package && find . -type f ! -name SHA256SUMS ! -name BINARY-SHA256SUMS -print0 | sort -z | xargs -0 sha256sum) \
+            > "$metadata/BINARY-SHA256SUMS"
+          if [[ "$metadata" == package ]]; then mv package/BINARY-SHA256SUMS package/SHA256SUMS; fi
           version="$(sed -n 's/^release-version=//p' build.properties)"
           archive="yerbas-${version}-${PLATFORM_ID}-${GITHUB_SHA}"
           # Give every platform archive the same extraction root while preserving
@@ -345,6 +405,7 @@ jobs:
     # Still test artifacts from successful platforms if another build fails.
     if: ${{ !cancelled() }}
     runs-on: ${{ matrix.platform.runner }}
+    container: ${{ matrix.platform.container }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -362,6 +423,11 @@ jobs:
             id: ubuntu26
             runner: ubuntu-26.04
             binary: test_yerbas
+          - name: Debian 13
+            id: debian13
+            runner: ubuntu-24.04
+            container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
+            binary: test_yerbas
           - name: Ubuntu 24 ARM64
             id: ubuntu24-arm64
             runner: ubuntu-24.04-arm
@@ -375,6 +441,13 @@ jobs:
             runner: windows-2022
             binary: test_yerbas.exe
     steps:
+      - name: Bootstrap Debian container
+        if: matrix.platform.id == 'debian13'
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates git sudo python3 python-is-python3
+
       - name: Checkout test runner
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -397,7 +470,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libfontconfig1 libxkbcommon-x11-0 libxcb-cursor0 \
-            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 \
+            libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-randr0 libx11-xcb1
 
       - name: Install Ubuntu Qt test runtime
         if: matrix.platform.id == 'ubuntu26'

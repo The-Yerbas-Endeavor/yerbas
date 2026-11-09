@@ -264,7 +264,8 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
         if (qFile.open(QFile::ReadOnly)) {
             styleSheet = QLatin1String(qFile.readAll());
         }
-        this->setStyleSheet(this->styleSheet().append(styleSheet));
+        // Scrollbars are styled by the complete wallet theme.
+        Q_UNUSED(styleSheet);
     }
 #endif
 
@@ -403,6 +404,7 @@ void BitcoinGUI::createActions()
     TransferAssetsAction = new QAction(tr("&Asset Manager"), this);
     TransferAssetsAction->setStatusTip(tr("View, send, create and manage assets in this wallet"));
     TransferAssetsAction->setCheckable(true);
+    TransferAssetsAction->setVisible(QSettings().value("fShowAssetBalances", false).toBool());
     tabGroup->addAction(TransferAssetsAction);
 
     CreateAssetsAction = new QAction(tr("&Create assets"), this);
@@ -625,6 +627,9 @@ void BitcoinGUI::createToolBars()
     {
         QToolBar *toolbar = new QToolBar(tr("Tabs toolbar"));
         toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        toolbar->setObjectName("walletNavigation");
+        auto* brand=new QLabel(tr("YERBAS"),toolbar);brand->setObjectName("walletBrand");toolbar->addWidget(brand);
+        auto* brandCaption=new QLabel(tr("WALLET  /  COMPUTE"),toolbar);brandCaption->setObjectName("brandCaption");toolbar->addWidget(brandCaption);
         toolbar->addAction(overviewAction);
         toolbar->addAction(sendCoinsAction);
         toolbar->addAction(receiveCoinsAction);
@@ -647,7 +652,8 @@ void BitcoinGUI::createToolBars()
 
         QLabel *logoLabel = new QLabel();
         QPixmap logoPixmap(":/images/yerbas_logo_toolbar");
-        logoLabel->setPixmap(logoPixmap);
+        logoLabel->setPixmap(logoPixmap.scaledToWidth(108,Qt::SmoothTransformation));
+        logoLabel->setAlignment(Qt::AlignCenter);
         toolbar->addWidget(logoLabel);
 
         /** Create additional container for toolbar and walletFrame and make it the central widget.
@@ -655,7 +661,7 @@ void BitcoinGUI::createToolBars()
         */
         toolbar->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Minimum);
         toolbar->setOrientation(Qt::Vertical);
-        toolbar->setMinimumSize(180, 0);
+        toolbar->setFixedWidth(218);
 
         QHBoxLayout *layout = new QHBoxLayout;
         layout->addWidget(toolbar);
@@ -718,6 +724,10 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel)
         if(walletFrame)
         {
             walletFrame->setClientModel(_clientModel);
+            connect(_clientModel->getOptionsModel(), &OptionsModel::assetBalancesVisibilityChanged, this, [this](bool show) {
+                if (!show && TransferAssetsAction->isChecked()) gotoOverviewPage();
+                TransferAssetsAction->setVisible(show);
+            });
         }
 #endif // ENABLE_WALLET
         unitDisplayControl->setOptionsModel(_clientModel->getOptionsModel());

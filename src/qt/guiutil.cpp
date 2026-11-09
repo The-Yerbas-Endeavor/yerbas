@@ -949,7 +949,10 @@ QString loadStyleSheet()
 
     QFile qFile(":themes/" + theme);
     if (qFile.open(QFile::ReadOnly)) {
-        return QLatin1String(qFile.readAll());
+        QString base=QLatin1String(qFile.readAll());
+        QFile modern(theme.compare("Light",Qt::CaseInsensitive)==0 ? ":/css/modern-light" : ":/css/modern-dark");
+        if(modern.open(QFile::ReadOnly))return QLatin1String(modern.readAll());
+        return base;
     }
 
     return QString();

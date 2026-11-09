@@ -55,6 +55,8 @@ public:
         PrivateSendAmount,      // int
         PrivateSendMultiSession,// bool
         Listen,                 // bool
+        ShowPrivateSend,        // overview visibility only
+        ShowAssetBalances,      // overview visibility only
         OptionIDRowCount,
     };
 
@@ -110,6 +112,8 @@ Q_SIGNALS:
     void privateSendRoundsChanged();
     void privateSentAmountChanged();
     void advancedPSUIChanged(bool);
+    void privateSendVisibilityChanged(bool);
+    void assetBalancesVisibilityChanged(bool);
     void coinControlFeaturesChanged(bool);
     void hideTrayIconChanged(bool);
 };

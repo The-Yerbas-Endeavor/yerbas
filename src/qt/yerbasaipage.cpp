@@ -1,3 +1,10 @@
+#include "offerwidget.h"
+#include "rentalwidget.h"
+#include "capacitywidget.h"
+#include "providerinboxwidget.h"
+#include <QTabWidget>
+#include <QScrollArea>
+#include <QGroupBox>
 #include "yerbasaipage.h"
 #include "rewarddisplay.h"
 #include "requestdisplay.h"
@@ -113,9 +120,33 @@ QJsonObject sessionSnapshot(int directory)
 
 YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
 {
-    auto* layout = new QVBoxLayout(this);
-    auto* title = new QLabel(tr("Yerbas AI — private pilot"), this);
-    layout->addWidget(title);
+    setObjectName("yerbasAIWorkspace");
+    auto* root = new QVBoxLayout(this);root->setContentsMargins(28,24,28,24);root->setSpacing(18);
+    auto* heading = new QHBoxLayout;
+    auto* title = new QLabel(tr("AI marketplace"), this);title->setProperty("role","pageTitle");
+    auto* badge = new QLabel(tr("PRIVATE TESTNET"), this);badge->setProperty("role","badge");
+    heading->addWidget(title);heading->addStretch();heading->addWidget(badge);root->addLayout(heading);
+    auto* intro = new QLabel(tr("Put spare GPUs to work. Request approved AI jobs, contribute capacity, and track verified results."),this);
+    intro->setWordWrap(true);intro->setProperty("role","subtitle");root->addWidget(intro);
+    auto* connectionBar = new QHBoxLayout;root->addLayout(connectionBar);
+    auto* sections = new QTabWidget(this);sections->setObjectName("aiWorkspaceTabs");root->addWidget(sections,1);
+    auto section = [this,sections](const QString& name,const QString& heading,const QString& help) {
+        auto* area=new QScrollArea(sections);area->setWidgetResizable(true);area->setFrameShape(QFrame::NoFrame);
+        auto* content=new QWidget(area);content->setObjectName("aiSection");
+        auto* box=new QVBoxLayout(content);box->setContentsMargins(24,24,24,24);box->setSpacing(16);box->setAlignment(Qt::AlignTop);
+        auto* label=new QLabel(heading,content);label->setProperty("role","sectionTitle");box->addWidget(label);
+        auto* caption=new QLabel(help,content);caption->setWordWrap(true);caption->setProperty("role","subtitle");box->addWidget(caption);
+        area->setWidget(content);sections->addTab(area,name);return box;
+    };
+    auto* buyLayout=section(tr("Buy AI work"),tr("Your next AI job"),tr("Choose an approved recipe and how many work units you need. Available providers are matched for you."));
+    auto* provideLayout=section(tr("Provide GPUs"),tr("Contribute on your terms"),tr("Review assignments before accepting them. You remain in control of starting and stopping work."));
+    auto* rewardsLayout=section(tr("Rewards"),tr("Contributions & rewards"),tr("Track completed work and testnet reward requests. Saved observations are separate from your wallet balance."));
+    auto* localLayout=section(tr("Local AI"),tr("Run a model on this computer"),tr("Private local generation works without blockchain synchronization or a wallet unlock."));
+    auto* setupLayout=section(tr("Setup"),tr("Connection & diagnostics"),tr("Connect the local owner agent and inspect pilot workspaces. These tools are for the supervised testnet."));
+    capacity=new CapacityWidget(this);provideLayout->addWidget(capacity);
+    auto* inbox=new ProviderInboxWidget(this);provideLayout->addWidget(inbox);
+    connect(this,&YerbasAIPage::marketplaceAgentChanged,inbox,[inbox](const QString& path,bool ready){inbox->setAgent(path,ready);});
+    auto* layout=localLayout;
     auto* explanation = new QLabel(tr("Use the model trained by two Yerbas contributors. Local generation needs no wallet unlock, blockchain sync, GPU or network. This tiny demonstration model produces fragmentary text; it is not a chatbot."), this);
     explanation->setWordWrap(true);layout->addWidget(explanation);
     auto* row = new QHBoxLayout;
@@ -127,11 +158,13 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     layout->addWidget(new QLabel(tr("Prompt"), this));
     prompt = new QPlainTextEdit(this);prompt->setObjectName("aiPrompt");prompt->setPlainText("Alice was ");prompt->setMaximumHeight(75);layout->addWidget(prompt);
     auto* buttons = new QHBoxLayout;
-    generate = new QPushButton(tr("Generate locally"), this);generate->setObjectName("aiGenerate");generate->setEnabled(false);
+    generate = new QPushButton(tr("Generate locally"), this);generate->setObjectName("aiGenerate");generate->setProperty("variant","primary");generate->setEnabled(false);
     stop = new QPushButton(tr("Stop"), this);stop->setObjectName("aiStop");stop->setEnabled(false);
     buttons->addWidget(generate);buttons->addWidget(stop);buttons->addStretch();layout->addLayout(buttons);
-    output = new QPlainTextEdit(this);output->setObjectName("aiOutput");output->setReadOnly(true);output->setMaximumHeight(110);layout->addWidget(output);
+    output = new QPlainTextEdit(this);output->setObjectName("aiOutput");output->setReadOnly(true);output->setMinimumHeight(200);output->setMaximumHeight(500);layout->addWidget(output);
+    layout=provideLayout;
     auto* scope = new QLabel(tr("Training contributions: supervised pilot. Use the connected provider controls below for preassigned jobs. Job accounting uses simulated credits. This page cannot send YERB payments."), this);scope->setWordWrap(true);layout->addWidget(scope);
+    layout=setupLayout;
     auto* pilotRow = new QHBoxLayout;
     pilotPath = new QLineEdit(this);pilotPath->setReadOnly(true);pilotPath->setObjectName("aiPilotPath");
     auto* choosePilot = new QPushButton(tr("Choose pilot workspace…"), this);
@@ -152,19 +185,21 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     auto* selectAgent = new QPushButton(tr("Connect local agent…"), this);
     agentRefresh = new QPushButton(tr("Refresh agent"), this);agentRefresh->setEnabled(false);
     agentStop = new QPushButton(tr("Request stop through agent"), this);agentStop->setObjectName("aiAgentStop");agentStop->setEnabled(false);
-    agentRow->addWidget(selectAgent);agentRow->addWidget(agentRefresh);agentRow->addWidget(agentStop);layout->addLayout(agentRow);
-    agentConnection = new QLabel(tr("Local agent disconnected."), this);agentConnection->setObjectName("aiAgentConnection");agentConnection->setWordWrap(true);agentConnection->setTextFormat(Qt::PlainText);layout->addWidget(agentConnection);
-    rewardSummary = new QLabel(tr("Testnet rewards: connect the local agent to read saved observations."), this);rewardSummary->setObjectName("aiRewardSummary");rewardSummary->setWordWrap(true);rewardSummary->setTextFormat(Qt::PlainText);rewardSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);rewardSummary->setMargin(8);rewardSummary->setFrameStyle(QFrame::StyledPanel);layout->addWidget(rewardSummary);
+    agentRow->addWidget(selectAgent);agentRow->addWidget(agentRefresh);agentRow->addStretch();setupLayout->addLayout(agentRow);provideLayout->addWidget(agentStop,0,Qt::AlignLeft);
+    agentConnection = new QLabel(tr("Local agent disconnected."), this);agentConnection->setObjectName("aiAgentConnection");agentConnection->setWordWrap(true);agentConnection->setTextFormat(Qt::PlainText);agentConnection->setProperty("role","connection");connectionBar->addWidget(agentConnection,1);
+    rewardSummary = new QLabel(tr("Testnet rewards: connect the local agent to read saved observations."), this);rewardSummary->setObjectName("aiRewardSummary");rewardSummary->setWordWrap(true);rewardSummary->setTextFormat(Qt::PlainText);rewardSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);rewardSummary->setMargin(8);rewardSummary->setFrameStyle(QFrame::StyledPanel);rewardSummary->setProperty("role","card");rewardsLayout->addWidget(rewardSummary);
     auto* showAgentDetails = new QPushButton(tr("Show connection details and history"), this);showAgentDetails->setObjectName("aiShowAgentDetails");showAgentDetails->setCheckable(true);layout->addWidget(showAgentDetails);
     agentStatus = new QPlainTextEdit(this);agentStatus->setObjectName("aiAgentStatus");agentStatus->setReadOnly(true);agentStatus->setMinimumHeight(120);agentStatus->setMaximumHeight(180);layout->addWidget(agentStatus);agentStatus->hide();
     connect(showAgentDetails, &QPushButton::toggled, this, [this, showAgentDetails](bool visible) { agentStatus->setVisible(visible);showAgentDetails->setText(visible ? tr("Hide connection details and history") : tr("Show connection details and history")); });
     agentStatus->setPlainText(tr("Local agent disconnected. Connect the installed provider agent to check jobs and start preassigned training."));
+    layout=provideLayout;
     auto* providerRow = new QHBoxLayout;
     providerRunInput = new QLineEdit(this);providerRunInput->setObjectName("aiProviderRun");providerRunInput->setPlaceholderText(tr("Local provider run ID"));providerRunInput->setMaxLength(32);
     providerRefresh = new QPushButton(tr("Check provider job"), this);providerRefresh->setObjectName("aiProviderRefresh");providerRefresh->setEnabled(false);
-    providerStop = new QPushButton(tr("Stop provider job"), this);providerStop->setObjectName("aiProviderStop");providerStop->setEnabled(false);
+    providerStop = new QPushButton(tr("Stop provider job"), this);providerStop->setObjectName("aiProviderStop");providerStop->setProperty("variant","danger");providerStop->setEnabled(false);
     providerRow->addWidget(providerRunInput);providerRow->addWidget(providerRefresh);providerRow->addWidget(providerStop);layout->addLayout(providerRow);
     connect(providerRunInput, &QLineEdit::textChanged, this, [this] { providerStop->setEnabled(false);preparedDeadline=0;if(preparedDetails)preparedDetails->clear();updateProviderControls(); });
+    layout=rewardsLayout;
     auto* rewardRow = new QHBoxLayout();
     rewardReceipt=new QLineEdit(this);rewardReceipt->setObjectName("aiRewardReceipt");rewardReceipt->setPlaceholderText(tr("Completed contribution receipt ID"));rewardReceipt->setMaxLength(32);
     rewardRequest=new QPushButton(tr("Request testnet reward"),this);rewardRequest->setObjectName("aiRewardRequest");
@@ -180,11 +215,16 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     updateRewardControls();
     connect(providerRefresh, &QPushButton::clicked, this, [this] { agentRequest("provider.status"); });
     connect(providerStop, &QPushButton::clicked, this, [this] { agentRequest("provider.cancel"); });
+    offers=new OfferWidget(this);provideLayout->addWidget(offers);
+    purchase=new WorkPurchaseWidget(this);buyLayout->addWidget(purchase);
+    rentals=new RentalWidget(this);buyLayout->addWidget(rentals);
+    purchase->capabilityChanged=[this](bool supported){rentals->setVisible(!supported);};
+    layout=provideLayout;
     auto* submissionRow = new QHBoxLayout;
     providerContribution = new QLineEdit(this);providerContribution->setObjectName("aiContribution");providerContribution->setMaxLength(64);providerContribution->setPlaceholderText(tr("Preassigned contribution ID"));
     auto* loadJob = new QPushButton(tr("Load prepared job…"), this);loadJob->setObjectName("aiLoadJob");
     auto* newRun = new QPushButton(tr("New run ID"), this);
-    providerSubmit = new QPushButton(tr("Start preassigned training"), this);providerSubmit->setObjectName("aiProviderSubmit");providerSubmit->setEnabled(false);
+    providerSubmit = new QPushButton(tr("Start preassigned training"), this);providerSubmit->setObjectName("aiProviderSubmit");providerSubmit->setProperty("variant","primary");providerSubmit->setEnabled(false);
     submissionRow->addWidget(loadJob);submissionRow->addWidget(providerContribution);submissionRow->addWidget(newRun);submissionRow->addWidget(providerSubmit);layout->addLayout(submissionRow);
     preparedDetails=new QLabel(this);preparedDetails->setObjectName("aiPreparedDetails");preparedDetails->setWordWrap(true);preparedDetails->setTextFormat(Qt::PlainText);layout->addWidget(preparedDetails);
     connect(loadJob,&QPushButton::clicked,this,[this] {
@@ -263,6 +303,7 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     const QString bundled = QCoreApplication::applicationDirPath() + "/yerbas-ai-text-model-0.1.0";
     if (!saved.isEmpty()) loadPackage(saved);
     else if (QFileInfo(bundled).isDir()) loadPackage(bundled);
+    for(auto* sectionLayout : {buyLayout,provideLayout,rewardsLayout,localLayout,setupLayout})sectionLayout->addStretch(1);
     const QString installedAgent = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + "/yerbas-ai-control-v1/state/control.sock";
     if (QFileInfo::exists(installedAgent)) connectAgent(installedAgent);
 }
@@ -432,6 +473,11 @@ void YerbasAIPage::connectAgent(const QString& path)
         agentRequestId.clear();agentDeadline->stop();agentSocket->abort();
     }
     rewardRequestsReady=false;updateRewardControls();
+    offers->setAgent(path,false);
+    rentals->setAgent(path,false);
+    purchase->setAgent(path,false,{});
+    capacity->setAgent(path,false);
+    Q_EMIT marketplaceAgentChanged(path,false);
     agentPath = path;agentRun.clear();submissionReady=false;providerStop->setEnabled(false);agentRequest("status");
 }
 
@@ -519,6 +565,11 @@ void YerbasAIPage::agentRequest(const QString& method)
 
 void YerbasAIPage::agentFailure()
 {
+    offers->setAgent(agentPath,false);
+    rentals->setAgent(agentPath,false);
+    purchase->setAgent(agentPath,false,{});
+    capacity->setAgent(agentPath,false);
+    Q_EMIT marketplaceAgentChanged(agentPath,false);
     rewardRequestsReady=false;rewardReceipt->setEnabled(true);updateRewardControls();
     if(agentMethod.startsWith("rewards.")) rewardRequestStatus->setText(tr("Request outcome unknown. Refresh the agent, then check the same receipt before retrying."));
     agentRequestId.clear();agentDeadline->stop();agentSocket->abort();agentRun.clear();
@@ -570,6 +621,17 @@ void YerbasAIPage::agentRead()
         agentStatus->setPlainText(result.value("shutdown_confirmed").toBool() ? tr("Provider reports job %1 is terminal. Check job status for its final outcome.").arg(providerRun) : tr("Stop recorded for %1. Check provider job until shutdown completes.").arg(providerRun));
         providerStop->setEnabled(false);
     } else if (agentMethod == "status") {
+        offers->setAgent(agentPath,result.value("offers_ready")==QJsonValue(true));
+        rentals->setAgent(agentPath,result.value("marketplace_ready")==QJsonValue(true));
+        WorkFunding::Context fundingBinding;
+        auto fundingIdentity=result.value("wallet_identity").toObject();
+        const auto providerId=fundingIdentity.value("provider").toString();
+        if(fundingIdentity.value("active")==QJsonValue(true) && QStringList{"u26-2T","anno2-u26"}.contains(providerId))fundingBinding.buyer=providerId;
+        fundingBinding.caSha256="a6b0afa9dd3e4e136d746f3ab80829631317daf6b3d81201c0e26faca73a508b";
+        fundingBinding.recipe={{"config","cbe00e7f8cb9c1e55fd355e264cfed6ce045da8b602ab84e43e7e550662e3330"},{"dataset","91d43e60d41b056dcaf787b6d68393d4d02e738c12dde14bebefdd83565ddca8"},{"runner","a6a32ed7204376bbe207cfbfcc52862d780bb546fa10c32babddd7e77839f32f"}};
+        purchase->setAgent(agentPath,result.value("marketplace_ready")==QJsonValue(true),fundingBinding);
+        capacity->setAgent(agentPath,result.value("marketplace_ready")==QJsonValue(true));
+        Q_EMIT marketplaceAgentChanged(agentPath,result.value("marketplace_ready")==QJsonValue(true));
         rewardRequestsReady=result.value("reward_requests_ready")==QJsonValue(true);updateRewardControls();
         submissionReady = result.value("submission_ready")==QJsonValue(true);
         const auto session = result.value("session").toObject();
@@ -602,7 +664,10 @@ void YerbasAIPage::agentRead()
         } else {
             agentStatus->appendPlainText(tr("Testnet wallet identity: no valid saved coordinator check. The coordinator checks authorization when a job runs."));
         }
-        rewardSummary->setText(walletRewardLines(result.value("wallet_rewards").toObject(), identityAddress, QSysInfo::machineHostName(), QDateTime::currentSecsSinceEpoch()).join("\n"));
+        QStringList rewardOverview;
+        for(const auto& line:walletRewardLines(result.value("wallet_rewards").toObject(), identityAddress, QSysInfo::machineHostName(), QDateTime::currentSecsSinceEpoch()))
+            if(!line.startsWith("Transaction:"))rewardOverview.append(line);
+        rewardSummary->setText(rewardOverview.join("\n\n"));
         for (const auto& line : walletRewardLines(result.value("wallet_rewards").toObject(), identityAddress, QSysInfo::machineHostName(), QDateTime::currentSecsSinceEpoch())) agentStatus->appendPlainText(line);
         agentStatus->appendPlainText(tr("Remote GPU activity is unchecked. This page cannot send rewards."));
         agentRequest("jobs.list");
@@ -621,3 +686,11 @@ void YerbasAIPage::agentRead()
         agentStop->setEnabled(false);
     }
 }
+
+void YerbasAIPage::setWorkPayment(WorkPurchaseWidget::Pay callback){purchase->setPayment(std::move(callback));}
+
+void YerbasAIPage::setWorkHistory(std::function<void()> callback){purchase->setHistory(std::move(callback));}
+
+void YerbasAIPage::setWorkSavedSelector(std::function<QJsonObject()> callback){purchase->setSavedSelector(std::move(callback));}
+
+void YerbasAIPage::setWorkRefundContext(WorkPurchaseWidget::RefundContext callback){purchase->setRefundContext(std::move(callback));}

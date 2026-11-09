@@ -22,11 +22,39 @@
 #include <QSysInfo>
 #include <QDateTime>
 #include <QTimer>
+#include <QTabWidget>
+#include <QMainWindow>
+#include <QToolBar>
+#include <QHBoxLayout>
 
 class PageTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { QCoreApplication::setOrganizationName("YerbasAITest");QCoreApplication::setApplicationName("IsolatedPage");QSettings().clear(); }
+    void redesignedLayout() {
+        YerbasAIPage page;page.resize(1024,760);page.show();
+        auto* tabs=page.findChild<QTabWidget*>("aiWorkspaceTabs");QVERIFY(tabs);QCOMPARE(tabs->count(),5);
+        QCOMPARE(tabs->tabText(0),QString("Buy AI work"));
+        QVERIFY(!page.findChild<QPlainTextEdit*>("aiPrompt")->isVisible());
+        tabs->setCurrentIndex(3);QVERIFY(page.findChild<QPlainTextEdit*>("aiPrompt")->isVisible());
+        QVERIFY(!page.findChild<QLineEdit*>("aiPilotPath")->isVisible());
+        tabs->setCurrentIndex(4);QVERIFY(page.findChild<QLineEdit*>("aiPilotPath")->isVisible());
+        tabs->setCurrentIndex(0);QTest::qWait(30);QVERIFY(page.minimumSizeHint().width()<=1024);
+    }
+    void renderRedesign() {
+        const QString out=qEnvironmentVariable("YERBAS_REDESIGN_PREVIEW");if(out.isEmpty())QSKIP("Opt-in render");
+        QFile css(qEnvironmentVariable("YERBAS_REDESIGN_CSS"));QVERIFY(css.open(QIODevice::ReadOnly));
+        QMainWindow window;window.setStyleSheet(QString::fromUtf8(css.readAll()));window.resize(1280,880);
+        auto* container=new QWidget(&window);auto* row=new QHBoxLayout(container);row->setContentsMargins(0,0,0,0);row->setSpacing(0);
+        auto* nav=new QToolBar(container);nav->setOrientation(Qt::Vertical);nav->setFixedWidth(218);nav->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        auto* brand=new QLabel("YERBAS",nav);brand->setObjectName("walletBrand");nav->addWidget(brand);
+        auto* caption=new QLabel("WALLET  /  COMPUTE",nav);caption->setObjectName("brandCaption");nav->addWidget(caption);
+        for(const auto& label:QStringList{"Overview","Send","Receive","Transactions","Asset Manager","Yerbas AI"}){auto* a=nav->addAction(label);a->setCheckable(true);a->setChecked(label=="Yerbas AI");}
+        auto* spacer=new QWidget(nav);spacer->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);nav->addWidget(spacer);
+        auto* page=new YerbasAIPage(container);row->addWidget(nav);row->addWidget(page,1);window.setCentralWidget(container);window.show();QTest::qWait(100);
+        auto* tabs=page->findChild<QTabWidget*>("aiWorkspaceTabs");
+        for(int n=0;n<tabs->count();++n){tabs->setCurrentIndex(n);QTest::qWait(50);QVERIFY(window.grab().save(out+QString::number(n)+".png"));}
+    }
     void missingAndModifiedPackageRejected() {
         YerbasAIPage page;QVERIFY(!page.loadPackage("/missing-yerbas-ai-package"));
         QVERIFY(!page.findChild<QPushButton*>("aiGenerate")->isEnabled());
@@ -279,6 +307,7 @@ private slots:
         auto* text=page.findChild<QPlainTextEdit*>("aiAgentStatus");
         QTRY_VERIFY_WITH_TIMEOUT(text->toPlainText().contains(amount+" testnet YERB"),5000);
         auto* summary=page.findChild<QLabel*>("aiRewardSummary");
+        page.findChild<QTabWidget*>("aiWorkspaceTabs")->setCurrentIndex(2);
         QVERIFY(summary->isVisible());QVERIFY(summary->text().contains(depth+" confirmations"));
         QVERIFY(!text->isVisible());QVERIFY(text->toPlainText().contains(tx));
         QVERIFY(text->toPlainText().contains("Not a live wallet balance"));

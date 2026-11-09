@@ -295,6 +295,10 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             return settings.value("bSpendZeroConfChange");
         case ShowSmartnodesTab:
             return settings.value("fShowSmartnodesTab");
+        case ShowAssetBalances:
+            return settings.value("fShowAssetBalances", false).toBool();
+        case ShowPrivateSend:
+            return settings.value("fShowPrivateSend", false).toBool();
         case ShowAdvancedPSUI:
             return fShowAdvancedPSUI;
         case ShowPrivateSendPopups:
@@ -443,6 +447,14 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
                 settings.setValue("fShowSmartnodesTab", value);
                 setRestartRequired(true);
             }
+            break;
+        case ShowAssetBalances:
+            settings.setValue("fShowAssetBalances", value.toBool());
+            Q_EMIT assetBalancesVisibilityChanged(value.toBool());
+            break;
+        case ShowPrivateSend:
+            settings.setValue("fShowPrivateSend", value.toBool());
+            Q_EMIT privateSendVisibilityChanged(value.toBool());
             break;
         case ShowAdvancedPSUI:
             fShowAdvancedPSUI = value.toBool();
