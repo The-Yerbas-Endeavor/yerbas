@@ -72,3 +72,27 @@ are provided alongside the archive. No `.deb` installer is generated.
 
 The Debian test job runs the packaged unit and Qt test executables in a separate
 Debian 13 container. Release publication should wait for both jobs to pass.
+
+### Debian 13 AppImage
+
+The Debian 13 x86-64 package contains exactly three files under `yerbas-build/`:
+`yerbas-cli`, `yerbasd`, and `yerbas-qt`. The GUI file is a type-2 AppImage (not a
+shell launcher). Qt, the required XCB/X11/font libraries, and a fallback font are
+inside it. Normal invocation is `./yerbas-qt`; no FUSE package, environment variable,
+or extra launch argument is required. The pinned official AppImage runtime is built
+with its extract-and-run path enabled by default. Temporary extraction requires
+writable executable temporary storage and additional disk space during execution.
+The supported host remains Debian 13 x86-64 with its glibc and a graphical display;
+this does not promise compatibility with older distributions.
+
+`ci/package-debian-appimage.py` copies the dependency closure, excluding host glibc
+and its loader, and collects Debian copyright notices outside the application
+archive. The AppImage runtime source pin and license accompany those notices.
+Other platform packaging remains unchanged.
+
+`Debian 13 AppImage (no extra packages)` checks the final archive in a pristine,
+pinned Debian container with no package installation, no FUSE device, no network,
+and a non-root user. Xvfb lives in a separate test-infrastructure container. The
+check verifies checksums, the three-file layout, version output, graphical startup,
+wallet/blockchain RPC, and clean shutdown, then confirms the installed package list
+has not changed. It does not exercise every GUI action or mainnet synchronization.

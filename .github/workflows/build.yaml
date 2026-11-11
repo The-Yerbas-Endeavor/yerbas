@@ -19,7 +19,23 @@ env:
   FALLBACK_DOWNLOAD_PATH: https://bitcoincore.org/depends-sources
 
 jobs:
+  appimage-runtime:
+    name: AppImage extraction runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - run: bash ci/build-appimage-runtime.sh appimage-runtime
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: appimage-extraction-runtime
+          path: appimage-runtime/
+          if-no-files-found: error
+
   build:
+    needs: appimage-runtime
     name: ${{ matrix.platform.name }} Build
     runs-on: ${{ matrix.platform.runner }}
     container: ${{ matrix.platform.container }}
@@ -83,6 +99,13 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+
+      - name: Download AppImage runtime
+        if: matrix.platform.id == 'debian13'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: appimage-extraction-runtime
+          path: appimage-runtime
 
       - name: Install Linux build tools
         if: runner.os == 'Linux'
@@ -309,6 +332,14 @@ jobs:
             mkdir test-binaries
             mv test-runtime.tar.gz test-binaries/
           fi
+          if [[ "$PLATFORM_ID" == debian13 ]]; then
+            sudo apt-get install -y --no-install-recommends squashfs-tools fonts-dejavu-core
+            (cd appimage-runtime && sha256sum -c SHA256SUMS)
+            python3 ci/package-debian-appimage.py --binary package/yerbas-qt \
+              --runtime appimage-runtime/runtime-x86_64 --icon src/qt/res/icons/yerbas.png \
+              --notices artifacts/appimage-notices
+            cp appimage-runtime/LICENSE-AppImage-runtime appimage-runtime/runtime-source.txt artifacts/appimage-notices/
+          fi
           metadata=artifacts
           if [[ "$PLATFORM_ID" == ubuntu26 ]]; then metadata=package; fi
           if [[ "$RUNNER_OS" == Linux && "$PLATFORM_ID" != ubuntu26 ]]; then
@@ -518,3 +549,25 @@ jobs:
           path: test-results/
           if-no-files-found: error
           retention-days: 14
+
+  debian-appimage:
+    name: Debian 13 AppImage (no extra packages)
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: yerbas-debian13-binaries
+          path: runtime-artifact
+      - run: bash ci/test-debian-appimage.sh runtime-artifact runtime-results
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: yerbas-debian13-appimage-results
+          path: runtime-results/
+          if-no-files-found: warn
