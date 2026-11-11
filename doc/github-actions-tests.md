@@ -161,3 +161,19 @@ and whitespace checks pass. A full application/platform rebuild remains pending.
 Rebuild depends first so both the BLS archive and installed RELIC headers are
 updated. Then regenerate configure and recheck the existing configuration before
 resuming make. Do not mix old BLS objects/headers with the namespaced library.
+
+### Debian 13 packaged runtime
+
+`Debian 13 Clean Runtime` downloads the Debian application artifact into a fresh,
+pinned Debian 13 container without dependency caches or Qt packages. It verifies
+archive and executable checksums, rejects missing libraries and shared Qt linkage,
+and checks version output from all three shipped executables. The packaged Qt
+wallet then starts under Xvfb using the XCB backend, an isolated regtest wallet,
+and disabled peer connections. The job checks blockchain and wallet RPC responses
+and requires a clean RPC shutdown. Diagnostics are uploaded even on failure.
+
+Only explicitly listed system runtime libraries and test-harness tools are installed;
+no compiler or Qt development/runtime packages are installed. This is a startup
+smoke test, not an exhaustive GUI interaction test. Release approval should require
+this job to pass; making it a protected-branch required check is a separate repository
+setting and is not configured by the workflow itself.

@@ -518,3 +518,36 @@ jobs:
           path: test-results/
           if-no-files-found: error
           retention-days: 14
+
+  debian-runtime:
+    name: Debian 13 Clean Runtime
+    needs: build
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
+    timeout-minutes: 15
+    steps:
+      - name: Install only system runtime and test harness dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git xvfb xauth \
+            libxkbcommon-x11-0 libfontconfig1 libxcb-cursor0 libxcb-icccm4 \
+            libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-randr0 \
+            libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libx11-xcb1 libbrotli1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: yerbas-debian13-binaries
+          path: runtime-artifact
+      - name: Verify packaged binaries and graphical wallet startup
+        run: bash ci/test-debian-runtime.sh runtime-artifact runtime-results
+      - name: Upload clean runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: yerbas-debian13-clean-runtime-results
+          path: runtime-results/
+          if-no-files-found: warn
+          retention-days: 14
