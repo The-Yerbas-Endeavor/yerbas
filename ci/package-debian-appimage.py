@@ -53,6 +53,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export LD_LIBRARY_PATH="$root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export FONTCONFIG_FILE="$root/fonts.conf"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 exec "$root/usr/bin/yerbas-qt" "$@"
 ''')
     (root / 'AppRun').chmod(0o755)
