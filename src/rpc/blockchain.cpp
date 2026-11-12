@@ -8,6 +8,12 @@
 #include "rpc/blockchain.h"
 
 #include "amount.h"
+#include "base58.h"
+#include "script/standard.h"
+#include <algorithm>
+#include <limits>
+#include <map>
+#include <vector>
 #include "chain.h"
 #include "chainparams.h"
 #include "checkpoints.h"
@@ -1217,6 +1223,95 @@ UniValue gettxoutsetinfo(const JSONRPCRequest& request)
     return ret;
 }
 
+// Explicitly invoked by a background job; never call for each page request.
+UniValue getrichlist(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 1)
+        throw std::runtime_error(
+            "getrichlist ( count )\n"
+            "Scan confirmed UTXOs and return the richest addresses by native YERB.\n"
+            "count: integer 1..1000, default 100. This expensive call scans chainstate.\n"
+            "Includes immature coinbase and locked collateral; excludes mempool changes.\n"
+            "Asset quantities are not YERB. Unattributable native value is reported separately.\n"
+            "Amounts ending in Satoshis are exact decimal strings. No wallet or address index needed.\n"
+            "Returns height, bestblock, totalSatoshis, unattributedSatoshis, addresses and items.\n");
+    const int count = request.params.empty() ? 100 : request.params[0].get_int();
+    if (count < 1 || count > 1000)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "count must be between 1 and 1000");
+
+    static std::mutex scanMutex;
+    std::unique_lock<std::mutex> scanLock(scanMutex, std::try_to_lock);
+    if (!scanLock.owns_lock())
+        throw JSONRPCError(RPC_MISC_ERROR, "A rich list scan is already running");
+
+    std::unique_ptr<CCoinsViewCursor> cursor;
+    uint256 bestblock;
+    int height;
+    {
+        // Capture a consistent LevelDB iterator and its tip while writes are locked.
+        LOCK(cs_main);
+        FlushStateToDisk();
+        cursor.reset(pcoinsdbview->Cursor());
+        if (!cursor)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Unable to open UTXO cursor");
+        bestblock = cursor->GetBestBlock();
+        const auto it = mapBlockIndex.find(bestblock);
+        if (it == mapBlockIndex.end())
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "UTXO snapshot block is unknown");
+        height = it->second->nHeight;
+    }
+
+    std::map<std::string, CAmount> balances;
+    CAmount total = 0, unattributed = 0;
+    int64_t txouts = 0;
+    while (cursor->Valid()) {
+        boost::this_thread::interruption_point();
+        Coin coin;
+        if (!cursor->GetValue(coin) || coin.out.nValue < 0)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Unable to read a valid UTXO");
+        if (coin.out.nValue > std::numeric_limits<CAmount>::max() - total)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "UTXO total is out of range");
+        total += coin.out.nValue;
+        ++txouts;
+        if (coin.out.nValue > 0) {
+            CTxDestination destination;
+            if (ExtractDestination(coin.out.scriptPubKey, destination))
+                balances[CBitcoinAddress(destination).ToString()] += coin.out.nValue;
+            else
+                unattributed += coin.out.nValue;
+        }
+        cursor->Next();
+    }
+    {
+        LOCK(cs_main);
+        if (height > chainActive.Height() || chainActive[height]->GetBlockHash() != bestblock)
+            throw JSONRPCError(RPC_MISC_ERROR, "Snapshot reorganized during scan; retry later");
+    }
+    std::vector<std::pair<std::string, CAmount>> ranked(balances.begin(), balances.end());
+    const size_t returned = std::min(ranked.size(), static_cast<size_t>(count));
+    std::partial_sort(ranked.begin(), ranked.begin() + returned, ranked.end(),
+        [](const std::pair<std::string, CAmount>& a, const std::pair<std::string, CAmount>& b) {
+            return a.second != b.second ? a.second > b.second : a.first < b.first;
+        });
+    UniValue items(UniValue::VARR);
+    for (size_t i = 0; i < returned; ++i) {
+        UniValue item(UniValue::VOBJ);
+        item.pushKV("rank", static_cast<int64_t>(i + 1));
+        item.pushKV("address", ranked[i].first);
+        item.pushKV("balanceSatoshis", std::to_string(ranked[i].second));
+        items.push_back(item);
+    }
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("height", height);
+    result.pushKV("bestblock", bestblock.GetHex());
+    result.pushKV("totalSatoshis", std::to_string(total));
+    result.pushKV("unattributedSatoshis", std::to_string(unattributed));
+    result.pushKV("addresses", static_cast<int64_t>(balances.size()));
+    result.pushKV("txouts", txouts);
+    result.pushKV("items", items);
+    return result;
+}
+
 UniValue gettxout(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 2 || request.params.size() > 3)
@@ -1454,6 +1549,7 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
     obj.push_back(Pair("bestblockhash",         chainActive.Tip()->GetBlockHash().GetHex()));
     obj.push_back(Pair("difficulty",            (double)GetDifficulty()));
     obj.push_back(Pair("mediantime",            (int64_t)chainActive.Tip()->GetMedianTimePast()));
+    obj.push_back(Pair("initialblockdownload", IsInitialBlockDownload()));
     obj.push_back(Pair("verificationprogress",  GuessVerificationProgress(Params().TxData(), chainActive.Tip())));
     obj.push_back(Pair("chainwork",             chainActive.Tip()->nChainWork.GetHex()));
     obj.push_back(Pair("pruned",                fPruneMode));
@@ -2222,6 +2318,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getrawmempool",          &getrawmempool,          true,  {"verbose"} },
     { "blockchain",         "getspecialtxes",         &getspecialtxes,         true,  {"blockhash", "type", "count", "skip", "verbosity"} },
     { "blockchain",         "gettxout",               &gettxout,               true,  {"txid","n","include_mempool"} },
+    { "blockchain",         "getrichlist",            &getrichlist,            true,  {"count"} },
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true,  {} },
     { "blockchain",         "pruneblockchain",        &pruneblockchain,        true,  {"height"} },
     { "blockchain",         "verifychain",            &verifychain,            true,  {"checklevel","nblocks"} },

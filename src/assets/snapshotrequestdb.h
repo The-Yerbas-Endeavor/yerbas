@@ -5,7 +5,7 @@
 #ifndef SNAPSHOTREQUESTDB_H
 #define SNAPSHOTREQUESTDB_H
 
-#include <dbwrapper.h>
+#include "assets/myassetsdb.h"
 
 #include <string>
 #include <vector>
@@ -53,9 +53,12 @@ public:
     }
 };
 
-class CSnapshotRequestDB  : public CDBWrapper
+class CSnapshotRequestDB  : public CWalletAssetDB
 {
 public:
+#ifdef ENABLE_WALLET
+    explicit CSnapshotRequestDB(CWallet& wallet);
+#endif
     explicit CSnapshotRequestDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
     CSnapshotRequestDB(const CSnapshotRequestDB&) = delete;
@@ -86,9 +89,12 @@ public:
     );
 };
 
-class CDistributeSnapshotRequestDB  : public CDBWrapper
+class CDistributeSnapshotRequestDB  : public CWalletAssetDB
 {
 public:
+#ifdef ENABLE_WALLET
+    explicit CDistributeSnapshotRequestDB(CWallet& wallet);
+#endif
     explicit CDistributeSnapshotRequestDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
     CDistributeSnapshotRequestDB(const CDistributeSnapshotRequestDB&) = delete;

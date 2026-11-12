@@ -185,3 +185,18 @@ Use the `-v` option for verbose output.
 You are encouraged to write functional tests for new or existing features.
 Further information about the functional test framework and individual
 tests is found in [test/functional](/test/functional).
+
+### Wallet.dat-only asset recovery
+
+Run `python3 ci/test-wallet-asset-restore.py /path/to/yerbasd` from the repository.
+This standalone test needs only Python's standard library and a wallet-enabled daemon.
+It creates isolated regtest nodes and takes a wallet backup before receiving coins,
+a fractional asset, an NFT with an IPFS reference, and an asset owner token.
+It restores only that wallet.dat into an empty data directory, synchronizes the
+blockchain from a local peer, checks balances and metadata, restarts with a rescan,
+and transfers all recovered assets back to the issuer.
+
+No existing wallet data or public-network peers are used. Add `--workdir NEW_DIRECTORY`
+to retain the test data and logs. The test uses the functional suite's deterministic
+regtest clock. It verifies ownership recovery for keys present in the backup;
+it does not recover keys absent from the backup or download/preserve IPFS media.

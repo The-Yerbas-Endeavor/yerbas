@@ -5,6 +5,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <QFile>
+#include <QActionGroup>
+#include <boost/bind/bind.hpp>
 #if defined(HAVE_CONFIG_H)
 #include "config/yerbas-config.h"
 #endif
@@ -50,7 +53,7 @@
 #include <QCursor>
 #include <QDateTime>
 #include <QIcon>
-#include <QDesktopWidget>
+#include <QScreen>
 #include <QPixmap>
 #include <QTimer>
 #include <QDragEnterEvent>
@@ -149,7 +152,7 @@ BitcoinGUI::BitcoinGUI(const PlatformStyle *_platformStyle, const NetworkStyle *
     QSettings settings;
     if (!restoreGeometry(settings.value("MainWindowGeometry").toByteArray())) {
         // Restore failed (perhaps missing setting), center the window
-        move(QApplication::desktop()->availableGeometry().center() - frameGeometry().center());
+        move(screen()->availableGeometry().center() - frameGeometry().center());
     }
 
     QString windowTitle = tr(PACKAGE_NAME) + " - ";
@@ -389,8 +392,8 @@ void BitcoinGUI::createActions()
         connect(smartnodeAction, SIGNAL(triggered()), this, SLOT(gotoSmartnodePage()));
     }
 
-    TransferAssetsAction = new QAction(tr("&Transfer Assets"), this);
-    TransferAssetsAction->setStatusTip(tr("Transfer assets to YERB addresses"));
+    TransferAssetsAction = new QAction(tr("&Asset Manager"), this);
+    TransferAssetsAction->setStatusTip(tr("View, send, create and manage assets in this wallet"));
     TransferAssetsAction->setCheckable(true);
     tabGroup->addAction(TransferAssetsAction);
 
@@ -543,11 +546,11 @@ void BitcoinGUI::createActions()
     }
 #endif // ENABLE_WALLET
 
-    new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_I), this, SLOT(showInfo()));
-    new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_C), this, SLOT(showConsole()));
-    new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_G), this, SLOT(showGraph()));
-    new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_P), this, SLOT(showPeers()));
-    new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_R), this, SLOT(showRepair()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this, SLOT(showInfo()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this, SLOT(showConsole()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G), this, SLOT(showGraph()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this, SLOT(showPeers()));
+    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this, SLOT(showRepair()));
 }
 
 void BitcoinGUI::createMenuBar()
@@ -626,9 +629,7 @@ void BitcoinGUI::createToolBars()
         toolbar->setMovable(false); // remove unused icon in upper left corner
         overviewAction->setChecked(true);
         toolbar->addAction(TransferAssetsAction);
-        toolbar->addAction(CreateAssetsAction);
-        toolbar->addAction(ManageAssetsAction);
-        toolbar->addAction(RestrictedAssetsAction);
+
 
         // Add Yerbas logo on the right side
         QWidget* spacer = new QWidget();
@@ -691,7 +692,7 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel)
         connect(_clientModel, SIGNAL(numConnectionsChanged(int)), this, SLOT(setNumConnections(int)));
         connect(_clientModel, SIGNAL(networkActiveChanged(bool)), this, SLOT(setNetworkActive(bool)));
 
-        modalOverlay->setKnownBestHeight(_clientModel->getHeaderTipHeight(), QDateTime::fromTime_t(_clientModel->getHeaderTipTime()));
+        modalOverlay->setKnownBestHeight(_clientModel->getHeaderTipHeight(), QDateTime::fromSecsSinceEpoch(_clientModel->getHeaderTipTime()));
         setNumBlocks(_clientModel->getNumBlocks(), _clientModel->getLastBlockDate(), _clientModel->getVerificationProgress(nullptr), false);
         connect(_clientModel, SIGNAL(numBlocksChanged(int,QDateTime,double,bool)), this, SLOT(setNumBlocks(int,QDateTime,double,bool)));
 
@@ -1016,19 +1017,19 @@ void BitcoinGUI::gotoAssetsPage()
 
 void BitcoinGUI::gotoCreateAssetsPage()
 {
-    CreateAssetsAction->setChecked(true);
+    TransferAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoCreateAssetsPage();
 }
 
 void BitcoinGUI::gotoManageAssetsPage()
 {
-    ManageAssetsAction->setChecked(true);
+    TransferAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoManageAssetsPage();
 };
 
 void BitcoinGUI::gotoRestrictedAssetsPage()
 {
-    RestrictedAssetsAction->setChecked(true);
+    TransferAssetsAction->setChecked(true);
     if (walletFrame) walletFrame->gotoRestrictedAssetsPage();
 };
 
@@ -1473,7 +1474,7 @@ void BitcoinGUI::checkAssets()
     // Check that status of RIP2 and activate the assets icon if it is active
     if(AreAssetsDeployed()) {
         TransferAssetsAction->setDisabled(false);
-        TransferAssetsAction->setToolTip(tr("Transfer assets to YERB addresses"));
+        TransferAssetsAction->setToolTip(tr("View, send, create and manage assets in this wallet"));
         CreateAssetsAction->setDisabled(false);
         CreateAssetsAction->setToolTip(tr("Create new assets"));
         ManageAssetsAction->setDisabled(false);
@@ -1689,15 +1690,15 @@ static bool ThreadSafeMessageBox(BitcoinGUI *gui, const std::string& message, co
 void BitcoinGUI::subscribeToCoreSignals()
 {
     // Connect signals to client
-    uiInterface.ThreadSafeMessageBox.connect(boost::bind(ThreadSafeMessageBox, this, _1, _2, _3));
-    uiInterface.ThreadSafeQuestion.connect(boost::bind(ThreadSafeMessageBox, this, _1, _3, _4));
+    uiInterface.ThreadSafeMessageBox.connect(boost::bind(ThreadSafeMessageBox, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
+    uiInterface.ThreadSafeQuestion.connect(boost::bind(ThreadSafeMessageBox, this, boost::placeholders::_1, boost::placeholders::_3, boost::placeholders::_4));
 }
 
 void BitcoinGUI::unsubscribeFromCoreSignals()
 {
     // Disconnect signals from client
-    uiInterface.ThreadSafeMessageBox.disconnect(boost::bind(ThreadSafeMessageBox, this, _1, _2, _3));
-    uiInterface.ThreadSafeQuestion.disconnect(boost::bind(ThreadSafeMessageBox, this, _1, _3, _4));
+    uiInterface.ThreadSafeMessageBox.disconnect(boost::bind(ThreadSafeMessageBox, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3));
+    uiInterface.ThreadSafeQuestion.disconnect(boost::bind(ThreadSafeMessageBox, this, boost::placeholders::_1, boost::placeholders::_3, boost::placeholders::_4));
 }
 
 void BitcoinGUI::toggleNetworkActive()
@@ -1725,7 +1726,7 @@ UnitDisplayStatusBarControl::UnitDisplayStatusBarControl(const PlatformStyle *pl
     const QFontMetrics fm(font());
     for (const BitcoinUnits::Unit unit : units)
     {
-        max_width = qMax(max_width, fm.width(BitcoinUnits::name(unit)));
+        max_width = qMax(max_width, fm.horizontalAdvance(BitcoinUnits::name(unit)));
     }
     setMinimumSize(max_width, 0);
     setAlignment(Qt::AlignRight | Qt::AlignVCenter);

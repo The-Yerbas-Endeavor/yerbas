@@ -30,6 +30,7 @@
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 
+#ifdef ENABLE_WALLET
 UniValue viewallmessages(const JSONRPCRequest& request) {
     if (request.fHelp || request.params.size() != 0)
         throw std::runtime_error(
@@ -51,13 +52,18 @@ UniValue viewallmessages(const JSONRPCRequest& request) {
                 + HelpExampleRpc("viewallmessages", "")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmessagedb = pwallet->assetMessages.get();
+
     if (!fMessaging) {
         UniValue ret(UniValue::VSTR);
         ret.push_back("Messaging is disabled. To enable messaging, run the wallet without -disablemessaging or remove disablemessaging from your yerbas.conf");
         return ret;
     }
 
-    if (!pMessagesCache || !pmessagedb) {
+    if (!pmessagedb) {
         UniValue ret(UniValue::VSTR);
         ret.push_back("Messaging database and cache are having problems (a wallet restart might fix this issue)");
         return ret;
@@ -65,26 +71,8 @@ UniValue viewallmessages(const JSONRPCRequest& request) {
 
     std::set<CMessage> setMessages;
 
-    pmessagedb->LoadMessages(setMessages);
-
-    for (auto pair : mapDirtyMessagesOrphaned) {
-        CMessage message = pair.second;
-        message.status = MessageStatus::ORPHAN;
-        if (setMessages.count(message))
-            setMessages.erase(message);
-        setMessages.insert(message);
-    }
-
-    for (auto out : setDirtyMessagesRemove) {
-        CMessage message;
-        message.out = out;
-        setMessages.erase(message);
-    }
-
-    for (auto pair : mapDirtyMessagesAdd) {
-        setMessages.erase(pair.second);
-        setMessages.insert(pair.second);
-    }
+    if (!pmessagedb->LoadMessages(setMessages))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot read wallet asset messages");
 
     UniValue messages(UniValue::VARR);
 
@@ -125,13 +113,18 @@ UniValue viewallmessagechannels(const JSONRPCRequest& request) {
                 + HelpExampleRpc("viewallmessagechannels", "")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmessagechanneldb = pwallet->assetChannels.get();
+
     if (!fMessaging) {
         UniValue ret(UniValue::VSTR);
         ret.push_back("Messaging is disabled. To enable messaging, run the wallet without -disablemessaging or remove disablemessaging from your yerbas.conf");
         return ret;
     }
 
-    if (!pMessageSubscribedChannelsCache || !pmessagechanneldb) {
+    if (!pmessagechanneldb) {
         UniValue ret(UniValue::VSTR);
         ret.push_back("Messaging channel database and cache are having problems (a wallet restart might fix this issue)");
         return ret;
@@ -139,17 +132,8 @@ UniValue viewallmessagechannels(const JSONRPCRequest& request) {
 
     std::set<std::string> setChannels;
 
-    pmessagechanneldb->LoadMyMessageChannels(setChannels);
-
-    LogPrintf("%s: Checking caches removeSize:%u, addSize:%u\n", __func__, setDirtyChannelsRemove.size(), setDirtyChannelsAdd.size());
-
-    for (auto name : setDirtyChannelsRemove) {
-        setChannels.erase(name);
-    }
-
-    for (auto name : setDirtyChannelsAdd) {
-        setChannels.insert(name);
-    }
+    if (!pmessagechanneldb->LoadMyMessageChannels(setChannels))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot read wallet asset channels");
 
     UniValue channels(UniValue::VARR);
 
@@ -176,11 +160,16 @@ UniValue subscribetochannel(const JSONRPCRequest& request) {
                 + HelpExampleRpc("subscribetochannel", "\"ASSET_NAME!\"")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmessagechanneldb = pwallet->assetChannels.get();
+
     if (!fMessaging) {
         throw JSONRPCError(RPC_DATABASE_ERROR, "Messaging is disabled. To enable messaging, run the wallet without -disablemessaging or remove disablemessaging from your yerbas.conf");
     }
 
-    if (!pMessageSubscribedChannelsCache || !pmessagechanneldb) {
+    if (!pmessagechanneldb) {
         throw JSONRPCError(RPC_DATABASE_ERROR, "Message database isn't setup");
     }
 
@@ -203,7 +192,7 @@ UniValue subscribetochannel(const JSONRPCRequest& request) {
         throw JSONRPCError(
                 RPC_INVALID_PARAMETER, "Channel Name must be a owner asset, or a message channel asset e.g OWNER!, MSG_CHANNEL~123.");
 
-    AddChannel(channel_name);
+    AddChannel(*pwallet, channel_name);
 
     return "Subscribed to channel: " + channel_name;
 }
@@ -225,11 +214,16 @@ UniValue unsubscribefromchannel(const JSONRPCRequest& request) {
                 + HelpExampleRpc("unsubscribefromchannel", "\"ASSET_NAME!\"")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmessagechanneldb = pwallet->assetChannels.get();
+
     if (!fMessaging) {
         throw JSONRPCError(RPC_DATABASE_ERROR, "Messaging is disabled. To enable messaging, run the wallet without -disablemessaging or remove disablemessaging from your yerbas.conf");
     }
 
-    if (!pMessageSubscribedChannelsCache || !pmessagechanneldb) {
+    if (!pmessagechanneldb) {
         throw JSONRPCError(RPC_DATABASE_ERROR, "Message database isn't setup");
     }
 
@@ -253,7 +247,7 @@ UniValue unsubscribefromchannel(const JSONRPCRequest& request) {
         throw JSONRPCError(
                 RPC_INVALID_PARAMETER, "Channel Name must be a owner asset, or a message channel asset e.g OWNER!, MSG_CHANNEL~123.");
 
-    RemoveChannel(channel_name);
+    RemoveChannel(*pwallet, channel_name);
 
     return "Unsubscribed from channel: " + channel_name;
 }
@@ -271,22 +265,22 @@ UniValue clearmessages(const JSONRPCRequest& request) {
                 + HelpExampleRpc("clearmessages", "")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmessagedb = pwallet->assetMessages.get();
+
     if (!fMessaging) {
         throw JSONRPCError(RPC_DATABASE_ERROR, "Messaging is disabled. To enable messaging, run the wallet without -disablemessaging or remove disablemessaging from your yerbas.conf");
     }
 
-    if (!pMessagesCache || !pmessagedb) {
+    if (!pmessagedb) {
         throw JSONRPCError(RPC_DATABASE_ERROR, "Message database isn't setup");
     }
 
     int count = 0;
-    count += mapDirtyMessagesAdd.size();
-
-    pMessagesCache->Clear();
-    setDirtyMessagesRemove.clear();
-    mapDirtyMessagesAdd.clear();
-    mapDirtyMessagesOrphaned.clear();
-    pmessagedb->EraseAllMessages(count);
+    if (!pmessagedb->EraseAllMessages(count))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot erase wallet asset messages");
 
     return "Erased " + std::to_string(count) + " Messages from the database and cache";
 }
@@ -399,12 +393,18 @@ UniValue viewmytaggedaddresses(const JSONRPCRequest& request) {
                 + HelpExampleRpc("viewmytaggedaddresses", "")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmyrestricteddb = pwallet->assetRestrictions.get();
+
     std::vector<std::tuple<std::string, std::string, bool, uint32_t> > myTaggedAddresses;
 
     if (!pmyrestricteddb)
         throw JSONRPCError(RPC_DATABASE_ERROR, "My restricted database is not available");
 
-    pmyrestricteddb->LoadMyTaggedAddresses(myTaggedAddresses);
+    if (!pmyrestricteddb->LoadMyTaggedAddresses(myTaggedAddresses))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot read wallet asset restrictions");
     UniValue myTags(UniValue::VARR);
 
     for (auto item : myTaggedAddresses) {
@@ -442,12 +442,18 @@ UniValue viewmyrestrictedaddresses(const JSONRPCRequest& request) {
                 + HelpExampleRpc("viewmyrestrictedaddresses", "")
         );
 
+    CWallet* const pwallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, pwallet->cs_wallet);
+    auto pmyrestricteddb = pwallet->assetRestrictions.get();
+
     std::vector<std::tuple<std::string, std::string, bool, uint32_t> > myRestrictedAddresses;
 
     if (!pmyrestricteddb)
         throw JSONRPCError(RPC_DATABASE_ERROR, "My restricted database is not available");
 
-    pmyrestricteddb->LoadMyRestrictedAddresses(myRestrictedAddresses);
+    if (!pmyrestricteddb->LoadMyRestrictedAddresses(myRestrictedAddresses))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot read wallet asset restrictions");
     UniValue myRestricted(UniValue::VARR);
 
     for (auto item : myRestrictedAddresses) {
@@ -468,6 +474,9 @@ UniValue viewmyrestrictedaddresses(const JSONRPCRequest& request) {
 
 #endif
 
+#endif // ENABLE_WALLET
+
+#ifdef ENABLE_WALLET
 static const CRPCCommand commands[] =
     {           //  category    name                          actor (function)             argNames
                 //  ----------- ------------------------      -----------------------      ----------
@@ -483,8 +492,12 @@ static const CRPCCommand commands[] =
             { "messages",       "clearmessages",              &clearmessages,              true, {}},
     };
 
+#endif
+
 void RegisterMessageRPCCommands(CRPCTable &t)
 {
+#ifdef ENABLE_WALLET
     for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
         t.appendCommand(commands[vcidx].name, &commands[vcidx]);
+#endif
 }

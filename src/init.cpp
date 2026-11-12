@@ -75,6 +75,7 @@
 
 #include "evo/deterministicmns.h"
 #include "llmq/quorums_init.h"
+#include "llmq/quorums_recovery.h"
 
 #include <primitives/powcache.h>
 
@@ -624,6 +625,8 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-testsafemode", strprintf("Force safe mode (default: %u)", DEFAULT_TESTSAFEMODE));
         strUsage += HelpMessageOpt("-dropmessagestest=<n>", "Randomly drop 1 of every <n> network messages");
         strUsage += HelpMessageOpt("-fuzzmessagestest=<n>", "Randomly fuzz 1 of every <n> network messages");
+        strUsage += HelpMessageOpt("-llmqtestfixture", "Use affordable collateral and fixed difficulty for isolated real-DKG tests (regtest only; default: 0)");
+        strUsage += HelpMessageOpt("-llmqrecoverytest", "Enable experimental authenticated recovery-record storage (regtest only; default: 0)");
         strUsage += HelpMessageOpt("-stopafterblockimport", strprintf("Stop running after importing blocks from disk (default: %u)", DEFAULT_STOPAFTERBLOCKIMPORT));
         strUsage += HelpMessageOpt("-stopatheight", strprintf("Stop running after reaching the given height in the main chain (default: %u)", DEFAULT_STOPATHEIGHT));
 
@@ -661,6 +664,9 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-shrinkdebugfile", _("Shrink debug.log file on client startup (default: 1 when no -debug)"));
     AppendParamsHelpMessages(strUsage, showDebug);
     strUsage += HelpMessageOpt("-litemode", strprintf(_("Disable all Yerbas specific functionality (Smartnodes, PrivateSend, InstantSend, Governance) (0-1, default: %u)"), 0));
+    strUsage += HelpMessageOpt("-testnetfastcollateral", _("Private testnet profile: 4 YERB collateral, 10-block coinbase maturity, distinct P2P magic; requires matching peers"));
+    strUsage += HelpMessageOpt("-llmqrecoverydevnet", _("Enable the isolated accelerated recovery devnet profile; requires a named devnet and dedicated authority"));
+    strUsage += HelpMessageOpt("-llmqrecoveryauthority=<address>", _("Public signing-authority address for an isolated recovery devnet"));
     strUsage += HelpMessageOpt("-sporkaddr=<yerbasaddress>", strprintf(_("Override spork address. Only useful for regtest and devnet. Using this on mainnet or testnet will ban you.")));
     strUsage += HelpMessageOpt("-minsporkkeys=<n>", strprintf(_("Overrides minimum spork signers to change spork value. Only useful for regtest and devnet. Using this on mainnet or testnet will ban you.")));
 
@@ -1897,11 +1903,11 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     pMessagesCache = new CLRUCache<std::string, CMessage>(1000);
                     pMessageSubscribedChannelsCache = new CLRUCache<std::string, int>(1000);
                     pMessagesSeenAddressCache = new CLRUCache<std::string, int>(1000);
-                    pmessagedb = new CMessageDB(nBlockTreeDBCache, false, false);
-                    pmessagechanneldb = new CMessageChannelDB(nBlockTreeDBCache, false, false);
+                    pmessagedb = nullptr; // Wallet-owned stores are opened with each wallet.
+                    pmessagechanneldb = nullptr;
 
                     // My restricted assets
-                    pmyrestricteddb = new CMyRestrictedDB(nBlockTreeDBCache, false, false);
+                    pmyrestricteddb = nullptr;
 
                     // Restricted assets
                     prestricteddb = new CRestrictedDB(nBlockTreeDBCache, false, fReset);
@@ -1912,9 +1918,9 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                     passetsGlobalRestrictionCache = new CLRUCache<std::string, int8_t>(MAX_CACHE_ASSETS_SIZE);
 
                     // Rewards
-                    pSnapshotRequestDb = new CSnapshotRequestDB(nBlockTreeDBCache, false, false);
-                    pAssetSnapshotDb = new CAssetSnapshotDB(nBlockTreeDBCache, false, false);
-                    pDistributeSnapshotDb = new CDistributeSnapshotRequestDB(nBlockTreeDBCache, false, false);
+                    pSnapshotRequestDb = nullptr;
+                    pAssetSnapshotDb = nullptr;
+                    pDistributeSnapshotDb = nullptr;
 
                     // Read for fAssetIndex to make sure that we only load asset address balances if it if true
                     pblocktree->ReadFlag("assetindex", fAssetIndex);
@@ -2038,6 +2044,40 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                         break;
                     }
                     assert(chainActive.Tip() != NULL);
+                    if (llmq::RecoveryProtocolEnabled() &&
+                        chainActive.Height() >= llmq::GetRecoveryPolicy().activationHeight) {
+                        llmq::RecoveryState recovery;
+                        if (!llmq::RecoveryStateStore(*evoDb, llmq::GetRecoveryPolicy()).ReadState(*chainActive.Tip(), recovery)) {
+                            const auto policy = llmq::GetRecoveryPolicy();
+                            if (!policy.activationByRecord) {
+                                strLoadError = _("Signed recovery history is missing. Rebuild using -reindex-chainstate (or -reindex); do not reset recovery state manually.");
+                                break;
+                            }
+                            uiInterface.InitMessage(_("Indexing recovery history (chainstate is preserved)..."));
+                            std::string migrationError;
+                            if (!llmq::MigrateLegacyRecoveryHistory(*evoDb, policy, *chainActive.Tip(),
+                                [&](CBlock& block, const CBlockIndex* index) {
+                                    // This is the already-validated active chain. The
+                                    // migrator checks the indexed header hash and merkle
+                                    // root; do not repeat expensive PoW/script validation.
+                                    if (!(index->nStatus & BLOCK_HAVE_DATA)) return false;
+                                    CAutoFile input(OpenBlockFile(index->GetBlockPos(), true), SER_DISK, CLIENT_VERSION);
+                                    if (input.IsNull()) return false;
+                                    try { input >> block; }
+                                    catch (const std::exception&) { return false; }
+                                    return true;
+                                }, [] { return ShutdownRequested(); },
+                                [&](int height) {
+                                    LogPrintf("Recovery history indexing: %d/%d blocks verified\n", height, chainActive.Height());
+                                    uiInterface.InitMessage(strprintf(_("Indexing recovery history: %d/%d blocks"), height, chainActive.Height()));
+                                }, migrationError)) {
+                                if (ShutdownRequested()) return false;
+                                strLoadError = migrationError;
+                                break;
+                            }
+                            LogPrintf("Recovery history migration complete; existing chainstate preserved\n");
+                        }
+                    }
                 }
 
                 //deterministicMNManager->UpgradeDBIfNeeded();

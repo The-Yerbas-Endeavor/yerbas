@@ -1,3 +1,4 @@
+#include <QRandomGenerator>
 #include "trafficgraphdatatests.h"
 #include "../trafficgraphdata.h"
 #include <algorithm>
@@ -133,13 +134,12 @@ void compareQueues(const TrafficGraphData::SampleQueue& expected, const TrafficG
 
 void testRangeSwitch(TrafficGraphData::GraphRange baseRange, TrafficGraphData::GraphRange toRange,int size)
 {
-    QTime time = QTime::currentTime();
-    qsrand((uint)time.msec());
+    QRandomGenerator random(0x59657262);
     TrafficGraphData trafficGraphDataBase(baseRange);
     TrafficGraphData trafficGraphData(toRange);
     for (int i = 1; i <= size; i++){
-        int in = qrand() % 1000;
-        int out = qrand() % 1000;
+        int in = random.bounded(1000);
+        int out = random.bounded(1000);
         trafficGraphData.update(TrafficSample(in, out));
         trafficGraphDataBase.update(TrafficSample(in, out));
     }

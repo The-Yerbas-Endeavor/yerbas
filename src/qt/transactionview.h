@@ -38,6 +38,7 @@ public:
 
     void setModel(WalletModel *model);
     void showAssets();
+    void showAssetHistory();
 
     // Date ranges for filter
     enum DateEnum

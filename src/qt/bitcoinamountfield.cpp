@@ -116,7 +116,7 @@ public:
 
             const QFontMetrics fm(fontMetrics());
             int h = lineEdit()->minimumSizeHint().height();
-            int w = fm.width(BitcoinUnits::format(BitcoinUnits::YERB, BitcoinUnits::maxMoney(), false, BitcoinUnits::separatorAlways, assetUnit));
+            int w = fm.horizontalAdvance(BitcoinUnits::format(BitcoinUnits::YERB, BitcoinUnits::maxMoney(), false, BitcoinUnits::separatorAlways, assetUnit));
             w += 2; // cursor blinking space
 
             QStyleOptionSpinBox opt;
@@ -135,8 +135,7 @@ public:
 
             opt.rect = rect();
 
-            cachedMinimumSizeHint = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this)
-                                    .expandedTo(QApplication::globalStrut());
+            cachedMinimumSizeHint = style()->sizeFromContents(QStyle::CT_SpinBox, &opt, hint, this);
         }
         return cachedMinimumSizeHint;
     }
@@ -197,7 +196,7 @@ protected:
         if (text().isEmpty()) // Allow step-up with empty field
             return StepUpEnabled;
 
-        StepEnabled rv = 0;
+        StepEnabled rv = StepNone;
         bool valid = false;
         CAmount val = value(&valid);
         if(valid)

@@ -9,6 +9,7 @@
 #include <uint256.h>
 #include <serialize.h>
 
+class CWallet;
 class CMessage;
 class COutPoint;
 
@@ -34,9 +35,9 @@ bool IsChannelSubscribed(const std::string &name); // Is this channel marked as 
 
 bool GetMessage(const COutPoint &out, CMessage &message);
 
-void AddChannel(const std::string &name);
 
-void RemoveChannel(const std::string &name);
+
+
 
 void AddMessage(const CMessage &message);
 
@@ -47,10 +48,15 @@ void OrphanMessage(const CMessage &message);
 void OrphanMessage(const COutPoint &out);
 
 #ifdef ENABLE_WALLET
+bool IsChannelSubscribed(CWallet& wallet, const std::string& name);
+bool IsAddressSeen(CWallet& wallet, const std::string& address);
+void AddChannel(CWallet& wallet, const std::string& name);
+void RemoveChannel(CWallet& wallet, const std::string& name);
+void AddAddressSeen(CWallet& wallet, const std::string& address);
 bool ScanForMessageChannels(std::string& strError);
 #endif
-bool IsAddressSeen(const std::string &address); // Has this address already been sent an asset before
-void AddAddressSeen(const std::string &address);
+
+
 
 enum class MessageStatus {
     READ = 0,

@@ -22,6 +22,9 @@
 #include "wallet/coincontrol.h"
 #include "wallet/crypter.h"
 #include "wallet/walletdb.h"
+#include "assets/myassetsdb.h"
+#include "assets/snapshotrequestdb.h"
+#include "assets/assetsnapshotdb.h"
 #include "wallet/rpcwallet.h"
 #include "assets/assettypes.h"
 
@@ -796,6 +799,7 @@ private:
 
     std::unique_ptr<CWalletDBWrapper> dbw;
 
+
     // Used to NotifyTransactionChanged of the previous block's coinbase when
     // the next block comes in
     uint256 hashPrevBestCoinbase;
@@ -1334,6 +1338,17 @@ public:
 
     void NotifyTransactionLock(const CTransaction &tx, const llmq::CInstantSendLock& islock) override;
     void NotifyChainLock(const CBlockIndex* pindexChainLock, const llmq::CChainLockSig& clsig) override;
+
+    // Wallet-owned asset records are included in ordinary wallet.dat backups.
+    std::map<std::pair<std::string, std::vector<unsigned char>>, std::vector<unsigned char>> walletAssetRecords;
+    std::unique_ptr<CMessageDB> assetMessages;
+    std::unique_ptr<CMessageChannelDB> assetChannels;
+    std::unique_ptr<CMyRestrictedDB> assetRestrictions;
+    std::unique_ptr<CSnapshotRequestDB> assetSnapshotRequests;
+    std::unique_ptr<CAssetSnapshotDB> assetSnapshots;
+    std::unique_ptr<CDistributeSnapshotRequestDB> assetDistributions;
+    std::map<uint256, CRewardSnapshot> rewardSnapshots;
+
 };
 
 /** A key allocated from the key pool. */

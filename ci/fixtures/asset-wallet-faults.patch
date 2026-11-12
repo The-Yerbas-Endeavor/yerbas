@@ -1,0 +1,17 @@
+--- a/src/assets/assets.cpp
++++ b/src/assets/assets.cpp
+@@ -3707,2 +3707 @@
+-    if (WalletAssetHeightReached(Params().NetworkIDString() == CBaseChainParams::MAIN,
+-                                       chainActive.Height(), MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT)) return true;
++    if (WalletAssetHeightReached(true, chainActive.Height(), Params().NetworkIDString() == CBaseChainParams::REGTEST ? 220 : MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT)) return true;
+--- a/src/assets/rewards.cpp
++++ b/src/assets/rewards.cpp
+@@ -0,0 +1 @@
++#include <csignal>
+@@ -104 +105,3 @@
+-    return wallet.assetDistributions->AddDistributeTransaction(plan, batch, txid);
++    bool saved = wallet.assetDistributions->AddDistributeTransaction(plan, batch, txid);
++    if (saved && Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-testcrashreservation", false)) std::raise(SIGSTOP);
++    return saved;
+@@ -344,0 +348 @@
++    if (Params().NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-testcrashcommit", false)) std::raise(SIGSTOP);

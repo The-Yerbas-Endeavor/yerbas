@@ -1,0 +1,77 @@
+Signed LOW_LLMQ cutover rules — first signed transaction selects activation
+
+1. Software support and operator control
+The release enables recognition of authority-signed recovery transactions. It
+must not select a public activation height. Upgraded nodes retain legacy quorum
+and PoSe rules until the effective height carried by the first mined ON record.
+The operator chooses when to submit that record using quorum recovery on.
+Installing software, paying a fee alone, or broadcasting gossip does not turn
+LOW_LLMQ on. Compatible nodes must be installed before the first record is mined.
+Protocol 70224 advertising does not automatically exclude older peers.
+
+2. First transition and schedule
+Only manual record version 2 is accepted by this policy. The first record must
+be ON and its effective height A must be divisible by 720, aligning the existing
+30/360/720-block quorum schedules. This prevents a legacy round spanning the
+change of validation rules. The RPC selects the first such boundary at least
+30 blocks ahead: A=ceil((tip+30)/720)*720. The first wait is therefore 30 to 749
+blocks, not an activation date or height selected in a release.
+The record must be mined before A. Subsequent ON/OFF records use the existing
+30-block schedule and 60-block scheduling horizon. ON has no automatic expiry.
+The transaction signature fixes the network, predecessor, ancestor and effective
+height; an expired unmined request must be recreated, not silently moved.
+
+3. Authorization and fees
+Use the network's configured spork address set and signature threshold, not a
+runtime public-network address override. The wallet RPC uses sporkkey and pays
+ordinary transaction fees. The current RPC collects one authority signature.
+Reject wrong network/branch/authority/predecessor, duplicate signers, overlapping
+pending transitions, redundant actions, and more than one record in a block.
+Mempool policy admits one pending record, revalidates it after tip changes, and
+rejects expired relay requests without penalizing a peer for the context change.
+
+4. Preserving the prefix
+Before A, retain the existing legacy validation and established legacy spork
+setting. This does not reconstruct missing old gossip-spork messages or rewrite
+historical rules. No signature, payment, collateral or state-root checks are
+waived. The first record may be included before A without changing the mode.
+Record an explicitly empty history for pre-record blocks. Missing database state
+is never permission to infer that no record exists. Before the first record,
+an existing node automatically builds a missing index from its already validated
+local blocks. This checks indexed block hashes and transaction Merkle roots,
+without rebuilding UTXO/chainstate, smartnode state or wallet data. Progress is
+committed every 1,000 blocks and resumes from a branch-bound checkpoint after
+interruption. Nodes with an existing valid tip entry skip this migration.
+If the scan finds a signed recovery record, it stops and requires
+-reindex-chainstate or -reindex to validate recorded history. Missing or damaged
+blocks require restoration or resync; pruned nodes may need old blocks again.
+Wallet keys and balances are not reset. This migration does not repair unrelated
+chainstate corruption or reconstruct missing legacy gossip-spork history.
+
+5. Applying and retaining history
+Store the first ON effective height in branch-specific recovery state and retain
+it after OFF and all later ON records. OFF ends LOW_LLMQ, not recorded validation.
+At A, pre-A quorums retire from new signing; historical commitments remain data.
+Resolve post-A parameter profiles from quorum-start parent state and count,
+using owned profiles for all adaptive types. LOW changes type 1 only.
+Retain existing membership selection, registrations, collateral and PoSe cleanup.
+A record included in a block cannot change that same block's quorum parameters.
+Quorum services may pause until replacements form; ordinary mining and the signed
+fee-paying activation transaction do not require a functioning quorum.
+
+6. Reorganizations and reconstruction
+Recovery state is keyed by block hash and updated atomically with evolutionary
+state. Losing the first record removes that branch's selected cutover; losing
+an OFF restores the prior mode. Reconsidering/replaying restores the same state.
+A competing branch must use its own records. Fresh sync and reindex reconstruct
+ON, OFF and the retained cutover without the current gossip spork determining
+post-cutover history. RPC status distinguishes pending, scheduled and effective.
+
+7. Acceptance and remaining rollout gates
+Test first ON without a configured height or functioning quorum, boundary
+behavior, OFF, subsequent ON, invalid first records, fresh sync, reindex,
+missing-state refusal, reindex-chainstate, reorg through the first record, and
+real legacy/LOW/normal quorum signing. Check compatibility of the legacy prefix.
+Local tests and CI do not substitute for the planned testnet run and coordinated
+operator upgrade before mainnet use. Fixed-height experimental fixtures remain
+regtest-only regression cases; they are not the public activation policy.

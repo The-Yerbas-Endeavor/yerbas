@@ -1210,10 +1210,7 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
         LogPrint(BCLog::NET, "connection accepted\n");
     }
 
-    {
-        LOCK(cs_vNodes);
-        vNodes.push_back(pnode);
-    }
+    AddConnectedNode(pnode);
 }
 
 void CConnman::ThreadSocketHandler()
@@ -1596,7 +1593,12 @@ void ThreadMapPort()
     struct IGDdatas data;
     int r;
 
+#if MINIUPNPC_API_VERSION >= 18
+    char wanaddr[64];
+    r = UPNP_GetValidIGD(devlist, &urls, &data, lanaddr, sizeof(lanaddr), wanaddr, sizeof(wanaddr));
+#else
     r = UPNP_GetValidIGD(devlist, &urls, &data, lanaddr, sizeof(lanaddr));
+#endif
     if (r == 1)
     {
         if (fDiscover) {
@@ -2233,12 +2235,21 @@ bool CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
         pnode->fSmartnode = true;
 
     m_msgproc->InitializeNode(pnode);
-    {
-        LOCK(cs_vNodes);
-        vNodes.push_back(pnode);
-    }
+    AddConnectedNode(pnode);
 
     return true;
+}
+
+void CConnman::AddConnectedNode(CNode* node)
+{
+    LOCK(cs_vNodes);
+    // Connect/accept and initialization may finish after SetNetworkActive(false)
+    // swept the existing peers. Serialize this final check with that sweep.
+    if (!fNetworkActive) {
+        node->CloseSocketDisconnect();
+    }
+    // Keep normal socket-handler finalization and reference/grant cleanup.
+    vNodes.push_back(node);
 }
 
 bool CConnman::OpenSmartnodeConnection(const CAddress &addrConnect) {

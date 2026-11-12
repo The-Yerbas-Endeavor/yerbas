@@ -185,4 +185,29 @@ BOOST_AUTO_TEST_CASE(cnode_simple_test)
     BOOST_CHECK(pnode2->fFeeler == false);
 }
 
+BOOST_AUTO_TEST_CASE(network_disable_closes_late_connections)
+{
+    CConnman connman(1, 2);
+    for (bool inbound : {false, true}) {
+        CNode node(1, NODE_NETWORK, 0, INVALID_SOCKET, CAddress(), 0, 0,
+                   CAddress(), "", inbound);
+        // Model a connect/accept started while enabled but finishing after the
+        // disable sweep. The final admission path must disconnect it too.
+        connman.SetNetworkActive(true);
+        connman.SetNetworkActive(false);
+        CConnmanTest::AddConnectedNode(connman, node);
+        BOOST_CHECK(node.fDisconnect);
+        CConnmanTest::ClearNodes(connman);
+
+        CNode active(2, NODE_NETWORK, 0, INVALID_SOCKET, CAddress(), 0, 0,
+                     CAddress(), "", inbound);
+        connman.SetNetworkActive(true);
+        CConnmanTest::AddConnectedNode(connman, active);
+        BOOST_CHECK(!active.fDisconnect);
+        connman.SetNetworkActive(false);
+        BOOST_CHECK(active.fDisconnect);
+        CConnmanTest::ClearNodes(connman);
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

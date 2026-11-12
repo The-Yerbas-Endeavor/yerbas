@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -28,6 +29,15 @@ CFinalCommitment::CFinalCommitment(const Consensus::LLMQParams& params, const ui
 
 bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, bool checkSigs) const
 {
+    if (RecoveryProtocolEnabled()) {
+        LOCK(cs_main);
+        const auto it = mapBlockIndex.find(quorumHash);
+        Consensus::LLMQParams resolved;
+        if (it == mapBlockIndex.end() ||
+            !ResolveRecoveryQuorumParams((Consensus::LLMQType)llmqType, it->second, resolved)) return false;
+        if (RecoveryUsesRecordedParams(it->second->nHeight, it->second))
+            return Verify(resolved, members, checkSigs);
+    }
     if (nVersion == 0 || nVersion > CURRENT_VERSION) {
         return false;
     }
@@ -37,6 +47,19 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
         return false;
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)llmqType);
+    return Verify(params, members, checkSigs);
+}
+
+bool CFinalCommitment::Verify(const Consensus::LLMQParams& params, const std::vector<CDeterministicMNCPtr>& members, bool checkSigs) const
+{
+    if (nVersion == 0 || nVersion > CURRENT_VERSION || llmqType != params.type) {
+        return false;
+    }
+
+    // Selection must not provide more identities than fit in the bitsets.
+    if (members.size() > static_cast<size_t>(params.size)) {
+        return false;
+    }
 
     if (!VerifySizes(params)) {
         return false;
@@ -106,11 +129,38 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
 
 bool CFinalCommitment::VerifyNull() const
 {
+    if (RecoveryProtocolEnabled()) {
+        LOCK(cs_main);
+        const auto it = mapBlockIndex.find(quorumHash);
+        Consensus::LLMQParams resolved;
+        if (it == mapBlockIndex.end() ||
+            !ResolveRecoveryQuorumParams((Consensus::LLMQType)llmqType, it->second, resolved)) return false;
+        if (RecoveryUsesRecordedParams(it->second->nHeight, it->second))
+            return VerifyNull(resolved);
+    }
     if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)llmqType)) {
         LogPrintfFinalCommitment("invalid llmqType=%d\n", llmqType);
         return false;
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)llmqType);
+    if (nVersion == 0 || nVersion > CURRENT_VERSION || !IsNull() || signers.size() != validMembers.size()) {
+        return false;
+    }
+    // Mainnet must retain the old exact-size rule until recorded cutover.
+    // Broad legacy sizes remain a replay accommodation on non-mainnet networks.
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN) return VerifyNull(params);
+    // An empty historical record does not create a quorum, change membership,
+    // or authorize signatures. Do not reinterpret it using today's live DKG
+    // size. The caller still checks type, quorum ancestry and mining window.
+    return signers.size() == static_cast<size_t>(params.size) ||
+        IsLegacyNullCommitmentSize((Consensus::LLMQType)llmqType, signers.size());
+}
+
+bool CFinalCommitment::VerifyNull(const Consensus::LLMQParams& params) const
+{
+    if (nVersion == 0 || nVersion > CURRENT_VERSION || llmqType != params.type) {
+        return false;
+    }
 
     if (!IsNull() || !VerifySizes(params)) {
         return false;
@@ -122,11 +172,15 @@ bool CFinalCommitment::VerifyNull() const
 bool CFinalCommitment::VerifySizes(const Consensus::LLMQParams& params) const
 {
     if (signers.size() != params.size) {
-        LogPrintfFinalCommitment("invalid signers.size=%d, params.size=%d\n", signers.size(), params.size);
+        LogPrintfFinalCommitment("invalid signers.size=%d, params.size=%d llmqType=%d quorumHash=%s minSize=%d threshold=%d dkgInterval=%d\n",
+                                 signers.size(), params.size, (int)llmqType, quorumHash.ToString(),
+                                 params.minSize, params.threshold, params.dkgInterval);
         return false;
     }
     if (validMembers.size() != params.size) {
-        LogPrintfFinalCommitment("invalid validMembers.size=%d, params.size=%d\n", validMembers.size(), params.size);
+        LogPrintfFinalCommitment("invalid validMembers.size=%d, params.size=%d llmqType=%d quorumHash=%s minSize=%d threshold=%d dkgInterval=%d\n",
+                                 validMembers.size(), params.size, (int)llmqType, quorumHash.ToString(),
+                                 params.minSize, params.threshold, params.dkgInterval);
         return false;
     }
     return true;

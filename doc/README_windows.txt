@@ -11,7 +11,9 @@ with each other, with the help of a P2P network to check for double-spending.
 
 Setup
 -----
-Unpack the files into a directory and run yerbas-qt.exe.
+Extract the complete archive and run yerbas-build/yerbas-qt.exe.
+Keep the DLLs and plugins together. See doc/release-notes.md for the
+4.0.1.3 backup, upgrade, and asset activation instructions.
 
 Yerbas Core is the original Yerbas client and it builds the backbone of the network.
 However, it downloads and stores the entire history of Yerbas transactions;

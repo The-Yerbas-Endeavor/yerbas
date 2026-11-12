@@ -7,7 +7,7 @@
 
 #include <set>
 
-#include <dbwrapper.h>
+#include "assets/myassetsdb.h"
 #include "amount.h"
 
 class CAssetSnapshotDBEntry
@@ -53,8 +53,11 @@ public:
     }
 };
 
-class CAssetSnapshotDB  : public CDBWrapper {
+class CAssetSnapshotDB  : public CWalletAssetDB {
 public:
+#ifdef ENABLE_WALLET
+    explicit CAssetSnapshotDB(CWallet& wallet);
+#endif
     explicit CAssetSnapshotDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
 
     CAssetSnapshotDB(const CAssetSnapshotDB&) = delete;

@@ -53,6 +53,10 @@ public:
 
     bool Verify(const std::vector<CDeterministicMNCPtr>& members, bool checkSigs) const;
     bool VerifyNull() const;
+    // The caller must resolve these parameters from trusted chain context,
+    // never from the commitment's vector lengths or declared values.
+    bool Verify(const Consensus::LLMQParams& params, const std::vector<CDeterministicMNCPtr>& members, bool checkSigs) const;
+    bool VerifyNull(const Consensus::LLMQParams& params) const;
     bool VerifySizes(const Consensus::LLMQParams& params) const;
 
 public:

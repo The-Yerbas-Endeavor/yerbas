@@ -3,7 +3,6 @@
 SOURCES_PATH ?= $(BASEDIR)/sources
 WORK_PATH = $(BASEDIR)/work
 BASE_CACHE ?= $(BASEDIR)/built
-SDK_PATH ?= $(BASEDIR)/SDKs
 NO_QT ?=
 NO_WALLET ?=
 NO_UPNP ?=
@@ -56,6 +55,12 @@ ifeq ($(host_os),)
 host_os=$(full_host_os)
 endif
 
+ifeq ($(host_os),darwin)
+ifneq ($(build_os),darwin)
+$(error macOS cross builds are retired. Build natively on macOS with Xcode command-line tools)
+endif
+endif
+
 $(host_arch)_$(host_os)_prefix=$(BASEDIR)/$(host)
 $(host_arch)_$(host_os)_host=$(host)
 host_prefix=$($(host_arch)_$(host_os)_prefix)
@@ -88,7 +93,36 @@ $(host_arch)_$(host_os)_id_string+=$(shell $(host_CXX) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_RANLIB) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_STRIP) --version 2>/dev/null)
 
-qt_packages_$(NO_QT) = $(qt_packages) $(qt_$(host_os)_packages) $(qt_$(host_arch)_$(host_os)_packages)
+# Plain make selects the supported GUI dependency path on native Linux.
+# Explicit headless/cross-build choices must not inherit that default.
+ifeq ($(NO_QT),)
+ifeq ($(build_os),linux)
+ifeq ($(canonical_host),$(build))
+USE_SYSTEM_QT ?= 1
+endif
+endif
+endif
+USE_SYSTEM_QT ?=
+
+ifeq ($(USE_SYSTEM_QT),1)
+ifneq ($(NO_QT),)
+$(error USE_SYSTEM_QT=1 cannot be combined with NO_QT)
+endif
+ifneq ($(host_arch)_$(host_os),$(build_arch)_$(build_os))
+$(error USE_SYSTEM_QT=1 supports native builds only)
+endif
+# Keep QR/zlib pinned, but use the desktop Qt 6 stack.
+qt_packages_ = $(qt_packages)
+else
+ifeq ($(NO_QT),)
+ifeq ($(build_os)_$(host_os)_$(host_arch),linux_mingw32_x86_64)
+qt_packages_ = $(qt_packages) qt qt5compat
+qt_native_packages = native_qt native_qttools
+else
+$(error GUI dependencies require USE_SYSTEM_QT=1 for native builds or Linux to x86_64-w64-mingw32. Use NO_QT=1 only for headless builds)
+endif
+endif
+endif
 wallet_packages_$(NO_WALLET) = $(wallet_packages)
 upnp_packages_$(NO_UPNP) = $(upnp_packages)
 
@@ -109,6 +143,7 @@ include funcs.mk
 
 toolchain_path=$($($(host_arch)_$(host_os)_native_toolchain)_prefixbin)
 final_build_id_long+=$(shell $(build_SHA256SUM) config.site.in)
+final_build_id_long+=system-qt-$(USE_SYSTEM_QT)
 final_build_id+=$(shell echo -n "$(final_build_id_long)" | $(build_SHA256SUM) | cut -c-$(HASH_LENGTH))
 $(host_prefix)/.stamp_$(final_build_id): $(native_packages) $(packages)
 	$(AT)rm -rf $(@D)
@@ -134,6 +169,7 @@ $(host_prefix)/share/config.site : config.site.in $(host_prefix)/.stamp_$(final_
             -e 's|@CPPFLAGS@|$(strip $(host_CPPFLAGS) $(host_$(release_type)_CPPFLAGS))|' \
             -e 's|@LDFLAGS@|$(strip $(host_LDFLAGS) $(host_$(release_type)_LDFLAGS))|' \
             -e 's|@no_qt@|$(NO_QT)|' \
+            -e 's|@use_system_qt@|$(USE_SYSTEM_QT)|' \
             -e 's|@no_wallet@|$(NO_WALLET)|' \
             -e 's|@no_upnp@|$(NO_UPNP)|' \
             -e 's|@debug@|$(DEBUG)|' \
@@ -176,11 +212,18 @@ install: check-packages $(host_prefix)/share/config.site
 download-one: check-sources $(all_sources)
 
 download-osx:
-	@$(MAKE) -s HOST=x86_64-apple-darwin14 download-one
+ifeq ($(build_os),darwin)
+	@$(MAKE) -s HOST=$(BUILD) download-one
+else
+	@echo "macOS dependency downloads require a native macOS builder" >&2; exit 1
+endif
 download-linux:
 	@$(MAKE) -s HOST=x86_64-unknown-linux-gnu download-one
 download-win:
 	@$(MAKE) -s HOST=x86_64-w64-mingw32 download-one
-download: download-osx download-linux download-win
+download: download-linux download-win
+ifeq ($(build_os),darwin)
+download: download-osx
+endif
 
 .PHONY: install cached clean clean-all download-one download-osx download-linux download-win download check-packages check-sources

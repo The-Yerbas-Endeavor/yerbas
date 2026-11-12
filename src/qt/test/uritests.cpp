@@ -12,6 +12,8 @@
 void URITests::uriTests()
 {
     SendCoinsRecipient rv;
+    QVERIFY(!GUIUtil::parseBitcoinURI(QString("yerbas:address?r=https://example.invalid/request"), &rv));
+    QVERIFY(!GUIUtil::parseBitcoinURI(QString("yerbas:address?req-r=https://example.invalid/request"), &rv));
     QUrl uri;
     uri.setUrl(QString("yerbas:XwnLY9Tf7Zsef8gMGL2fhWA9ZmMjt4KPwg?req-dontexist="));
     QVERIFY(!GUIUtil::parseBitcoinURI(uri, &rv));

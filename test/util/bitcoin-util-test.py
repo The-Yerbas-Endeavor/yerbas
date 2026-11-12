@@ -26,14 +26,18 @@ import subprocess
 import sys
 
 def main():
-    config = configparser.ConfigParser()
-    config.optionxform = str
-    config.readfp(open(os.path.join(os.path.dirname(__file__), "../config.ini"), encoding="utf8"))
-    env_conf = dict(config.items('environment'))
-
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('--binary', help='Test a specific yerbas-tx without a configured build tree')
     args = parser.parse_args()
+    if args.binary:
+        env_conf = {'BINARY': os.path.abspath(args.binary)}
+    else:
+        config = configparser.ConfigParser()
+        config.optionxform = str
+        config.read_file(open(os.path.join(os.path.dirname(__file__), "../config.ini"), encoding="utf8"))
+        env_conf = dict(config.items('environment'))
+
     verbose = args.verbose
 
     if verbose:
@@ -44,7 +48,7 @@ def main():
     # Add the format/level to the logger
     logging.basicConfig(format=formatter, level=level)
 
-    bctester(os.path.join(env_conf["SRCDIR"], "test", "util", "data"), "bitcoin-util-test.json", env_conf)
+    bctester(os.path.join(os.path.dirname(__file__), "data"), "bitcoin-util-test.json", env_conf)
 
 def bctester(testDir, input_basename, buildenv):
     """ Loads and parses the input file, runs all tests and reports results"""
@@ -68,6 +72,7 @@ def bctester(testDir, input_basename, buildenv):
         logging.error(error_message)
         sys.exit(1)
     else:
+        print("All {} utility fixtures passed.".format(len(input_data)))
         sys.exit(0)
 
 def bctest(testDir, testObj, buildenv):
@@ -77,7 +82,7 @@ def bctest(testDir, testObj, buildenv):
     are not as expected. Error is caught by bctester() and reported.
     """
     # Get the exec names and arguments
-    execprog = os.path.join(buildenv["BUILDDIR"], "src", testObj["exec"] + buildenv["EXEEXT"])
+    execprog = buildenv.get("BINARY") or os.path.join(buildenv["BUILDDIR"], "src", testObj["exec"] + buildenv["EXEEXT"])
     execargs = testObj['args']
     execrun = [execprog] + execargs
 
@@ -134,7 +139,14 @@ def bctest(testDir, testObj, buildenv):
             logging.error("Output data mismatch for " + outputFn + " (format " + outputType + ")")
             data_mismatch = True
         # Compare formatting
-        if outs[0] != outputData:
+        # UniValue versions differ in trailing spaces after JSON array commas.
+        # Preserve semantic and indentation checks without pinning those spaces.
+        actual_text = outs[0]
+        expected_text = outputData
+        if outputType == 'json':
+            actual_text = '\n'.join(line.rstrip() for line in actual_text.splitlines())
+            expected_text = '\n'.join(line.rstrip() for line in expected_text.splitlines())
+        if actual_text != expected_text:
             error_message = "Output formatting mismatch for " + outputFn + ":\n"
             error_message += "".join(difflib.context_diff(outputData.splitlines(True),
                                                           outs[0].splitlines(True),
@@ -150,14 +162,14 @@ def bctest(testDir, testObj, buildenv):
     if "return_code" in testObj:
         wantRC = testObj['return_code']
     if proc.returncode != wantRC:
-        logging.error("Return code mismatch for " + outputFn)
+        logging.error("Return code mismatch for " + testObj["description"])
         raise Exception
 
     if "error_txt" in testObj:
         want_error = testObj["error_txt"]
         # Compare error text
         # TODO: ideally, we'd compare the strings exactly and also assert
-        # That stderr is empty if no errors are expected. However, dash-tx
+        # That stderr is empty if no errors are expected. However, yerbas-tx
         # emits DISPLAY errors when running as a windows application on
         # linux through wine. Just assert that the expected error text appears
         # somewhere in stderr.

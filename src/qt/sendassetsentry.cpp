@@ -180,9 +180,9 @@ bool SendAssetsEntry::validate()
     // Check input validity
     bool retval = true;
 
-    // Skip checks for payment request
-    if (recipient.paymentRequest.IsInitialized())
-        return retval;
+    // Historical requests cannot be sent.
+    if (!recipient.legacyPaymentRequest.empty())
+        return false;
 
     if (!model->validateAddress(ui->payTo->text()))
     {
@@ -252,8 +252,8 @@ bool SendAssetsEntry::validate()
 
 SendAssetsRecipient SendAssetsEntry::getValue()
 {
-    // Payment request
-    if (recipient.paymentRequest.IsInitialized())
+    // Preserve historical data without processing it.
+    if (!recipient.legacyPaymentRequest.empty())
         return recipient;
 
     // Normal payment

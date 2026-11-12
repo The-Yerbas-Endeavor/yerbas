@@ -42,6 +42,7 @@ public:
     uint256 msgHash;
     CBLSLazySignature sigShare;
 
+    size_t quorumSize{0}; // local metadata, never supplied by the peer
     SigShareKey key;
 
 public:
@@ -320,7 +321,7 @@ public:
     bool banned{false};
 
     Session& GetOrCreateSessionFromShare(const CSigShare& sigShare);
-    Session& GetOrCreateSessionFromAnn(const CSigSesAnn& ann);
+    Session& GetOrCreateSessionFromAnn(const CSigSesAnn& ann, size_t quorumSize);
     Session* GetSessionBySignHash(const uint256& signHash);
     Session* GetSessionByRecvId(uint32_t sessionId);
     bool GetSessionInfoByRecvId(uint32_t sessionId, SessionInfo& retInfo);
@@ -389,7 +390,7 @@ private:
     bool ProcessMessageGetSigShares(CNode* pfrom, const CSigSharesInv& inv, CConnman& connman);
     bool ProcessMessageBatchedSigShares(CNode* pfrom, const CBatchedSigShares& batchedSigShares, CConnman& connman);
 
-    bool VerifySigSharesInv(NodeId from, Consensus::LLMQType llmqType, const CSigSharesInv& inv);
+    bool VerifySigSharesInv(NodeId from, const CQuorumCPtr& quorum, const CSigSharesInv& inv);
     bool PreVerifyBatchedSigShares(NodeId nodeId, const CSigSharesNodeState::SessionInfo& session, const CBatchedSigShares& batchedSigShares, bool& retBan);
 
     void CollectPendingSigSharesToVerify(size_t maxUniqueSessions,

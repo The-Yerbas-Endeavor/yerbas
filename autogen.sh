@@ -5,7 +5,7 @@
 
 export LC_ALL=C
 set -e
-srcdir="$(dirname "$0")"
+srcdir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$srcdir"
 
 require_tool() {
@@ -20,8 +20,24 @@ if [ -z "${LIBTOOLIZE}" ] && GLIBTOOLIZE="$(command -v glibtoolize 2>/dev/null)"
   export LIBTOOLIZE
 fi
 
-require_tool autoreconf autoconf
-require_tool aclocal automake
+: "${AUTORECONF:=autoreconf}"
+: "${AUTOCONF:=autoconf}"
+: "${AUTOMAKE:=automake}"
+: "${ACLOCAL:=aclocal}"
+export AUTOCONF AUTOMAKE ACLOCAL
+require_tool "$AUTORECONF" autoconf
+require_tool "$AUTOCONF" autoconf
+require_tool "$AUTOMAKE" automake
+require_tool "$ACLOCAL" automake
+if [ -z "${PKG_CONFIG}" ]; then
+  if command -v pkg-config >/dev/null 2>&1; then
+    PKG_CONFIG=pkg-config
+  else
+    PKG_CONFIG=pkgconf
+  fi
+fi
+require_tool "$PKG_CONFIG" 'pkg-config (or pkgconf)'
+export PKG_CONFIG
 
 if [ -n "${LIBTOOLIZE}" ]; then
   require_tool "${LIBTOOLIZE}" libtool
@@ -29,4 +45,4 @@ else
   require_tool libtoolize libtool
 fi
 
-autoreconf --install --force --warnings=all
+exec "$AUTORECONF" --install --force --warnings=all "$@"

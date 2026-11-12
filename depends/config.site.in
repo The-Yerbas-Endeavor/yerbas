@@ -7,6 +7,7 @@ ac_tool_prefix=${host_alias}-
 if test -z $with_boost; then
   with_boost=$depends_prefix
 fi
+if test "x@use_system_qt@" != x1; then
 if test -z $with_qt_plugindir; then
   with_qt_plugindir=$depends_prefix/plugins
 fi
@@ -16,8 +17,9 @@ fi
 if test -z $with_qt_bindir; then
   with_qt_bindir=$depends_prefix/native/bin
 fi
-if test -z $with_protoc_bindir; then
-  with_protoc_bindir=$depends_prefix/native/bin
+if test -z "$with_qt_libexecdir"; then
+  with_qt_libexecdir=$depends_prefix/native/libexec
+fi
 fi
 
 
@@ -29,12 +31,12 @@ if test -z $with_miniupnpc && test -n "@no_upnp@"; then
   with_miniupnpc=no
 fi
 
-if test -z $with_gui && test -n "@no_qt@"; then
-  with_gui=no
-fi
-
-if test -n "@debug@" && test -z "@no_qt@" && test "x$with_gui" != xno; then
-  with_gui=qt5_debug
+if test -z "$with_gui"; then
+  if test -n "@no_qt@"; then
+    with_gui=no
+  else
+    with_gui=qt6
+  fi
 fi
 
 if test x@host_os@ = xdarwin; then
@@ -51,6 +53,20 @@ PKG_CONFIG="`which pkg-config` --static"
 
 export PKG_CONFIG_LIBDIR=$depends_prefix/lib/pkgconfig
 export PKG_CONFIG_PATH=$depends_prefix/share/pkgconfig
+
+if test "x@use_system_qt@" = x1; then
+  # Native Qt may be installed in a dedicated prefix by CI. Keep depends
+  # isolated while making that Qt stack and its system dependencies visible.
+  if test -n "$QT_NATIVE_PREFIX"; then
+    export PKG_CONFIG_LIBDIR="$QT_NATIVE_PREFIX/lib/pkgconfig:$PKG_CONFIG_LIBDIR"
+  fi
+  system_qt_pc_path=`pkg-config --variable=pc_path pkg-config`
+  export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:$system_qt_pc_path"
+  if ! pkg-config --atleast-version=6.8 Qt6Core; then
+    echo "USE_SYSTEM_QT requires Qt 6.8 or newer Qt 6 development packages" >&2
+    exit 1
+  fi
+fi
 
 CPPFLAGS="-I$depends_prefix/include/ $CPPFLAGS"
 LDFLAGS="-L$depends_prefix/lib $LDFLAGS"

@@ -507,8 +507,8 @@ std::string EncodeIPFS(std::string decoded);
 
 #ifdef ENABLE_WALLET
 
-bool GetAllMyAssetBalances(std::map<std::string, std::vector<COutput> >& outputs, std::map<std::string, CAmount>& amounts, const int confirmations = 0, const std::string& prefix = "");
-bool GetMyAssetBalance(const std::string& name, CAmount& balance, const int& confirmations);
+bool GetAllMyAssetBalances(CWallet& wallet, std::map<std::string, std::vector<COutput> >& outputs, std::map<std::string, CAmount>& amounts, const int confirmations = 0, const std::string& prefix = "");
+bool GetMyAssetBalance(CWallet& wallet, const std::string& name, CAmount& balance, const int& confirmations);
 
 //! Creates new asset issuance transaction
 bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const CNewAsset& asset, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string = nullptr);
@@ -525,7 +525,7 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
 bool SendAssetTransaction(CWallet* pwallet, CWalletTx& transaction, CReserveKey& reserveKey, std::pair<int, std::string>& error, std::string& txid);
 
 /** Verifies that this wallet owns the give asset */
-bool VerifyWalletHasAsset(const std::string& asset_name, std::pair<int, std::string>& pairError);
+bool VerifyWalletHasAsset(CWallet& wallet, const std::string& asset_name, std::pair<int, std::string>& pairError);
 #endif
 
 /** Helper method for extracting address bytes, asset name and amount from an asset script */

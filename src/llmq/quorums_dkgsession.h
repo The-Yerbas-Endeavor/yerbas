@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2020 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -243,6 +244,7 @@ class CDKGSession
     friend class CDKGLogger;
 
 private:
+    const Consensus::LLMQParams frozenParams;
     const Consensus::LLMQParams& params;
 
     CBLSWorker& blsWorker;
@@ -283,7 +285,7 @@ private:
 
 public:
     CDKGSession(const Consensus::LLMQParams& _params, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager) :
-        params(_params), blsWorker(_blsWorker), cache(_blsWorker), dkgManager(_dkgManager) {}
+        frozenParams(_params), params(RecoveryProtocolEnabled() ? frozenParams : _params), blsWorker(_blsWorker), cache(_blsWorker), dkgManager(_dkgManager) {}
 
     bool Init(const CBlockIndex* pindexQuorum, const std::vector<CDeterministicMNCPtr>& mns, const uint256& _myProTxHash);
 

@@ -31,7 +31,7 @@
 #endif
 
 #include <QDir>
-#include <QDesktopWidget>
+#include <QScreen>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMessageBox>
@@ -449,7 +449,7 @@ RPCConsole::RPCConsole(const PlatformStyle *_platformStyle, QWidget *parent) :
     QSettings settings;
     if (!restoreGeometry(settings.value("RPCConsoleWindowGeometry").toByteArray())) {
         // Restore failed (perhaps missing setting), center the window
-        move(QApplication::desktop()->availableGeometry().center() - frameGeometry().center());
+        move(screen()->availableGeometry().center() - frameGeometry().center());
     }
 
     ui->openDebugLogfileButton->setToolTip(ui->openDebugLogfileButton->toolTip().arg(tr(PACKAGE_NAME)));
@@ -529,7 +529,7 @@ bool RPCConsole::eventFilter(QObject* obj, QEvent *event)
         case Qt::Key_PageDown:
             if(obj == ui->lineEdit)
             {
-                QApplication::postEvent(ui->messagesWidget, new QKeyEvent(*keyevt));
+                QApplication::postEvent(ui->messagesWidget, keyevt->clone());
                 return true;
             }
             break;
@@ -538,7 +538,7 @@ bool RPCConsole::eventFilter(QObject* obj, QEvent *event)
             // forward these events to lineEdit
             if(obj == autoCompleter->popup()) {
                 autoCompleter->popup()->hide();
-                QApplication::postEvent(ui->lineEdit, new QKeyEvent(*keyevt));
+                QApplication::postEvent(ui->lineEdit, keyevt->clone());
                 return true;
             }
             break;
@@ -551,7 +551,7 @@ bool RPCConsole::eventFilter(QObject* obj, QEvent *event)
                   ((mod & Qt::ShiftModifier) && key == Qt::Key_Insert)))
             {
                 ui->lineEdit->setFocus();
-                QApplication::postEvent(ui->lineEdit, new QKeyEvent(*keyevt));
+                QApplication::postEvent(ui->lineEdit, keyevt->clone());
                 return true;
             }
         }

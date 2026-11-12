@@ -26,6 +26,7 @@ enum {
 	TRANSACTION_FUTURE = 7,
     TRANSACTION_ASSET_REGISTER= 8,
     TRANSACTION_ASSET_REISUE= 9,
+    TRANSACTION_LLMQ_RECOVERY = 10, // experimental regtest-only authenticated recovery record
 };
 
 /** An outpoint - a combination of a transaction hash and an index n into its vout */

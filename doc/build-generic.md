@@ -2,11 +2,15 @@ GENERIC BUILD NOTES
 ====================
 Some notes on how to build Yerbas Core based on the [depends](../depends/README.md) build system.
 
-Note on old build instructions
-------------------------------
-In the past, the build documentation contained instructions on how to build Yerbas with system-wide installed dependencies
-like BerkeleyDB 4.8, boost and Qt. Building this way is considered deprecated and only building with the `depends` prefix
-is supported today.
+Build paths for 4.0.1.3
+-----------------------
+The depends build below remains available. Release CI also builds native/system
+Qt configurations; it does not exclusively use depends Qt. For the exact tested
+platform packages, flags, and packaging steps, use
+[build.yaml](../.github/workflows/build.yaml). Qt GUI builds require Qt 6 and its
+Core5Compat module. Historical 32-bit/older macOS triplets below are examples,
+not the current release matrix. Current archives target Ubuntu 22/24/26 x86-64,
+Ubuntu 24 ARM64, Windows x86-64, and macOS 15 Intel.
 
 Required build tools and environment
 ------------------------------------
@@ -19,9 +23,9 @@ Yerbas inherited the `depends` folder from Bitcoin, which contains all dependenc
 dependencies must be built before Yerbas can actually be built. To do so, perform the following:
 
 ```bash
-$ cd depends
-$ make -j4 # Choose a good -j value, depending on the number of CPU cores available
-$ cd ..
+cd depends
+make -j4 # Choose a good -j value, depending on the number of CPU cores available
+cd ..
 ```
 
 This will download and build all dependencies required to build Yerbas Core. Caching of build results will ensure that only
@@ -38,10 +42,10 @@ Building Yerbas Core
 ---------------------
 
 ```bash
-$ ./autogen.sh
-$ ./configure --prefix=`pwd`/depends/<host>
-$ make
-$ make install # optional
+./autogen.sh
+./configure --prefix=`pwd`/depends/<host>
+make
+make install # optional
 ```
 
 Please replace `<host>` with your local system's `host-platform-triplet`. The following triplets are usually valid:
@@ -69,7 +73,7 @@ The default maximum cache size is 5G, which might not be enough to cache multipl
 very often. It is advised to increase the maximum cache size:
 
 ```bash
-$ ccache -M20G
+ccache -M20G
 ```
 
 Additional Configure Flags

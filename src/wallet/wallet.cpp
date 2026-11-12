@@ -1,3 +1,4 @@
+#include "wallet/assetissuance.h"
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
 // Copyright (c) 2014-2020 The Dash Core developers
@@ -1551,12 +1552,18 @@ CAmount CWallet::GetDebit(const CTxIn &txin, const isminefilter& filter, CAssetO
         {
             const CWalletTx& prev = (*mi).second;
             if (txin.prevout.n < prev.tx->vout.size())
-                if (IsMine(prev.tx->vout[txin.prevout.n]) & filter) {
-                    // if asset get that assets data from the scriptPubKey
-                    if (prev.tx->vout[txin.prevout.n].scriptPubKey.IsAssetScript())
-                        if (GetAssetData(prev.tx->vout[txin.prevout.n].scriptPubKey, assetData))
-                            return prev.tx->vout[txin.prevout.n].nValue;
+            {
+                const CTxOut& prevout = prev.tx->vout[txin.prevout.n];
+
+                if (IsMine(prevout) & filter)
+                {
+                    // If asset, also populate that asset's data.
+                    if (prevout.scriptPubKey.IsAssetScript())
+                        GetAssetData(prevout.scriptPubKey, assetData);
+
+                    return prevout.nValue;
                 }
+            }
         }
     }
     return 0;
@@ -5223,6 +5230,9 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, CCon
 {
     {
         LOCK2(cs_main, cs_wallet);
+        std::string activationReason;
+        if (IsWalletAssetTransaction(*wtxNew.tx) && !WalletAssetOperationsAllowed(activationReason))
+            return state.Invalid(false, REJECT_INVALID, "wallet-assets-not-active", activationReason);
         LogPrintf("CommitTransaction:\n%s", wtxNew.tx->ToString());
         {
             // Take key pair from key pool so it won't be used again
@@ -5386,7 +5396,6 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
         return nLoadWalletRet;
     fFirstRunRet = !vchDefaultKey.IsValid();
 
-    uiInterface.LoadWallet(this);
 
     return DB_LOAD_OK;
 }
@@ -6296,6 +6305,7 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
     int64_t nStart = GetTimeMillis();
     bool fFirstRun = true;
     std::unique_ptr<CWalletDBWrapper> dbw(new CWalletDBWrapper(&bitdb, walletFile));
+    const bool existingWalletFile = fs::exists(GetDataDir() / walletFile);
     CWallet *walletInstance = new CWallet(std::move(dbw));
     DBErrors nLoadWalletRet = walletInstance->LoadWallet(fFirstRun);
     if (nLoadWalletRet != DB_LOAD_OK)
@@ -6324,6 +6334,17 @@ CWallet* CWallet::CreateWalletFromFile(const std::string walletFile)
             return nullptr;
         }
     }
+
+    try {
+        if (!InitializeWalletAssetStores(*walletInstance, existingWalletFile))
+            throw std::runtime_error("Asset record migration or initialization failed");
+    } catch (const std::exception& e) {
+        InitError(strprintf("Error loading wallet asset records: %s", e.what()));
+        delete walletInstance;
+        return nullptr;
+    }
+
+    uiInterface.LoadWallet(walletInstance);
 
     if (gArgs.GetBoolArg("-upgradewallet", fFirstRun))
     {
@@ -6901,7 +6922,7 @@ int CMerkleTx::GetBlocksToMaturity() const
 {
     if (!IsCoinBase())
         return 0;
-    return std::max(0, (COINBASE_MATURITY+1) - GetDepthInMainChain());
+    return std::max(0, (GetCoinbaseMaturity()+1) - GetDepthInMainChain());
 }
 
 

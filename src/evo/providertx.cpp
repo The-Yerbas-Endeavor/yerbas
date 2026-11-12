@@ -18,6 +18,7 @@
 #include "univalue.h"
 #include "validation.h"
 #include "spork.h"
+#include "llmq/quorums_recovery.h"
 
 template <typename ProTx>
 static bool CheckService(const uint256& proTxHash, const ProTx& proTx, CValidationState& state)
@@ -25,7 +26,9 @@ static bool CheckService(const uint256& proTxHash, const ProTx& proTx, CValidati
     if (!proTx.addr.IsValid()) {
         return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
     }
-    if (Params().NetworkIDString() != CBaseChainParams::REGTEST && !proTx.addr.IsRoutable()) {
+    if (Params().NetworkIDString() != CBaseChainParams::REGTEST &&
+        !(Params().NetworkIDString() == CBaseChainParams::DEVNET && llmq::RecoveryProtocolEnabled()) &&
+        !proTx.addr.IsRoutable()) {
         return state.DoS(10, false, REJECT_INVALID, "bad-protx-ipaddr");
     }
 

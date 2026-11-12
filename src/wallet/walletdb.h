@@ -129,6 +129,12 @@ public:
     bool WritePurpose(const std::string& strAddress, const std::string& purpose);
     bool ErasePurpose(const std::string& strAddress);
 
+    bool WriteAssetRecord(const std::pair<std::string, std::vector<unsigned char>>& key, const std::vector<unsigned char>& value) {
+        return WriteIC(std::make_pair(std::string("assetrecord"), key), value);
+    }
+    bool EraseAssetRecord(const std::pair<std::string, std::vector<unsigned char>>& key) {
+        return EraseIC(std::make_pair(std::string("assetrecord"), key));
+    }
     bool WriteTx(const CWalletTx& wtx);
     bool EraseTx(uint256 hash);
 
@@ -193,7 +199,7 @@ public:
     //! Begin a new transaction
     bool TxnBegin();
     //! Commit current transaction
-    bool TxnCommit();
+    bool TxnCommit(bool sync = false);
     //! Abort current transaction
     bool TxnAbort();
     //! Read wallet version

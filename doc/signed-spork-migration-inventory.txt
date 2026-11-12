@@ -1,0 +1,38 @@
+Legacy mainnet inventory for signed-spork migration — 2026-10-26
+
+Audited serialization prefix: genesis through height 1,143,209 inclusive.
+Anchor: f9a0d74c5f9f2431bb17c0835f8c222858e5b93688a6f80e64021b932930c6e9
+Framed archive digest (SHA256):
+80530fc46a18ac9c8a55aafb5712830673e2e0f6020c15d1686c50e6e22e1143
+1,143,210 blocks and 233,607 commitment transactions inspected locally.
+Ancestry, serialization and transaction Merkle roots checked. No wallet data
+read. This does NOT validate PoW, commitment signatures, membership, PoSe or
+payment state. This anchor is an audit reference, NOT an adopted checkpoint.
+
+Findings
+Type 1 / 200-member shape: 501 non-null commitments, first at 15,972 and last
+at 37,632; 1,508 null commitments, first at 6,760 and last at 37,631.
+No type-1 200-member commitment occurs later in this inspected prefix.
+Type 1 / 50-member shape: 22,867 non-null commitments, first at 37,662 and last
+at 1,099,242. Type 1 / 10-member shape: one non-null commitment at 16,812.
+Non-null describes serialized contents, not successful signature validation.
+
+Implication
+The observed 200-member records are confined to the existing hardcoded recovery
+era. Do not assume additional post-37,650 LOW_LLMQ windows are necessary without
+evidence. Conversely, absent 200-member commitments do not prove that the spork
+was always OFF: activation can affect PoSe decay without producing a successful
+quorum. The interval beyond 1,143,209 has not been inspected in this run.
+
+Next migration work
+Replay legacy membership, signatures, PoSe and payments using the exact existing
+historical boundaries; do not normalize their differing endpoints. Define any
+compatibility exception only from reproduced evidence. Extend the inventory to
+a fresh agreed tip before choosing activation. No historical trust exception,
+public activation height or mainnet rule change is introduced by this report.
+
+Bootstrap correction
+The new authorization state can begin OFF even if normal quorums are stalled.
+A funded authority transaction must be includable in ordinary PoW blocks without
+an InstantSend lock or successful DKG. Preserve reconstructed smartnode and PoSe
+state. Starting OFF must not be conditioned on already having healthy quorums.

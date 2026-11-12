@@ -1,0 +1,76 @@
+--- a/src/miniwget.c
++++ b/src/miniwget.c
+@@ -487,9 +487,9 @@
+ int
+ parseURL(const char * url,
+          char * hostname, unsigned short * port,
+-         char * * path, unsigned int * scope_id)
++         const char * * path, unsigned int * scope_id)
+ {
+-	char * p1, *p2, *p3;
++	const char * p1, *p2, *p3;
+ 	if(!url)
+ 		return 0;
+ 	p1 = strstr(url, "://");
+@@ -503,7 +503,7 @@
+ 	if(*p1 == '[')
+ 	{
+ 		/* IP v6 : http://[2a00:1450:8002::6a]/path/abc */
+-		char * scope;
++		const char * scope;
+ 		scope = strchr(p1, '%');
+ 		p2 = strchr(p1, ']');
+ 		if(p2 && scope && scope < p2 && scope_id) {
+@@ -594,7 +594,7 @@
+          unsigned int scope_id, int * status_code)
+ {
+ 	unsigned short port;
+-	char * path;
++	const char * path;
+ 	/* protocol://host:port/chemin */
+ 	char hostname[MAXHOSTNAMELEN+1];
+ 	*size = 0;
+@@ -613,7 +613,7 @@
+                  int * status_code)
+ {
+ 	unsigned short port;
+-	char * path;
++	const char * path;
+ 	/* protocol://host:port/path */
+ 	char hostname[MAXHOSTNAMELEN+1];
+ 	*size = 0;
+--- a/src/miniwget_private.h
++++ b/src/miniwget_private.h
+@@ -48,7 +48,7 @@
+  * \return 0 for failure, 1 for success
+  */
+ int parseURL(const char * url,
+-             char * hostname, unsigned short * port, char * * path,
++             char * hostname, unsigned short * port, const char * * path,
+              unsigned int * scope_id);
+ 
+ #endif
+--- a/src/miniupnpc.c
++++ b/src/miniupnpc.c
+@@ -105,7 +105,7 @@
+ {
+ 	char hostname[MAXHOSTNAMELEN+1];
+ 	unsigned short port = 0;
+-	char * path;
++	const char * path;
+ 	char soapact[128];
+ 	char soapbody[2048];
+ 	int soapbodylen;
+@@ -394,9 +394,9 @@
+ 	base = (baseurl[0] == '\0') ? descURL : baseurl;
+ 	n = strlen(base);
+ 	if(n > 7) {
+-		p = strchr(base + 7, '/');
+-		if(p)
+-			n = p - base;
++		const char * base_path = strchr(base + 7, '/');
++		if(base_path)
++			n = base_path - base;
+ 	}
+ 	l = n + strlen(url) + 1;
+ 	if(url[0] != '/')

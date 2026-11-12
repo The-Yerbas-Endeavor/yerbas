@@ -1,3 +1,4 @@
+#include "wallet/assetissuance.h"
 // Copyright (c) 2011-2016 The Bitcoin Core developers
 // Copyright (c) 2017-2021 The Raven Core developers
 // Distributed under the MIT software license, see the accompanying
@@ -126,6 +127,7 @@ AssetsDialog::AssetsDialog(const PlatformStyle *_platformStyle, QWidget *parent)
     setupScrollView(platformStyle);
     setupFeeControl(platformStyle);
     /** YERB END */
+    updateAssetAvailability();
 }
 
 void AssetsDialog::setClientModel(ClientModel *_clientModel)
@@ -133,6 +135,7 @@ void AssetsDialog::setClientModel(ClientModel *_clientModel)
     this->clientModel = _clientModel;
 
     if (_clientModel) {
+        connect(_clientModel, &ClientModel::numBlocksChanged, this, [this]() { updateAssetAvailability(); });
         connect(_clientModel, SIGNAL(numBlocksChanged(int,QDateTime,double,bool)), this, SLOT(updateSmartFeeLabel()));
     }
 }
@@ -230,8 +233,23 @@ void AssetsDialog::setupFeeControl(const PlatformStyle *platformStyle)
     
 }
 
+void AssetsDialog::updateAssetAvailability()
+{
+    std::string reason;
+    bool allowed = WalletAssetOperationsAllowed(reason);
+    ui->assetAvailabilityLabel->setText(QString::fromStdString(reason));
+    ui->assetAvailabilityLabel->setVisible(!allowed);
+    ui->sendButton->setEnabled(allowed);
+}
+
 void AssetsDialog::on_sendButton_clicked()
 {
+    std::string reason;
+    if (!WalletAssetOperationsAllowed(reason)) {
+        updateAssetAvailability();
+        QMessageBox::warning(this, tr("Assets unavailable"), QString::fromStdString(reason));
+        return;
+    }
     if(!model || !model->getOptionsModel())
         return;
 
@@ -310,7 +328,7 @@ void AssetsDialog::on_sendButton_clicked()
 
         QString recipientElement;
 
-        if (!rcp.paymentRequest.IsInitialized()) // normal payment
+        if (rcp.legacyPaymentRequest.empty()) // normal payment
         {
             if(rcp.label.length() > 0) // label with address
             {
@@ -322,14 +340,7 @@ void AssetsDialog::on_sendButton_clicked()
                 recipientElement = tr("%1 to %2").arg(amount, address);
             }
         }
-        else if(!rcp.authenticatedMerchant.isEmpty()) // authenticated payment request
-        {
-            recipientElement = tr("%1 to %2").arg(amount, GUIUtil::HtmlEscape(rcp.authenticatedMerchant));
-        }
-        else // unauthenticated payment request
-        {
-            recipientElement = tr("%1 to %2").arg(amount, address);
-        }
+
 
         formatted.append(recipientElement);
     }
@@ -699,7 +710,7 @@ void AssetsDialog::updateSmartFeeLabel()
         //#ifndef QTversionPreFiveEleven
 		//	ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
 		//#else
-			ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).width("x"));
+			ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
 		//#endif
     }
     else
