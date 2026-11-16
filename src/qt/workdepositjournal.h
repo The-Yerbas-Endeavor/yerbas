@@ -9,11 +9,26 @@
 #include <QSaveFile>
 #include <QLockFile>
 #include <stdexcept>
+#ifndef Q_OS_WIN
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#endif
 // Caller supplies its existing private wallet directory. One immutable send
 // intent per quote. An uncertain send is never automatically retried here.
+#ifdef Q_OS_WIN
+// Windows owner-agent authentication and durable private-journal semantics are
+// not implemented. Refuse before creating an intent or authorizing a send.
+class WorkDepositJournal {
+ [[noreturn]] static void unsupported(){throw std::runtime_error("Protected AI deposit journals are not supported on Windows");}
+public:
+ explicit WorkDepositJournal(QString){unsupported();}
+ void begin(const WorkFunding::Review&,const QString&,qint64){unsupported();}
+ void submitted(const QString&,const QString&){unsupported();}
+ QJsonArray entries(){unsupported();}
+ QJsonObject status(const QString&){unsupported();}
+};
+#else
 class WorkDepositJournal {
  QString directory;
  void checkDirectory(){struct stat s;auto bytes=QFile::encodeName(directory);if(::lstat(bytes.constData(),&s)||!S_ISDIR(s.st_mode)||s.st_uid!=::geteuid()||(s.st_mode&0077))throw std::runtime_error("Private wallet journal directory required");}
@@ -38,4 +53,5 @@ public:
   while(it.hasNext()){it.next();if(out.size()>=1000)throw std::runtime_error("Deposit history exceeds display limit");auto name=it.fileName();auto id=name.left(name.size()-5);auto value=read(id);if(value.isEmpty())throw std::runtime_error("Deposit history changed during read");out.append(value);}return out;}
  QJsonObject status(const QString& id){checkDirectory();return read(id);}
 };
+#endif
 #endif
