@@ -66,7 +66,8 @@ void DestroyLLMQSystem()
 
 void StartLLMQSystem()
 {
-    //quorumBlockProcessor->UpgradeDB();
+    // Test-only startup maintenance, before any quorum worker is running.
+    if (gArgs.GetBoolArg("-llmqtestrebuildindex", false)) quorumBlockProcessor->UpgradeDB(true);
 
     if (blsWorker) {
         blsWorker->Start();

@@ -18,6 +18,9 @@
 #include "net_processing.h"
 #include "primitives/block.h"
 #include "validation.h"
+#include "txdb.h"
+#include "prunedblock.h"
+#include "consensus/merkle.h"
 
 namespace llmq
 {
@@ -266,51 +269,54 @@ bool CQuorumBlockProcessor::UndoBlock(const CBlock& block, const CBlockIndex* pi
     return true;
 }
 
-// TODO remove this with 0.15.0
-void CQuorumBlockProcessor::UpgradeDB()
+// Explicit maintenance only. Preflight all active-chain evidence before a single
+// atomic index replacement; never erase deterministic-list or signing state.
+void CQuorumBlockProcessor::UpgradeDB(bool force)
 {
     LOCK(cs_main);
+    if (fReindex || !chainActive.Tip()) throw std::runtime_error("Quorum recovery requires a completed active chain; finish reindex first");
     uint256 bestBlock;
-    if (evoDb.GetRawDB().Read(DB_BEST_BLOCK_UPGRADE, bestBlock) && bestBlock == chainActive.Tip()->GetBlockHash()) {
-        return;
+    if (!force && evoDb.GetRawDB().Read(DB_BEST_BLOCK_UPGRADE, bestBlock) &&
+        bestBlock == chainActive.Tip()->GetBlockHash()) return;
+    CDBBatch batch(evoDb.GetRawDB());
+    std::unique_ptr<CDBIterator> it(evoDb.GetRawDB().NewIterator());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        std::string prefix;
+        if (it->GetKey(prefix) && (prefix == DB_MINED_COMMITMENT || prefix == DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT))
+            batch.Erase(it->GetKey());
     }
-
-    LogPrintf("CQuorumBlockProcessor::%s -- Upgrading DB...\n", __func__);
-
-    //if (chainActive.Height() >= Params().GetConsensus().DIP0003EnforcementHeight) {
-    //    auto pindex = chainActive[Params().GetConsensus().DIP0003EnforcementHeight];
-    if (chainActive.Height() >= 1) {
-           auto pindex = chainActive[1];
-        while (pindex) {
-            if (fPruneMode && !(pindex->nStatus & BLOCK_HAVE_DATA)) {
-                // Too late, we already pruned blocks we needed to reprocess commitments
-                throw std::runtime_error(std::string(__func__) + ": Quorum Commitments DB upgrade failed, you need to re-download the blockchain");
-            }
-            CBlock block;
-            bool r = ReadBlockFromDisk(block, pindex, Params().GetConsensus());
-            assert(r);
-
-            std::map<Consensus::LLMQType, CFinalCommitment> qcs;
-            CValidationState dummyState;
-            GetCommitmentsFromBlock(block, pindex, qcs, dummyState);
-
-            for (const auto& p : qcs) {
-                const auto& qc = p.second;
-                if (qc.IsNull()) {
-                    continue;
-                }
-                auto quorumIndex = mapBlockIndex.at(qc.quorumHash);
-                evoDb.GetRawDB().Write(std::make_pair(DB_MINED_COMMITMENT, std::make_pair(qc.llmqType, qc.quorumHash)), std::make_pair(qc, pindex->GetBlockHash()));
-                evoDb.GetRawDB().Write(BuildInversedHeightKey((Consensus::LLMQType)qc.llmqType, pindex->nHeight), quorumIndex->nHeight);
-            }
-
-            evoDb.GetRawDB().Write(DB_BEST_BLOCK_UPGRADE, pindex->GetBlockHash());
-
-            pindex = chainActive.Next(pindex);
+    size_t commitments = 0;
+    for (int height=1; height<=chainActive.Height(); ++height) {
+        const auto index = chainActive[height];
+        CBlock block;
+        if (!(index->nStatus & BLOCK_HAVE_DATA)) {
+            CPrunedBlockMetadata data;
+            if (!pblocktree->ReadPrunedBlockMetadata(index->GetBlockHash(), index->hashMerkleRoot, data))
+                throw std::runtime_error("Quorum recovery missing verified retained evidence; archival rebuild required; index unchanged");
+            block.vtx = data.commitments;
+        } else if (!ReadBlockFromDisk(block, index, Params().GetConsensus()) || BlockMerkleRoot(block) != index->hashMerkleRoot) {
+            throw std::runtime_error("Quorum recovery cannot read block; index unchanged");
+        }
+        std::map<Consensus::LLMQType, CFinalCommitment> qcs;
+        CValidationState state;
+        if (!GetCommitmentsFromBlock(block, index, qcs, state))
+            throw std::runtime_error("Quorum recovery invalid commitment payload; index unchanged");
+        for (const auto& entry : qcs) {
+            const auto& qc = entry.second;
+            if (qc.IsNull()) continue;
+            auto q = mapBlockIndex.find(qc.quorumHash);
+            if (q == mapBlockIndex.end() || !chainActive.Contains(q->second) || q->second->nHeight > height)
+                throw std::runtime_error("Quorum recovery invalid quorum anchor; index unchanged");
+            batch.Write(std::make_pair(DB_MINED_COMMITMENT, std::make_pair(qc.llmqType, qc.quorumHash)),
+                        std::make_pair(qc, index->GetBlockHash()));
+            batch.Write(BuildInversedHeightKey((Consensus::LLMQType)qc.llmqType, height), q->second->nHeight);
+            ++commitments;
         }
     }
-
-    LogPrintf("CQuorumBlockProcessor::%s -- Upgrade done...\n", __func__);
+    batch.Write(DB_BEST_BLOCK_UPGRADE, chainActive.Tip()->GetBlockHash());
+    if (!evoDb.GetRawDB().WriteBatch(batch, true)) throw std::runtime_error("Quorum index recovery write failed");
+    { LOCK(minableCommitmentsCs); hasMinedCommitmentCache.clear(); }
+    LogPrintf("Quorum index recovery completed atomically: commitments=%d height=%d\n", commitments, chainActive.Height());
 }
 
 bool CQuorumBlockProcessor::GetCommitmentsFromBlock(const CBlock& block, const CBlockIndex* pindex, std::map<Consensus::LLMQType, CFinalCommitment>& ret, CValidationState& state)

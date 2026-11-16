@@ -5,6 +5,11 @@
 #include "consensus/validation.h"
 #include "key.h"
 #include "validation.h"
+#include "undo.h"
+#include "streams.h"
+#include "hash.h"
+#include "evo/evodb.h"
+#include "llmq/quorums_blockprocessor.h"
 #include "miner.h"
 #include "pubkey.h"
 #include "txmempool.h"
@@ -299,6 +304,75 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
     }
 
     // TODO: add tests for remaining script flags
+}
+
+BOOST_FIXTURE_TEST_CASE(spent_input_undo_binding, TestChain100Setup)
+{
+    CScript script = CScript() << ToByteVector(coinbaseKey.GetPubKey()) << OP_CHECKSIG;
+    CMutableTransaction spend;
+    spend.vin.emplace_back(COutPoint(coinbaseTxns[0].GetHash(), 0));
+    spend.vout.emplace_back(11*CENT, script);
+    std::vector<unsigned char> signature;
+    BOOST_REQUIRE(coinbaseKey.Sign(SignatureHash(script, spend, 0, SIGHASH_ALL, 0, SIGVERSION_BASE), signature));
+    signature.push_back(SIGHASH_ALL); spend.vin[0].scriptSig << signature;
+    CBlock block = CreateAndProcessBlock({spend}, script);
+    LOCK(cs_main);
+    const auto index = chainActive.Tip();
+    BOOST_REQUIRE(index->GetBlockHash() == block.GetHash());
+    Coin coin;
+    BOOST_REQUIRE(GetSpentCoinFromUndo(spend.vin[0].prevout, spend.GetHash(), index, coin));
+    BOOST_CHECK_EQUAL(coin.out.nValue, coinbaseTxns[0].vout[0].nValue);
+    BOOST_CHECK(!GetSpentCoinFromUndo(spend.vin[0].prevout, uint256(), index, coin));
+    BOOST_CHECK(!GetSpentCoinFromUndo(COutPoint(spend.vin[0].prevout.hash, 999), spend.GetHash(), index, coin));
+    BOOST_CHECK(!GetSpentCoinFromUndo(spend.vin[0].prevout, spend.GetHash(), nullptr, coin));
+    // A checksummed legacy undo entry with no height must not acquire genesis age.
+    const auto pos = index->GetUndoPos();
+    CAutoFile file(fsbridge::fopen(GetDataDir() / "blocks" / strprintf("rev%05u.dat", pos.nFile), "rb+"), SER_DISK, CLIENT_VERSION);
+    BOOST_REQUIRE(!file.IsNull());
+    BOOST_REQUIRE_EQUAL(fseek(file.Get(), pos.nPos, SEEK_SET), 0);
+    CBlockUndo original; uint256 checksum; file >> original >> checksum;
+    CBlockUndo legacy = original;
+    size_t spendIndex=1;
+    while (spendIndex<block.vtx.size() && block.vtx[spendIndex]->GetHash()!=spend.GetHash()) ++spendIndex;
+    BOOST_REQUIRE(spendIndex<block.vtx.size());
+    BOOST_REQUIRE(spendIndex-1<legacy.vtxundo.size());
+    BOOST_REQUIRE(!legacy.vtxundo[spendIndex-1].vprevout.empty());
+    legacy.vtxundo[spendIndex-1].vprevout[0].nHeight = 0;
+    CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
+    hasher << index->pprev->GetBlockHash() << legacy;
+    BOOST_REQUIRE_EQUAL(fseek(file.Get(), pos.nPos, SEEK_SET), 0);
+    file << legacy << hasher.GetHash(); fflush(file.Get());
+    BOOST_CHECK(!GetSpentCoinFromUndo(spend.vin[0].prevout, spend.GetHash(), index, coin));
+    BOOST_REQUIRE_EQUAL(fseek(file.Get(), pos.nPos, SEEK_SET), 0);
+    file << original << checksum; fflush(file.Get());
+    BOOST_REQUIRE(GetSpentCoinFromUndo(spend.vin[0].prevout, spend.GetHash(), index, coin));
+    CBlockIndex inactive; inactive.nHeight=index->nHeight;
+    BOOST_CHECK(!GetSpentCoinFromUndo(spend.vin[0].prevout, spend.GetHash(), &inactive, coin));
+}
+
+BOOST_FIXTURE_TEST_CASE(quorum_index_recovery_atomic_refusal, TestChain100Setup)
+{
+    LOCK(cs_main);
+    BOOST_REQUIRE(evoDb->CommitRootTransaction());
+    auto& db = evoDb->GetRawDB();
+    auto key = std::make_pair(std::string("q_mc"), std::make_pair(Consensus::LLMQ_5_60, uint256()));
+    BOOST_REQUIRE(db.Write(key, std::string("retained-canary")));
+    BOOST_REQUIRE(db.Write(std::string("pruning-test-unrelated"), std::string("preserve")));
+    llmq::CQuorumBlockProcessor processor(*evoDb);
+    auto index = chainActive[1]; const auto status = index->nStatus;
+    index->nStatus &= ~BLOCK_HAVE_DATA;
+    // No metadata exists on this archival fixture. Preflight must not erase keys.
+    BOOST_CHECK_THROW(processor.UpgradeDB(true), std::runtime_error);
+    index->nStatus = status;
+    std::string value;
+    BOOST_REQUIRE(db.Read(key, value)); BOOST_CHECK_EQUAL(value, "retained-canary");
+    processor.UpgradeDB(true);
+    BOOST_CHECK(!db.Exists(key));
+    BOOST_REQUIRE(db.Read(std::string("pruning-test-unrelated"), value));
+    BOOST_CHECK_EQUAL(value, "preserve");
+    uint256 marker;
+    BOOST_REQUIRE(db.Read(std::string("q_bbu2"), marker));
+    BOOST_CHECK(marker == chainActive.Tip()->GetBlockHash());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

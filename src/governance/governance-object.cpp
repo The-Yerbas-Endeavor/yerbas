@@ -15,6 +15,7 @@
 #include "spork.h"
 #include "util.h"
 #include "validation.h"
+#include "txdb.h"
 
 #include <string>
 #include <univalue.h>
@@ -515,7 +516,9 @@ bool CGovernanceObject::IsCollateralValid(std::string& strError, bool& fMissingC
 
     // RETRIEVE TRANSACTION IN QUESTION
 
-    if (!GetTransaction(nCollateralHash, txCollateral, Params().GetConsensus(), nBlockHash, true)) {
+    AssertLockHeld(cs_main);
+    if (!GetTransaction(nCollateralHash, txCollateral, Params().GetConsensus(), nBlockHash, true) &&
+        !(fPruneMode && pblocktree->ReadGovernanceCollateral(nCollateralHash, txCollateral, nBlockHash))) {
         strError = strprintf("Can't find collateral tx %s", nCollateralHash.ToString());
         LogPrintf("CGovernanceObject::IsCollateralValid -- %s\n", strError);
         return false;

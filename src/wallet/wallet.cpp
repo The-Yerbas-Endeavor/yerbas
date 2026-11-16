@@ -3680,6 +3680,13 @@ bool CWallet::FundTransaction(CMutableTransaction& tx, CAmount& nFeeRet, int& nC
     if (tx.nVersion == 3 && tx.nType != TRANSACTION_NORMAL)
         nExtraPayloadSize = (int)tx.vExtraPayload.size();
 
+    // FundTransaction retains the caller's script order below. Prevent
+    // CreateTransaction from sorting outputs independently before copying fees.
+    // Keep the default change placement random without enabling BIP69 sorting.
+    if (nChangePosInOut == -1) {
+        nChangePosInOut = GetRandInt(tx.vout.size() + 1);
+    }
+
     CReserveKey reservekey(this);
     CWalletTx wtx;
     if (!CreateTransaction(vecSend, wtx, reservekey, nFeeRet, nChangePosInOut, strFailReason, coinControl, false, nExtraPayloadSize)) {

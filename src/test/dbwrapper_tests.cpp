@@ -3,6 +3,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "dbwrapper.h"
+#include "prunedblock.h"
+#include "consensus/merkle.h"
+#include "primitives/block.h"
+#include "governance/governance-object.h"
 #include "uint256.h"
 #include "random.h"
 #include "test/test_yerbas.h"
@@ -318,5 +322,54 @@ BOOST_AUTO_TEST_CASE(iterator_string_ordering)
 }
 
 
+
+BOOST_AUTO_TEST_CASE(pruned_governance_collateral_retention)
+{
+    CBlockTreeDB db(1 << 20, true);
+    CBlock block;
+    block.nTime = 1;
+    CMutableTransaction burn;
+    burn.vout.emplace_back(GOVERNANCE_PROPOSAL_FEE_TX,
+                           CScript() << OP_RETURN << std::vector<unsigned char>(32, 7));
+    CMutableTransaction cheap = burn;
+    cheap.vout[0].nValue--;
+    CMutableTransaction wrong = burn;
+    wrong.vout[0].scriptPubKey = CScript() << OP_RETURN << std::vector<unsigned char>(31, 7);
+    block.vtx = {MakeTransactionRef(burn), MakeTransactionRef(cheap), MakeTransactionRef(wrong)};
+    BOOST_REQUIRE(db.WriteGovernanceCollateral(block));
+    CTransactionRef tx;
+    uint256 hash;
+    BOOST_REQUIRE(db.ReadGovernanceCollateral(block.vtx[0]->GetHash(), tx, hash));
+    BOOST_CHECK(tx->GetHash() == block.vtx[0]->GetHash());
+    BOOST_CHECK(hash == block.GetHash());
+    BOOST_CHECK(!db.ReadGovernanceCollateral(block.vtx[1]->GetHash(), tx, hash));
+    BOOST_CHECK(!db.ReadGovernanceCollateral(block.vtx[2]->GetHash(), tx, hash));
+    // A later validated re-inclusion updates the block binding.
+    block.nTime++;
+    BOOST_REQUIRE(db.WriteGovernanceCollateral(block));
+    BOOST_REQUIRE(db.ReadGovernanceCollateral(block.vtx[0]->GetHash(), tx, hash));
+    BOOST_CHECK(hash == block.GetHash());
+}
+
+BOOST_AUTO_TEST_CASE(pruned_block_evidence_integrity)
+{
+    CBlockTreeDB db(1 << 20, true);
+    CMutableTransaction cb; cb.vin.resize(1); cb.vin[0].prevout.SetNull();
+    cb.vout.emplace_back(1, CScript() << OP_TRUE);
+    CMutableTransaction qc; qc.nVersion = 3; qc.nType = TRANSACTION_QUORUM_COMMITMENT;
+    CBlock block; block.vtx = {MakeTransactionRef(cb), MakeTransactionRef(qc)};
+    block.hashMerkleRoot = BlockMerkleRoot(block);
+    BOOST_REQUIRE(db.WritePrunedBlockMetadata(block));
+    CPrunedBlockMetadata data;
+    BOOST_REQUIRE(db.ReadPrunedBlockMetadata(block.GetHash(), block.hashMerkleRoot, data));
+    BOOST_CHECK_EQUAL(data.commitments.size(), 1U);
+    BOOST_CHECK(!data.Verify(uint256()));
+    auto incomplete = data; incomplete.commitments.clear();
+    BOOST_CHECK(!incomplete.Verify(block.hashMerkleRoot));
+    auto corrupt = data; cb.vout[0].nValue++; corrupt.coinbase = MakeTransactionRef(cb);
+    BOOST_CHECK(!corrupt.Verify(block.hashMerkleRoot));
+    BOOST_CHECK(!db.ReadPrunedBlockMetadata(uint256(), block.hashMerkleRoot, data));
+    BOOST_CHECK(!db.ReadPrunedBlockMetadata(block.GetHash(), uint256(), data));
+}
 
 BOOST_AUTO_TEST_SUITE_END()

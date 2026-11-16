@@ -193,6 +193,10 @@ EXTENDED_SCRIPTS = [
     # vv Tests less than 20m vv
     'feature_fee_estimation.py',
     # vv Tests less than 5m vv
+    'feature_pruned_smartnode.py', # Deletion, proofs, DKG, InstantSend, ChainLocks and recovery.
+    'feature_pruned_smartnode.py --automatic-pruning', # Normal block files and 550 MiB target.
+    'feature_pruned_quorum_connections.py', # Automatic authenticated links without archival service.
+    'feature_pruned_governance.py', # Historical votes, signed trigger and actual superblock payout.
     'feature_maxuploadtarget.py',
     'mempool_packages.py',
     'feature_dbcrash.py',

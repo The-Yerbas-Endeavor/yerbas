@@ -505,22 +505,35 @@ bool CInstantSendManager::CheckCanLock(const COutPoint& outpoint, bool printDebu
         return false;
     }
 
-    CTransactionRef tx;
-    uint256 hashBlock;
-    // this relies on enabled txindex and won't work if we ever try to remove the requirement for txindex for smartnodes
-    if (!GetTransaction(outpoint.hash, tx, params, hashBlock, false)) {
-        if (printDebug) {
-            LogPrint(BCLog::INSTANTSEND, "CInstantSendManager::%s -- txid=%s: failed to find parent TX %s\n", __func__,
-                     txHash.ToString(), outpoint.hash.ToString());
-        }
-        return false;
+    const CBlockIndex* spendingIndex = nullptr;
+    {
+        LOCK(cs);
+        auto it = nonLockedTxs.find(txHash);
+        if (it != nonLockedTxs.end()) spendingIndex = it->second.pindexMined;
     }
-
-    const CBlockIndex* pindexMined;
+    const CBlockIndex* pindexMined = nullptr;
     int nTxAge;
+    CAmount value;
     {
         LOCK(cs_main);
-        pindexMined = mapBlockIndex.at(hashBlock);
+        Coin coin;
+        if ((pcoinsTip->GetCoin(outpoint, coin) && !coin.IsSpent()) ||
+            (fPruneMode && GetSpentCoinFromUndo(outpoint, txHash, spendingIndex, coin))) {
+            // Chainstate survives pruning and binds both value and confirmation height.
+            pindexMined = chainActive[coin.nHeight];
+            value = coin.out.nValue;
+        } else {
+            // Already-mined children may have spent the coin. Keep the archival
+            // path for those; never infer an input's value or age from missing data.
+            CTransactionRef tx;
+            uint256 hashBlock;
+            if (!GetTransaction(outpoint.hash, tx, params, hashBlock, false) || outpoint.n >= tx->vout.size()) return false;
+            auto it = mapBlockIndex.find(hashBlock);
+            if (it == mapBlockIndex.end() || !chainActive.Contains(it->second)) return false;
+            pindexMined = it->second;
+            value = tx->vout[outpoint.n].nValue;
+        }
+        if (!pindexMined) return false;
         nTxAge = chainActive.Height() - pindexMined->nHeight + 1;
     }
 
@@ -535,7 +548,7 @@ bool CInstantSendManager::CheckCanLock(const COutPoint& outpoint, bool printDebu
     }
 
     if (retValue) {
-        *retValue = tx->vout[outpoint.n].nValue;
+        *retValue = value;
     }
 
     return true;
@@ -576,7 +589,11 @@ void CInstantSendManager::HandleNewInputLockRecoveredSig(const CRecoveredSig& re
     CTransactionRef tx;
     uint256 hashBlock;
     if (!GetTransaction(txid, tx, Params().GetConsensus(), hashBlock, true)) {
-        return;
+        if (!fPruneMode) return;
+        LOCK(cs);
+        auto it = nonLockedTxs.find(txid);
+        if (it == nonLockedTxs.end() || !it->second.tx) return;
+        tx = it->second.tx;
     }
 
     if (LogAcceptCategory(BCLog::INSTANTSEND)) {
@@ -896,6 +913,19 @@ void CInstantSendManager::ProcessInstantSendLock(NodeId from, const uint256& has
                 return;
             }
         }
+    } else if (fPruneMode) {
+        // A fully spent mined TX is not discoverable through the UTXO slow path.
+        // Preserve its mined height so normal confirmed-lock cleanup still works.
+        {
+            LOCK(cs);
+            auto it = nonLockedTxs.find(islock.txid);
+            if (it != nonLockedTxs.end()) { tx = it->second.tx; pindexMined = it->second.pindexMined; }
+        }
+        {
+            LOCK(cs_main);
+            if (pindexMined && !chainActive.Contains(pindexMined)) pindexMined = nullptr;
+        }
+        if (pindexMined && chainLocksHandler->HasChainLock(pindexMined->nHeight, pindexMined->GetBlockHash())) return;
     }
 
     {
@@ -990,6 +1020,7 @@ void CInstantSendManager::ProcessNewTransaction(const CTransactionRef& tx, const
 
     bool chainlocked = pindex && chainLocksHandler->HasChainLock(pindex->nHeight, pindex->GetBlockHash());
     if (islockHash.IsNull() && !chainlocked) {
+        if (fPruneMode) { LOCK(cs); AddNonLockedTx(tx, pindex); }
         ProcessTx(*tx, allowReSigning, Params().GetConsensus());
     }
 

@@ -1034,6 +1034,8 @@ std::unique_ptr<CChainParams> CreateChainParams(const std::string& chain)
 
 void SelectParams(const std::string& network)
 {
+    if (gArgs.GetBoolArg("-llmqtestrebuildindex", false) && network != CBaseChainParams::REGTEST)
+        throw std::runtime_error("-llmqtestrebuildindex is only supported on regtest");
     if (gArgs.GetBoolArg("-testnetfastcollateral", false) && network != CBaseChainParams::TESTNET)
         throw std::runtime_error("-testnetfastcollateral requires -testnet");
     if (gArgs.GetBoolArg("-llmqtestfixture", false) && network != CBaseChainParams::REGTEST)

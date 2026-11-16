@@ -17,6 +17,8 @@
 #include "consensus/merkle.h"
 #include "univalue.h"
 #include "validation.h"
+#include "txdb.h"
+#include "prunedblock.h"
 
 CSimplifiedMNListEntry::CSimplifiedMNListEntry(const CDeterministicMN& dmn) :
     proRegTxHash(dmn.proTxHash),
@@ -231,7 +233,18 @@ bool BuildSimplifiedMNListDiff(const uint256& baseBlockHash, const uint256& bloc
         return false;
     }
 
-    // TODO store coinbase TX in CBlockIndex
+    if (fPruneMode && !(blockIndex->nStatus & BLOCK_HAVE_DATA)) {
+        CPrunedBlockMetadata data;
+        if (!pblocktree->ReadPrunedBlockMetadata(blockHash, blockIndex->hashMerkleRoot, data)) {
+            errorRet = "Missing or invalid retained coinbase evidence; archival rebuild required";
+            return false;
+        }
+        mnListDiffRet.cbTx = data.coinbase;
+        mnListDiffRet.cbTxMerkleTree = data.coinbaseProof;
+        return true;
+    }
+
+    // Use the block body when it remains available.
     CBlock block;
     if (!ReadBlockFromDisk(block, blockIndex, Params().GetConsensus())) {
         errorRet = strprintf("failed to read block %s from disk", blockHash.ToString());

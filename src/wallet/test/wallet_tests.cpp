@@ -635,6 +635,32 @@ public:
     std::unique_ptr<CWallet> wallet;
 };
 
+BOOST_FIXTURE_TEST_CASE(FundTransactionPreservesScriptAmounts, ListCoinsTestingSetup)
+{
+    const CScript payment = GetScriptForRawPubKey(coinbaseKey.GetPubKey());
+    const CScript commitment = CScript() << OP_RETURN << std::vector<unsigned char>(32, 0x42);
+    for (int requested : {-1, 0, 2}) {
+        for (bool subtractFee : {false, true}) {
+            CMutableTransaction tx;
+            tx.vout.emplace_back(106000, payment);
+            tx.vout.emplace_back(0, commitment);
+            CAmount fee = 0;
+            int changePos = requested;
+            std::string error;
+            CCoinControl control;
+            const std::set<int> subtract = subtractFee ? std::set<int>{0} : std::set<int>{};
+            BOOST_REQUIRE_MESSAGE(wallet->FundTransaction(tx, fee, changePos, error, false, subtract, control), error);
+            BOOST_REQUIRE(changePos >= 0);
+            BOOST_REQUIRE_EQUAL(tx.vout.size(), 3U);
+            tx.vout.erase(tx.vout.begin() + changePos);
+            BOOST_CHECK(tx.vout[0].scriptPubKey == payment);
+            BOOST_CHECK_EQUAL(tx.vout[0].nValue, 106000 - (subtractFee ? fee : 0));
+            BOOST_CHECK(tx.vout[1].scriptPubKey == commitment);
+            BOOST_CHECK_EQUAL(tx.vout[1].nValue, 0);
+        }
+    }
+}
+
 BOOST_FIXTURE_TEST_CASE(ListCoins, ListCoinsTestingSetup)
 {
     std::string coinbaseAddress = coinbaseKey.GetPubKey().GetID().ToString();

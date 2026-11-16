@@ -1526,6 +1526,8 @@ bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uin
     return true;
 }
 
+
+
 /** Abort with a message */
 bool AbortNode(const std::string& strMessage, const std::string& userMessage="")
 {
@@ -1545,6 +1547,32 @@ bool AbortNode(CValidationState& state, const std::string& strMessage, const std
 }
 
 } // namespace
+
+bool GetSpentCoinFromUndo(const COutPoint& outpoint, const uint256& spendingTx,
+                          const CBlockIndex* index, Coin& coin)
+{
+    AssertLockHeld(cs_main);
+    if (!index || !index->pprev || !chainActive.Contains(index) ||
+        !(index->nStatus & BLOCK_HAVE_DATA) || !(index->nStatus & BLOCK_HAVE_UNDO)) return false;
+    CBlock block;
+    CBlockUndo undo;
+    if (!ReadBlockFromDisk(block, index, Params().GetConsensus()) ||
+        BlockMerkleRoot(block) != index->hashMerkleRoot ||
+        !UndoReadFromDisk(undo, index->GetUndoPos(), index->pprev->GetBlockHash()) ||
+        undo.vtxundo.size()+1 != block.vtx.size()) return false;
+    for (size_t i=1; i<block.vtx.size(); ++i) {
+        if (block.vtx[i]->GetHash() != spendingTx) continue;
+        if (undo.vtxundo[i-1].vprevout.size() != block.vtx[i]->vin.size()) return false;
+        for (size_t j=0; j<block.vtx[i]->vin.size(); ++j) {
+            if (block.vtx[i]->vin[j].prevout != outpoint) continue;
+            coin = undo.vtxundo[i-1].vprevout[j];
+            // Legacy undo may omit the height (zero). Never interpret that as genesis age.
+            return !coin.IsSpent() && coin.nHeight > 0 && coin.nHeight <= unsigned(index->nHeight);
+        }
+    }
+    return false;
+}
+
 
 enum DisconnectResult
 {
@@ -2652,6 +2680,12 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         setDirtyBlockIndex.insert(pindex);
     }
 
+    if (fPruneMode && !pblocktree->WritePrunedBlockMetadata(block))
+        return AbortNode(state, "Failed to retain pruned block evidence");
+
+    if (fPruneMode && !pblocktree->WriteGovernanceCollateral(block))
+        return AbortNode(state, "Failed to retain governance collateral");
+
     if (fTxIndex)
         if (!pblocktree->WriteTxIndex(vPos))
             return AbortNode(state, "Failed to write transaction index");
@@ -3300,6 +3334,18 @@ static void PruneBlockIndexCandidates() {
     assert(!setBlockIndexCandidates.empty());
 }
 
+// Check the entire disconnect path before changing the tip. Missing pruned data
+// requires archival recovery, not a partial rollback or marking a valid fork invalid.
+static bool CheckDisconnectData(CValidationState& state, const CBlockIndex* fork)
+{
+    if (!fPruneMode) return true;
+    for (const CBlockIndex* p = chainActive.Tip(); p && p != fork; p = p->pprev) {
+        if (!(p->nStatus & BLOCK_HAVE_DATA) || !(p->nStatus & BLOCK_HAVE_UNDO))
+            return state.Error("Pruned rollback requires missing block/undo data; restore archival history and reindex before retrying");
+    }
+    return true;
+}
+
 /**
  * Try to make some progress towards making pindexMostWork the active block.
  * pblock is either nullptr or a pointer to a CBlock corresponding to pindexMostWork.
@@ -3309,6 +3355,8 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
     AssertLockHeld(cs_main);
     const CBlockIndex *pindexOldTip = chainActive.Tip();
     const CBlockIndex *pindexFork = chainActive.FindFork(pindexMostWork);
+
+    if (!CheckDisconnectData(state, pindexFork)) return false;
 
     // Disconnect active blocks which are no longer in the best chain.
     bool fBlocksDisconnected = false;
@@ -3521,6 +3569,8 @@ bool PreciousBlock(CValidationState& state, const CChainParams& params, CBlockIn
 bool InvalidateBlock(CValidationState& state, const CChainParams& chainparams, CBlockIndex *pindex)
 {
     AssertLockHeld(cs_main);
+
+    if (chainActive.Contains(pindex) && !CheckDisconnectData(state, pindex->pprev)) return false;
 
     // We first disconnect backwards and then mark the blocks as invalid.
     // This prevents a case where pruned nodes may fail to invalidateblock
