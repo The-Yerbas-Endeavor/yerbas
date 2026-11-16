@@ -211,9 +211,26 @@ server rental costs; it did not pass a 48-hour endurance requirement. Recovery
 archives and evidence were preserved on two local hosts before retirement.
 
 The live trial generated 142 large blocks and rotated block files at height
-1302. Local continuation is advancing the retention window before attempting
-native block-file deletion, followed by quorum formation, required-signer
-restart, payment-proof checks and archival recovery. Those post-deletion live
-results are still pending. Successful live quorum formation and restart above
-preceded deletion; actual deletion coverage currently comes from the isolated
-regressions. Public-network pruning readiness is not established.
+1302. Local continuation reached height 1590 and deleted `blk00000.dat` through
+the native pruning RPC on all 20 registered nodes. Historical payment and
+smartnode-list proofs still verified, while the original raw blocks were
+unavailable on the pruned nodes and remained available on the archival source.
+
+A fresh native quorum formed after deletion. At height 1669, a restarted member
+preserved an earlier recovered signature and contributed a required share to a
+new signature requested from exactly seven members. The first post-restart
+request timed out; its record was preserved. A fresh diagnostic succeeded, and
+a repeated restart passed after waiting for synchronized state and stable
+authenticated quorum connections. RPC availability and READY status alone are
+not sufficient readiness conditions for this test.
+
+An isolated pruned member refused deep rollback without changing its tip,
+rolled back a recent quorum, rejected a stale payment proof, then restored its
+original tip and quorum. A separate wallet-disabled node fully revalidated the
+archival block files with `-reindex -assumevalid=0`, without copied chainstate or
+keys. It completed the previously unavailable deep rollback and restored the
+original tip. The second local host independently matched the final tip,
+quorum commitments and historical payment/list proofs.
+
+These controlled private-testnet checks passed; independent ownership,
+long-running public-parameter operation and mainnet readiness remain unproven.

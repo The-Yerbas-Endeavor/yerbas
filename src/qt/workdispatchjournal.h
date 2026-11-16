@@ -10,10 +10,19 @@
 #include <QUuid>
 #include <QRegularExpression>
 #include <stdexcept>
+#ifndef Q_OS_WIN
 #include <fcntl.h>
 #include <unistd.h>
+#endif
 namespace WorkDispatch {
 inline QString intent(const QString& directory,const QJsonObject& binding){
+#ifdef Q_OS_WIN
+ // Windows has no supported authenticated owner-agent transport yet. Refuse
+ // before creating an intent rather than silently omitting its durability step.
+ Q_UNUSED(directory);
+ Q_UNUSED(binding);
+ throw std::runtime_error("durable local dispatch is not supported on Windows");
+#else
  if(directory.isEmpty()||!QDir().mkpath(directory))throw std::runtime_error("dispatch directory unavailable");
  const auto data=QJsonDocument(binding).toJson(QJsonDocument::Compact);
  const auto key=QString::fromLatin1(QCryptographicHash::hash(data,QCryptographicHash::Sha256).toHex());
@@ -35,6 +44,7 @@ inline QString intent(const QString& directory,const QJsonObject& binding){
  if(fd<0)throw std::runtime_error("dispatch directory sync unavailable");
  int synced=::fsync(fd);::close(fd);if(synced)throw std::runtime_error("dispatch directory sync failed");
  return id;
+#endif
 }
 }
 #endif
