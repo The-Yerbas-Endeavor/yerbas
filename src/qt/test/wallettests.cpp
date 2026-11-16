@@ -20,6 +20,17 @@
 
 namespace
 {
+// Destroy this guard after the wallet and widgets, including on a failed Qt assertion.
+struct WalletDatabaseGuard
+{
+    WalletDatabaseGuard() { bitdb.MakeMock(); }
+    ~WalletDatabaseGuard()
+    {
+        bitdb.Flush(true);
+        bitdb.Reset();
+    }
+};
+
 //! Press "Yes" button in modal send confirmation dialog.
 void ConfirmSend()
 {
@@ -84,11 +95,11 @@ void TestSendCoins()
     // Set up wallet and chain with 101 blocks (1 mature block for spending).
     TestChain100Setup test;
     test.CreateAndProcessBlock({}, GetScriptForRawPubKey(test.coinbaseKey.GetPubKey()));
-    bitdb.MakeMock();
+    WalletDatabaseGuard database;
     std::unique_ptr<CWalletDBWrapper> dbw(new CWalletDBWrapper(&bitdb, "wallet_test.dat"));
     CWallet wallet(std::move(dbw));
     bool firstRun;
-    wallet.LoadWallet(firstRun);
+    QCOMPARE(wallet.LoadWallet(firstRun), DB_LOAD_OK);
     {
         LOCK(wallet.cs_wallet);
         wallet.SetAddressBook(test.coinbaseKey.GetPubKey().GetID(), "", "receive");
@@ -104,17 +115,18 @@ void TestSendCoins()
     WalletModel walletModel(platformStyle.get(), &wallet, &optionsModel);
     sendCoinsDialog.setModel(&walletModel);
 
-    // Send two transactions, and verify they are added to transaction list.
+    // Send two transactions within the mature Yerbas reward, and verify the transaction list.
     TransactionTableModel* transactionTableModel = walletModel.getTransactionTableModel();
     QCOMPARE(transactionTableModel->rowCount({}), 101);
-    uint256 txid1 = SendCoins(wallet, sendCoinsDialog, CBitcoinAddress(CKeyID()), 5 * COIN);
-    uint256 txid2 = SendCoins(wallet, sendCoinsDialog, CBitcoinAddress(CKeyID()), 10 * COIN);
+    uint256 txid1 = SendCoins(wallet, sendCoinsDialog, CBitcoinAddress(CKeyID()), COIN / 10);
+    QVERIFY(!txid1.IsNull());
+    uint256 txid2 = SendCoins(wallet, sendCoinsDialog, CBitcoinAddress(CKeyID()), COIN / 5);
+    QVERIFY(!txid2.IsNull());
+    QVERIFY(txid1 != txid2);
     QCOMPARE(transactionTableModel->rowCount({}), 103);
     QVERIFY(FindTx(*transactionTableModel, txid1).isValid());
     QVERIFY(FindTx(*transactionTableModel, txid2).isValid());
 
-    bitdb.Flush(true);
-    bitdb.Reset();
 }
 
 }

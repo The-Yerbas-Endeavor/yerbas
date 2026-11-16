@@ -22,6 +22,14 @@ class NetTest(BitcoinTestFramework):
         self.setup_clean_chain = True
         self.num_nodes = 2
 
+    def setup_network(self):
+        # Fresh nodes share genesis and this test neither mines nor sends txs.
+        # Avoid the newer syncwithvalidationinterfacequeue RPC, which this
+        # Core version does not implement.
+        self.setup_nodes()
+        connect_nodes_bi(self.nodes, 0, 1)
+        assert_equal(self.nodes[0].getbestblockhash(), self.nodes[1].getbestblockhash())
+
     def run_test(self):
         # Wait for one ping/pong to finish so that we can be sure that there is no chatter between nodes for some time
         # Especially the exchange of messages like getheaders and friends causes test failures here

@@ -1,0 +1,16 @@
+Linux-only asset wallet activation and crash test
+
+Never apply this patch to a release build. It changes regtest wallet activation
+to height 220 and adds SIGSTOP hooks at reward reservation/commit boundaries.
+
+Build the normal candidate first. In a separate copy of that source/build tree:
+  patch -p1 < ci/fixtures/asset-wallet-faults.patch
+  make -C src -j2 yerbasd
+
+From the original candidate tree, run:
+  python3 ci/test-asset-wallet-faults.py /absolute/fixture/src/yerbasd /absolute/candidate/src/yerbasd --workdir /absolute/new-test-directory
+
+Only disposable regtest wallets and localhost peers are used. The script kills
+only its own fixture process. The unrestricted producer is the current candidate,
+not an old-version compatibility test. Neither fixture binaries nor generated
+wallets/block files belong in release artifacts. Default CI does not apply this patch.

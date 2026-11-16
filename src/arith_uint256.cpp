@@ -9,6 +9,7 @@
 #include "uint256.h"
 #include "utilstrencodings.h"
 
+#include <cctype>
 #include <stdio.h>
 #include <string.h>
 
@@ -169,11 +170,23 @@ std::string base_uint<BITS>::GetHex() const
 	}
 }
 
-//template <unsigned int BITS>
-//void base_uint<BITS>::SetHex(const char* psz)
-//{
-//    *this = UintToArith256(uint256S(psz));
-//}
+template <unsigned int BITS>
+void base_uint<BITS>::SetHex(const char* psz)
+{
+    // Parse hexadecimal text into little-endian limbs, truncating to BITS.
+    // Do not read a fixed-width buffer: callers may pass even an empty string.
+    memset(pn, 0, sizeof(pn));
+    while (std::isspace(static_cast<unsigned char>(*psz)))
+        ++psz;
+    if (psz[0] == '0' && (psz[1] == 'x' || psz[1] == 'X'))
+        psz += 2;
+    const char* begin = psz;
+    while (HexDigit(*psz) != -1)
+        ++psz;
+    for (unsigned int digit = 0; psz != begin && digit < BITS / 4; ++digit) {
+        pn[digit / 8] |= uint32_t(HexDigit(*--psz)) << (4 * (digit % 8));
+    }
+}
 
 template <unsigned int BITS>
 void base_uint<BITS>::SetHex(const std::string& str)

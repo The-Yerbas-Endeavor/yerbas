@@ -17,6 +17,7 @@
 #include "guiconstants.h"
 
 #include "wallet/coincontrol.h"
+#include "wallet/assetissuance.h"
 #include "policy/fees.h"
 
 #include <script/standard.h>
@@ -141,6 +142,7 @@ CreateAssetDialog::CreateAssetDialog(const PlatformStyle *_platformStyle, QWidge
     ui->nameText->installEventFilter(this);
     ui->assetList->installEventFilter(this);
     ui->lineEditVerifierString->installEventFilter(this);
+    updateIssuanceAvailability();
 }
 
 void CreateAssetDialog::setClientModel(ClientModel *_clientModel)
@@ -148,6 +150,7 @@ void CreateAssetDialog::setClientModel(ClientModel *_clientModel)
     this->clientModel = _clientModel;
 
     if (_clientModel) {
+        connect(_clientModel, &ClientModel::numBlocksChanged, this, [this]() { updateIssuanceAvailability(); });
         connect(_clientModel, SIGNAL(numBlocksChanged(int,QDateTime,double,bool)), this, SLOT(updateSmartFeeLabel()));
     }
 }
@@ -386,8 +389,18 @@ void CreateAssetDialog::disableCreateButton()
 
 void CreateAssetDialog::enableCreateButton()
 {
-    if (checkedAvailablity)
-        ui->createAssetButton->setDisabled(false);
+    std::string reason;
+    ui->createAssetButton->setEnabled(checkedAvailablity && WalletAssetOperationsAllowed(reason));
+}
+
+void CreateAssetDialog::updateIssuanceAvailability()
+{
+    std::string reason;
+    const bool allowed = WalletAssetOperationsAllowed(reason);
+    ui->issuanceAvailabilityLabel->setText(QString::fromStdString(reason));
+    ui->issuanceAvailabilityLabel->setVisible(!allowed);
+    if (!allowed) disableCreateButton();
+    else if (model) CheckFormState();
 }
 
 bool CreateAssetDialog::checkIPFSHash(QString hash)
@@ -672,6 +685,11 @@ void CreateAssetDialog::onIPFSHashChanged(QString hash)
 
 void CreateAssetDialog::onCreateAssetClicked()
 {
+    std::string reason;
+    if (!WalletAssetOperationsAllowed(reason)) {
+        QMessageBox::warning(this, tr("Asset issuance unavailable"), QString::fromStdString(reason));
+        return;
+    }
     WalletModel::UnlockContext ctx(model->requestUnlock());
     if(!ctx.isValid())
     {
@@ -1018,9 +1036,9 @@ void CreateAssetDialog::updateSmartFeeLabel()
         QColor warning_colour(255 - (lightness / 5), 176 - (lightness / 3), 48 - (lightness / 14));
         ui->fallbackFeeWarningLabel->setStyleSheet("QLabel { color: " + warning_colour.name() + "; }");
         //#ifndef QTversionPreFiveEleven
-    	//	ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
+        //  ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
     	//#else
-    		ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).width("x"));
+            ui->fallbackFeeWarningLabel->setIndent(QFontMetrics(ui->fallbackFeeWarningLabel->font()).horizontalAdvance("x"));
     	//#endif
     }
     else

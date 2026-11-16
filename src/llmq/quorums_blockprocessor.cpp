@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -144,12 +145,18 @@ bool CQuorumBlockProcessor::ProcessBlock(const CBlock& block, const CBlockIndex*
 
         if (hasCommitmentInNewBlock && !isCommitmentRequired) {
             // If we're either not in the mining phase or a non-null commitment was mined already, reject the block
+            LogPrintf("LOW_LLMQ_DIAG bad-qc-not-allowed: height=%d block=%s quorumType=%d size=%d minSize=%d threshold=%d dkgInterval=%d hasCommitment=%d required=%d\n",
+                      pindex->nHeight, block.GetHash().ToString(), (int)type, p.second.size, p.second.minSize,
+                      p.second.threshold, p.second.dkgInterval, (int)hasCommitmentInNewBlock, (int)isCommitmentRequired);
             return state.DoS(100, false, REJECT_INVALID, "bad-qc-not-allowed");
         }
 
         if (!hasCommitmentInNewBlock && isCommitmentRequired) {
             // If no non-null commitment was mined for the mining phase yet and the new block does not include
             // a (possibly null) commitment, the block should be rejected.
+            LogPrintf("LOW_LLMQ_DIAG bad-qc-missing: height=%d block=%s quorumType=%d size=%d minSize=%d threshold=%d dkgInterval=%d hasCommitment=%d required=%d\n",
+                      pindex->nHeight, block.GetHash().ToString(), (int)type, p.second.size, p.second.minSize,
+                      p.second.threshold, p.second.dkgInterval, (int)hasCommitmentInNewBlock, (int)isCommitmentRequired);
             return state.DoS(100, false, REJECT_INVALID, "bad-qc-missing");
         }
     }
@@ -453,14 +460,18 @@ std::vector<const CBlockIndex*> CQuorumBlockProcessor::GetMinedCommitmentsUntilB
 }
 
 // The returned quorums are in reversed order, so the most recent one is at index 0
-std::map<Consensus::LLMQType, std::vector<const CBlockIndex*>> CQuorumBlockProcessor::GetMinedAndActiveCommitmentsUntilBlock(const CBlockIndex* pindex)
+std::map<Consensus::LLMQType, std::vector<const CBlockIndex*>> CQuorumBlockProcessor::GetMinedAndActiveCommitmentsUntilBlock(const CBlockIndex* pindex, int contextHeight)
 {
     std::map<Consensus::LLMQType, std::vector<const CBlockIndex*>> ret;
 
     for (const auto& p : Params().GetConsensus().llmqs) {
         auto& v = ret[p.second.type];
-        v.reserve(p.second.signingActiveQuorumCount);
-        auto commitments = GetMinedCommitmentsUntilBlock(p.second.type, pindex, p.second.signingActiveQuorumCount);
+        auto params = p.second;
+        if (RecoveryProtocolEnabled() && !ResolveRecoveryParamsAtHeight(p.first, pindex,
+                contextHeight < 0 ? pindex->nHeight : contextHeight, params))
+            throw std::runtime_error("Missing recovery context for commitment retention");
+        v.reserve(params.signingActiveQuorumCount);
+        auto commitments = GetMinedCommitmentsUntilBlock(p.second.type, pindex, params.signingActiveQuorumCount);
         for (auto& c : commitments) {
             v.emplace_back(c);
         }
@@ -540,7 +551,10 @@ bool CQuorumBlockProcessor::GetMinableCommitment(Consensus::LLMQType llmqType, i
     auto it = minableCommitmentsByQuorum.find(k);
     if (it == minableCommitmentsByQuorum.end()) {
         // null commitment required
-        ret = CFinalCommitment(Params().GetConsensus().llmqs.at(llmqType), quorumHash);
+        auto params = Params().GetConsensus().llmqs.at(llmqType);
+        if (RecoveryProtocolEnabled() && !ResolveRecoveryQuorumParams(llmqType, mapBlockIndex.at(quorumHash), params))
+            throw std::runtime_error("Missing recovery context while mining");
+        ret = CFinalCommitment(params, quorumHash);
         return true;
     }
 

@@ -65,6 +65,7 @@ public Q_SLOTS:
     void focusAssetListBox();
 
 private:
+    void updateAssetAvailability();
     Ui::AssetsDialog *ui;
     ClientModel *clientModel;
     WalletModel *model;

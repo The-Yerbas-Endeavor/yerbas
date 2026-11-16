@@ -83,6 +83,11 @@ public:
         qDebug() << "MyRestrictedAssetsTablePriv::refreshWallet";
         cacheMyAssetData.clear();
         vectAssetData.clear();
+        LOCK(cs_main);
+        auto pmyrestricteddb = wallet ? wallet->assetRestrictions.get() : nullptr;
+        if (!pmyrestricteddb || !wallet)
+            return;
+        LOCK(wallet->cs_wallet);
         {
             std::vector<std::tuple<std::string, std::string, bool, uint32_t> > myTaggedAddresses;
             std::vector<std::tuple<std::string, std::string, bool, uint32_t> > myRestrictedAddresses;
@@ -124,9 +129,16 @@ public:
         if (cacheMyAssetData.contains(pair)) {
             rec.involvesWatchAddress = cacheMyAssetData[pair].involvesWatchAddress;
             cacheMyAssetData[pair] = rec;
+            const int row = vectAssetData.indexOf(pair);
+            if (row >= 0)
+                Q_EMIT parent->dataChanged(parent->index(row, 0), parent->index(row, parent->columnCount(QModelIndex()) - 1));
         } else {
-            rec.involvesWatchAddress =
-                    IsMine(*this->wallet, DecodeDestination(address.toStdString())) & ISMINE_WATCH_ONLY ? true : false;
+            if (!wallet)
+                return;
+            {
+                LOCK(wallet->cs_wallet);
+                rec.involvesWatchAddress = IsMine(*wallet, DecodeDestination(address.toStdString())) & ISMINE_WATCH_ONLY;
+            }
             parent->beginInsertRows(QModelIndex(), 0, 0);
             cacheMyAssetData[pair] = rec;
             vectAssetData.push_front(pair);
@@ -208,14 +220,12 @@ void MyRestrictedAssetsTableModel::updateMyRestrictedAssets(const QString &addre
 
 int MyRestrictedAssetsTableModel::rowCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
-    return priv->size();
+    return parent.isValid() ? 0 : priv->size();
 }
 
 int MyRestrictedAssetsTableModel::columnCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
-    return columns.length();
+    return parent.isValid() ? 0 : columns.length();
 }
 
 QString MyRestrictedAssetsTableModel::formatTxDate(const MyRestrictedAssetRecord *wtx) const
@@ -322,9 +332,11 @@ QString MyRestrictedAssetsTableModel::formatTooltip(const MyRestrictedAssetRecor
 
 QVariant MyRestrictedAssetsTableModel::data(const QModelIndex &index, int role) const
 {
-    if(!index.isValid())
+    if(!index.isValid() || index.model() != this || index.row() >= priv->size() || index.column() >= columns.size())
         return QVariant();
-    MyRestrictedAssetRecord *rec = static_cast<MyRestrictedAssetRecord*>(index.internalPointer());
+    MyRestrictedAssetRecord *rec = priv->index(index.row());
+    if (!rec)
+        return QVariant();
 
     switch(role)
     {
@@ -382,7 +394,7 @@ QVariant MyRestrictedAssetsTableModel::data(const QModelIndex &index, int role) 
         case TypeRole:
             return rec->type;
         case DateRole:
-            return QDateTime::fromTime_t(static_cast<uint>(rec->time));
+            return QDateTime::fromSecsSinceEpoch(static_cast<uint>(rec->time));
         case WatchonlyRole:
             return rec->involvesWatchAddress;
         case WatchonlyDecorationRole:
@@ -400,7 +412,7 @@ QVariant MyRestrictedAssetsTableModel::data(const QModelIndex &index, int role) 
         case TxPlainTextRole:
         {
             QString details;
-            QDateTime date = QDateTime::fromTime_t(static_cast<uint>(rec->time));
+            QDateTime date = QDateTime::fromSecsSinceEpoch(static_cast<uint>(rec->time));
             QString txLabel = walletModel->getAddressTableModel()->labelForAddress(QString::fromStdString(rec->address));
 
             details.append(date.toString("M/d/yy HH:mm"));
@@ -435,6 +447,8 @@ QVariant MyRestrictedAssetsTableModel::data(const QModelIndex &index, int role) 
 
 QVariant MyRestrictedAssetsTableModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
+    if (section < 0 || section >= columns.size())
+        return QVariant();
     if(orientation == Qt::Horizontal)
     {
         if(role == Qt::DisplayRole)
@@ -464,7 +478,8 @@ QVariant MyRestrictedAssetsTableModel::headerData(int section, Qt::Orientation o
 
 QModelIndex MyRestrictedAssetsTableModel::index(int row, int column, const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
+    if (parent.isValid() || column < 0 || column >= columns.size())
+        return QModelIndex();
     MyRestrictedAssetRecord *data = priv->index(row);
     if(data)
     {
@@ -539,13 +554,13 @@ static void ShowProgress(MyRestrictedAssetsTableModel *ttm, const std::string &t
 void MyRestrictedAssetsTableModel::subscribeToCoreSignals()
 {
     // Connect signals to wallet
-    wallet->NotifyMyRestrictedAssetsChanged.connect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3, _4, _5));
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
+    wallet->NotifyMyRestrictedAssetsChanged.connect(boost::bind(NotifyTransactionChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
+    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
 }
 
 void MyRestrictedAssetsTableModel::unsubscribeFromCoreSignals()
 {
     // Disconnect signals from wallet
-    wallet->NotifyMyRestrictedAssetsChanged.disconnect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3, _4, _5));
-    wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    wallet->NotifyMyRestrictedAssetsChanged.disconnect(boost::bind(NotifyTransactionChanged, this, boost::placeholders::_1, boost::placeholders::_2, boost::placeholders::_3, boost::placeholders::_4, boost::placeholders::_5));
+    wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
 }

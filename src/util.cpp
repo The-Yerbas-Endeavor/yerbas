@@ -125,6 +125,7 @@ CTranslationInterface translationInterface;
 /** Log categories bitfield. */
 std::atomic<uint64_t> logCategories(0);
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 /** Init OpenSSL library multithreading support */
 static std::unique_ptr<CCriticalSection[]> ppmutexOpenSSL;
 void locking_callback(int mode, int i, const char* file, int line) NO_THREAD_SAFETY_ANALYSIS
@@ -136,12 +137,18 @@ void locking_callback(int mode, int i, const char* file, int line) NO_THREAD_SAF
     }
 }
 
+#endif // OpenSSL before 1.1 requires application-provided locks.
+
 // Singleton for wrapping OpenSSL setup/teardown.
 class CInit
 {
 public:
     CInit()
     {
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+        // Modern OpenSSL manages its own locks and PRNG initialization.
+        OPENSSL_init_crypto(OPENSSL_INIT_NO_LOAD_CONFIG, nullptr);
+#else
         // Init OpenSSL library multithreading support
         ppmutexOpenSSL.reset(new CCriticalSection[CRYPTO_num_locks()]);
         CRYPTO_set_locking_callback(locking_callback);
@@ -157,18 +164,21 @@ public:
         // Seed OpenSSL PRNG with current contents of the screen
         RAND_screen();
 #endif
+#endif // OPENSSL_VERSION_NUMBER
 
         // Seed OpenSSL PRNG with performance counter
         RandAddSeed();
     }
     ~CInit()
     {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
         // Securely erase the memory used by the PRNG
         RAND_cleanup();
         // Shutdown OpenSSL library multithreading support
         CRYPTO_set_locking_callback(nullptr);
         // Clear the set of locks now to maintain symmetry with the constructor.
         ppmutexOpenSSL.reset();
+#endif
     }
 }
 instance_of_cinit;
@@ -695,7 +705,7 @@ void ClearDatadirCache()
 fs::path GetConfigFile(const std::string& confPath)
 {
     fs::path pathConfigFile(confPath);
-    if (!pathConfigFile.is_complete())
+    if (!pathConfigFile.is_absolute())
         pathConfigFile = GetDataDir(false) / pathConfigFile;
 
     return pathConfigFile;
@@ -736,7 +746,7 @@ void ArgsManager::ReadConfigFile(const std::string& confPath)
 fs::path GetPidFile()
 {
     fs::path pathPidFile(gArgs.GetArg("-pid", BITCOIN_PID_FILENAME));
-    if (!pathPidFile.is_complete()) pathPidFile = GetDataDir() / pathPidFile;
+    if (!pathPidFile.is_absolute()) pathPidFile = GetDataDir() / pathPidFile;
     return pathPidFile;
 }
 

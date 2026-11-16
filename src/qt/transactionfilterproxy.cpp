@@ -12,14 +12,14 @@
 #include <QDateTime>
 
 // Earliest date that can be represented (far in the past)
-const QDateTime TransactionFilterProxy::MIN_DATE = QDateTime::fromTime_t(0);
+const QDateTime TransactionFilterProxy::MIN_DATE = QDateTime::fromSecsSinceEpoch(0);
 // Last date that can be represented (far in the future)
-const QDateTime TransactionFilterProxy::MAX_DATE = QDateTime::fromTime_t(0xFFFFFFFF);
+const QDateTime TransactionFilterProxy::MAX_DATE = QDateTime::fromSecsSinceEpoch(0xFFFFFFFF);
 
 TransactionFilterProxy::TransactionFilterProxy(QObject *parent) :
     QSortFilterProxyModel(parent),
-    dateFrom(MIN_DATE.toTime_t()),
-    dateTo(MAX_DATE.toTime_t()),
+    dateFrom(MIN_DATE.toSecsSinceEpoch()),
+    dateTo(MAX_DATE.toSecsSinceEpoch()),
     addrPrefix(),
     assetNamePrefix(),
     typeFilter(COMMON_TYPES),
@@ -71,8 +71,8 @@ bool TransactionFilterProxy::filterAcceptsRow(int sourceRow, const QModelIndex &
 
 void TransactionFilterProxy::setDateRange(const QDateTime &from, const QDateTime &to)
 {
-    this->dateFrom = from.toTime_t();
-    this->dateTo = to.toTime_t();
+    this->dateFrom = from.toSecsSinceEpoch();
+    this->dateTo = to.toSecsSinceEpoch();
     invalidateFilter();
 }
 

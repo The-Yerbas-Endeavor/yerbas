@@ -14,6 +14,7 @@ class CompatTests : public QObject
 
 private Q_SLOTS:
     void bswapTests();
+    void pathConversionTests();
 };
 
 #endif // BITCOIN_QT_TEST_COMPATTESTS_H

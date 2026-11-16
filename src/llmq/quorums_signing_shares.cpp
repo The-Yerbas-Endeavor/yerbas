@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -104,7 +105,7 @@ std::string CBatchedSigShares::ToInvString() const
 }
 
 template<typename T>
-static void InitSession(CSigSharesNodeState::Session& s, const uint256& signHash, T& from)
+static void InitSession(CSigSharesNodeState::Session& s, const uint256& signHash, T& from, size_t quorumSize)
 {
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)from.llmqType);
 
@@ -113,26 +114,28 @@ static void InitSession(CSigSharesNodeState::Session& s, const uint256& signHash
     s.id = from.id;
     s.msgHash = from.msgHash;
     s.signHash = signHash;
-    s.announced.Init((size_t)params.size);
-    s.requested.Init((size_t)params.size);
-    s.knows.Init((size_t)params.size);
+    const size_t size = RecoveryProtocolEnabled() ? quorumSize : params.size;
+    assert(size > 0);
+    s.announced.Init(size);
+    s.requested.Init(size);
+    s.knows.Init(size);
 }
 
 CSigSharesNodeState::Session& CSigSharesNodeState::GetOrCreateSessionFromShare(const llmq::CSigShare& sigShare)
 {
     auto& s = sessions[sigShare.GetSignHash()];
     if (s.announced.inv.empty()) {
-        InitSession(s, sigShare.GetSignHash(), sigShare);
+        InitSession(s, sigShare.GetSignHash(), sigShare, sigShare.quorumSize);
     }
     return s;
 }
 
-CSigSharesNodeState::Session& CSigSharesNodeState::GetOrCreateSessionFromAnn(const llmq::CSigSesAnn& ann)
+CSigSharesNodeState::Session& CSigSharesNodeState::GetOrCreateSessionFromAnn(const llmq::CSigSesAnn& ann, size_t quorumSize)
 {
     auto signHash = CLLMQUtils::BuildSignHash((Consensus::LLMQType)ann.llmqType, ann.quorumHash, ann.id, ann.msgHash);
     auto& s = sessions[signHash];
     if (s.announced.inv.empty()) {
-        InitSession(s, signHash, ann);
+        InitSession(s, signHash, ann, quorumSize);
     }
     return s;
 }
@@ -326,7 +329,7 @@ bool CSigSharesManager::ProcessMessageSigSesAnn(CNode* pfrom, const CSigSesAnn& 
 
     LOCK(cs);
     auto& nodeState = nodeStates[pfrom->GetId()];
-    auto& session = nodeState.GetOrCreateSessionFromAnn(ann);
+    auto& session = nodeState.GetOrCreateSessionFromAnn(ann, quorum->params.size);
     nodeState.sessionByRecvId.erase(session.recvSessionId);
     nodeState.sessionByRecvId.erase(ann.sessionId);
     session.recvSessionId = ann.sessionId;
@@ -336,9 +339,9 @@ bool CSigSharesManager::ProcessMessageSigSesAnn(CNode* pfrom, const CSigSesAnn& 
     return true;
 }
 
-bool CSigSharesManager::VerifySigSharesInv(NodeId from, Consensus::LLMQType llmqType, const CSigSharesInv& inv)
+bool CSigSharesManager::VerifySigSharesInv(NodeId from, const CQuorumCPtr& quorum, const CSigSharesInv& inv)
 {
-    size_t quorumSize = (size_t)Params().GetConsensus().llmqs.at(llmqType).size;
+    size_t quorumSize = RecoveryProtocolEnabled() ? quorum->params.size : Params().GetConsensus().llmqs.at(quorum->params.type).size;
 
     if (inv.inv.size() != quorumSize) {
         return false;
@@ -353,7 +356,7 @@ bool CSigSharesManager::ProcessMessageSigSharesInv(CNode* pfrom, const CSigShare
         return true;
     }
 
-    if (!VerifySigSharesInv(pfrom->GetId(), sessionInfo.llmqType, inv)) {
+    if (!VerifySigSharesInv(pfrom->GetId(), sessionInfo.quorum, inv)) {
         return false;
     }
 
@@ -390,7 +393,7 @@ bool CSigSharesManager::ProcessMessageGetSigShares(CNode* pfrom, const CSigShare
         return true;
     }
 
-    if (!VerifySigSharesInv(pfrom->GetId(), sessionInfo.llmqType, inv)) {
+    if (!VerifySigSharesInv(pfrom->GetId(), sessionInfo.quorum, inv)) {
         return false;
     }
 
@@ -872,7 +875,7 @@ void CSigSharesManager::CollectSigSharesToRequest(std::unordered_map<NodeId, std
                 auto& inv = (*invMap)[signHash];
                 if (inv.inv.empty()) {
                     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)session.llmqType);
-                    inv.Init((size_t)params.size);
+                    inv.Init(RecoveryProtocolEnabled() ? session.announced.inv.size() : (size_t)params.size);
                 }
                 inv.inv[k.second] = true;
 
@@ -976,7 +979,7 @@ void CSigSharesManager::CollectSigSharesToAnnounce(std::unordered_map<NodeId, st
             auto& inv = sigSharesToAnnounce[nodeId][signHash];
             if (inv.inv.empty()) {
                 const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)sigShare->llmqType);
-                inv.Init((size_t)params.size);
+                inv.Init(RecoveryProtocolEnabled() ? session.announced.inv.size() : (size_t)params.size);
             }
             inv.inv[quorumMember] = true;
             session.knows.inv[quorumMember] = true;
@@ -1147,6 +1150,7 @@ CSigShare CSigSharesManager::RebuildSigShare(const CSigSharesNodeState::SessionI
     CSigShare sigShare;
     sigShare.llmqType = session.llmqType;
     sigShare.quorumHash = session.quorumHash;
+    sigShare.quorumSize = session.quorum->params.size;
     sigShare.quorumMember = s.first;
     sigShare.id = session.id;
     sigShare.msgHash = session.msgHash;
@@ -1402,6 +1406,7 @@ void CSigSharesManager::Sign(const CQuorumCPtr& quorum, const uint256& id, const
 {
     cxxtimer::Timer t(true);
 
+    if (RecoveryProtocolEnabled() && !CLLMQUtils::IsQuorumActive(quorum->params.type, quorum->qc.quorumHash)) return;
     if (!quorum->IsValidMember(activeSmartnodeInfo.proTxHash)) {
         return;
     }
@@ -1426,6 +1431,7 @@ void CSigSharesManager::Sign(const CQuorumCPtr& quorum, const uint256& id, const
     sigShare.quorumMember = (uint16_t)memberIdx;
     uint256 signHash = CLLMQUtils::BuildSignHash(sigShare);
 
+    sigShare.quorumSize = quorum->params.size;
     sigShare.sigShare.Set(skShare.Sign(signHash));
     if (!sigShare.sigShare.Get().IsValid()) {
         LogPrintf("CSigSharesManager::%s -- failed to sign sigShare. signHash=%s, id=%s, msgHash=%s, time=%s\n", __func__,

@@ -1,3 +1,23 @@
+# 4.0.1.3 release documentation checks
+
+- Update `configure.ac` and `build.properties` consistently.
+- Update [release notes](release-notes.md), operator guidance, asset policy help,
+  and platform/archive instructions; preserve historical validation attribution.
+- Regenerate `doc/man/*.1` with `contrib/devtools/gen-manpages.sh` using matching
+  built binaries. For headless Qt use `QT_QPA_PLATFORM=offscreen`. `BINDIR`,
+  `BITCOIND`, `BITCOINCLI`, `BITCOINTX`, `BITCOINQT`, `MANDIR`, and `HELP2MAN` may
+  override locations. The script rejects mixed release versions.
+- Require all platform build/test jobs, verify archive checksums and provenance,
+  and keep the complete `yerbas-build/` runtime layout.
+- Use authenticated node data to update checkpoint, minimum chainwork and
+  assume-valid together. Preserve existing fixed seeds when adding peers.
+- Keep the GitHub release designation and operator rollout announcements explicit.
+
+## Historical release-process reference
+
+The inherited process below includes Gitian and upstream conventions; it is not
+the current GitHub Actions packaging procedure.
+
 Release Process
 ====================
 

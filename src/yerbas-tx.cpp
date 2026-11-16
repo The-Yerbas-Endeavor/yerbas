@@ -189,8 +189,8 @@ static CAmount ExtractAndValidateValue(const std::string& strValue)
 
 static void MutateTxVersion(CMutableTransaction& tx, const std::string& cmdVal)
 {
-    int64_t newVersion = atoi64(cmdVal);
-    if (newVersion < 1 || newVersion > CTransaction::MAX_STANDARD_VERSION)
+    int64_t newVersion;
+    if (!ParseInt64(cmdVal, &newVersion) || newVersion < 1 || newVersion > CTransaction::MAX_STANDARD_VERSION)
         throw std::runtime_error("Invalid TX version requested");
 
     tx.nVersion = (int) newVersion;
@@ -198,8 +198,8 @@ static void MutateTxVersion(CMutableTransaction& tx, const std::string& cmdVal)
 
 static void MutateTxLocktime(CMutableTransaction& tx, const std::string& cmdVal)
 {
-    int64_t newLocktime = atoi64(cmdVal);
-    if (newLocktime < 0LL || newLocktime > 0xffffffffLL)
+    int64_t newLocktime;
+    if (!ParseInt64(cmdVal, &newLocktime) || newLocktime < 0LL || newLocktime > 0xffffffffLL)
         throw std::runtime_error("Invalid TX locktime requested");
 
     tx.nLockTime = (unsigned int) newLocktime;
@@ -211,7 +211,7 @@ static void MutateTxAddInput(CMutableTransaction& tx, const std::string& strInpu
     boost::split(vStrInputParts, strInput, boost::is_any_of(":"));
 
     // separate TXID:VOUT in string
-    if (vStrInputParts.size()<2)
+    if (vStrInputParts.size()<2 || vStrInputParts.size()>3)
         throw std::runtime_error("TX input missing separator");
 
     // extract and validate TXID
@@ -225,14 +225,14 @@ static void MutateTxAddInput(CMutableTransaction& tx, const std::string& strInpu
 
     // extract and validate vout
     std::string strVout = vStrInputParts[1];
-    int vout = atoi(strVout);
-    if ((vout < 0) || (vout > (int)maxVout))
+    int32_t vout;
+    if (!ParseInt32(strVout, &vout) || (vout < 0) || (vout > (int)maxVout))
         throw std::runtime_error("invalid TX input vout");
 
     // extract the optional sequence number
     uint32_t nSequenceIn=std::numeric_limits<unsigned int>::max();
-    if (vStrInputParts.size() > 2)
-        nSequenceIn = std::stoul(vStrInputParts[2]);
+    if (vStrInputParts.size() > 2 && !ParseUInt32(vStrInputParts[2], &nSequenceIn))
+        throw std::runtime_error("invalid TX input sequence");
 
     // append to transaction input list
     CTxIn txin(txid, vout, CScript(), nSequenceIn);
@@ -436,8 +436,8 @@ static void MutateTxAddOutScript(CMutableTransaction& tx, const std::string& str
 static void MutateTxDelInput(CMutableTransaction& tx, const std::string& strInIdx)
 {
     // parse requested deletion index
-    int inIdx = atoi(strInIdx);
-    if (inIdx < 0 || inIdx >= (int)tx.vin.size()) {
+    int32_t inIdx;
+    if (!ParseInt32(strInIdx, &inIdx) || inIdx < 0 || inIdx >= (int)tx.vin.size()) {
         std::string strErr = "Invalid TX input index '" + strInIdx + "'";
         throw std::runtime_error(strErr.c_str());
     }
@@ -449,8 +449,8 @@ static void MutateTxDelInput(CMutableTransaction& tx, const std::string& strInId
 static void MutateTxDelOutput(CMutableTransaction& tx, const std::string& strOutIdx)
 {
     // parse requested deletion index
-    int outIdx = atoi(strOutIdx);
-    if (outIdx < 0 || outIdx >= (int)tx.vout.size()) {
+    int32_t outIdx;
+    if (!ParseInt32(strOutIdx, &outIdx) || outIdx < 0 || outIdx >= (int)tx.vout.size()) {
         std::string strErr = "Invalid TX output index '" + strOutIdx + "'";
         throw std::runtime_error(strErr.c_str());
     }
@@ -553,8 +553,8 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
 
             uint256 txid = ParseHashUV(prevOut["txid"], "txid");
 
-            int nOut = atoi(prevOut["vout"].getValStr());
-            if (nOut < 0)
+            int32_t nOut;
+            if (!ParseInt32(prevOut["vout"].getValStr(), &nOut) || nOut < 0)
                 throw std::runtime_error("vout must be positive");
 
             COutPoint out(txid, nOut);

@@ -48,7 +48,7 @@ BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAG
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 
-BLS_LIBS=-lchiabls -lgmp
+BLS_LIBS=@BLS_LIBS@
 
 LIBBITCOIN_SERVER=libyerbas_server.a
 LIBBITCOIN_COMMON=libyerbas_common.a
@@ -110,7 +110,7 @@ if BUILD_BITCOIND
 endif
 
 if BUILD_BITCOIN_UTILS
-  bin_PROGRAMS += yerbas-cli #yerbas-tx
+  bin_PROGRAMS += yerbas-cli yerbas-tx
 endif
 
 .PHONY: FORCE check-symbols check-security
@@ -191,6 +191,7 @@ BITCOIN_CORE_H = \
   llmq/quorums.h \
   llmq/quorums_blockprocessor.h \
   llmq/quorums_commitment.h \
+  llmq/quorums_recovery.h \
   llmq/quorums_chainlocks.h \
   llmq/quorums_debug.h \
   llmq/quorums_dkgsessionhandler.h \
@@ -264,6 +265,7 @@ BITCOIN_CORE_H = \
   validation.h \
   validationinterface.h \
   versionbits.h \
+  wallet/assetissuance.h \
   wallet/coincontrol.h \
   wallet/crypter.h \
   wallet/db.h \
@@ -325,6 +327,7 @@ libyerbas_server_a_SOURCES = \
   llmq/quorums.cpp \
   llmq/quorums_blockprocessor.cpp \
   llmq/quorums_commitment.cpp \
+  llmq/quorums_recovery.cpp \
   llmq/quorums_chainlocks.cpp \
   llmq/quorums_debug.cpp \
   llmq/quorums_dkgsessionhandler.cpp \
@@ -690,15 +693,10 @@ if TARGET_WINDOWS
 yerbas_tx_SOURCES += yerbas-tx-res.rc
 endif
 
-yerbas_tx_LDADD = \
-  $(LIBUNIVALUE) \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CONSENSUS) \
-  $(LIBBITCOIN_CRYPTO) \
-  $(LIBSECP256K1)
+# Asset-aware transaction decoding and coin views now depend on server code.
+# Start with common to resolve its asset references against the node libraries.
+yerbas_tx_LDADD = $(LIBBITCOIN_COMMON) $(yerbasd_LDADD)
 
-yerbas_tx_LDADD += $(BACKTRACE_LIB) $(BOOST_LIBS) $(CRYPTO_LIBS) $(BLS_LIBS)
 #
 
 # yerbasconsensus library #
@@ -783,9 +781,7 @@ endif
 osx_debug: $(bin_PROGRAMS)
 	for i in $(bin_PROGRAMS); do mkdir -p $$i.dSYM/Contents/Resources/DWARF && $(DSYMUTIL_FLAT) -o $$i.dSYM/Contents/Resources/DWARF/$$(basename $$i) $$i &> /dev/null ; done
 
-%.pb.cc %.pb.h: %.proto
-	@test -f $(PROTOC)
-	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(<D) $<
+
 
 if EMBEDDED_LEVELDB
 include Makefile.leveldb.include

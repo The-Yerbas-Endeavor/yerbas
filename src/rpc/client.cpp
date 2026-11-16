@@ -102,6 +102,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getbalance", 3, "include_watchonly" },
     { "getchaintips", 0, "count" },
     { "getchaintips", 1, "branchlen" },
+    { "getrichlist", 0, "count" },
     { "getblockhash", 0, "height" },
     { "getsuperblockbudget", 0, "index" },
     { "waitforblockheight", 0, "height" },

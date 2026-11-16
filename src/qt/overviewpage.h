@@ -102,6 +102,7 @@ private Q_SLOTS:
     void updateWatchOnlyLabels(bool showWatchOnly);
     void handleOutOfSyncWarningClicks();
     //assets
+    void showAssetDetails(const QModelIndex &index);
     void assetSearchChanged();
     void handleAssetRightClicked(const QModelIndex &index);
 };

@@ -22,6 +22,8 @@ inline unsigned int MaxBlockSigOps(bool fDIP0001Active /*= false */)
 static const unsigned int MAX_TX_EXTRA_PAYLOAD = 10000;
 /** Coinbase transaction outputs can only be spent after this number of new blocks (network rule) */
 static const int COINBASE_MATURITY = 100;
+/** Active network maturity; only the opt-in private testnet profile differs. */
+int GetCoinbaseMaturity();
 
 /** Flags for nSequence and nLockTime locks */
 enum {

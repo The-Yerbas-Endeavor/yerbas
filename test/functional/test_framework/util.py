@@ -315,19 +315,16 @@ def initialize_datadir(dirname, n, chain):
     # Translate chain name to config name
     if chain == 'testnet3':
         chain_name_conf_arg = 'testnet'
-        chain_name_conf_section = 'test'
         chain_name_conf_arg_value = '1'
     elif chain == 'devnet':
         chain_name_conf_arg = 'devnet'
-        chain_name_conf_section = 'devnet'
         chain_name_conf_arg_value = 'devnet1'
     else:
         chain_name_conf_arg = chain
-        chain_name_conf_section = chain
         chain_name_conf_arg_value = '1'
     with open(os.path.join(datadir, "yerbas.conf"), 'w', encoding='utf8') as f:
-        f.write("{}={}]\n".format(chain_name_conf_arg, chain_name_conf_arg_value))
-        f.write("[{}]\n".format(chain_name_conf_section))
+        # This Core version reads flat options, not network-prefixed sections.
+        f.write("{}={}\n".format(chain_name_conf_arg, chain_name_conf_arg_value))
         f.write("port=" + str(p2p_port(n)) + "\n")
         f.write("rpcport=" + str(rpc_port(n)) + "\n")
         f.write("server=1\n")
@@ -340,7 +337,7 @@ def get_datadir_path(dirname, n):
     return os.path.join(dirname, "node" + str(n))
 
 def append_config(datadir, options):
-    with open(os.path.join(datadir, "dash.conf"), 'a', encoding='utf8') as f:
+    with open(os.path.join(datadir, "yerbas.conf"), 'a', encoding='utf8') as f:
         for option in options:
             f.write(option + "\n")
 

@@ -19,6 +19,9 @@
 #include "transactiontablemodel.h"
 #include "transactionview.h"
 #include "assetsdialog.h"
+#include "assetmanagerpage.h"
+#include "assettablemodel.h"
+#include <QTabWidget>
 #include "createassetdialog.h"
 #include "reissueassetdialog.h"
 #include "restrictedassetsdialog.h"
@@ -95,10 +98,30 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
     manageAssetsPage = new ReissueAssetDialog(platformStyle);
     restrictedAssetsPage = new RestrictedAssetsDialog(platformStyle);
 
-    addWidget(assetsPage);
-    addWidget(createAssetsPage);
-    addWidget(manageAssetsPage);
-    addWidget(restrictedAssetsPage);
+    assetManagerTabs = new QTabWidget(this);
+    assetManagerTabs->setObjectName("assetManagerTabs");
+    assetManagerPage = new AssetManagerPage(assetManagerTabs);
+    assetManagerTabs->addTab(assetManagerPage, tr("My Assets"));
+    assetManagerTabs->addTab(assetsPage, tr("Send"));
+    assetManagerTabs->addTab(createAssetsPage, tr("Create"));
+    assetManagerTabs->addTab(manageAssetsPage, tr("Reissue"));
+    assetManagerTabs->addTab(restrictedAssetsPage, tr("Restricted controls"));
+    addWidget(assetManagerTabs);
+    connect(assetManagerPage, &AssetManagerPage::sendRequested, this, [this] {
+        assetManagerTabs->setCurrentWidget(assetsPage);
+    });
+    connect(assetManagerPage, SIGNAL(sendRequested(QModelIndex)), assetsPage, SLOT(focusAsset(QModelIndex)));
+    connect(assetManagerPage, SIGNAL(detailsRequested(QModelIndex)), overviewPage, SLOT(showAssetDetails(QModelIndex)));
+    connect(assetManagerPage, &AssetManagerPage::backupRequested, this, &WalletView::backupWallet);
+    connect(assetManagerTabs, &QTabWidget::currentChanged, this, [this](int) {
+        if (assetManagerTabs->currentWidget() == assetsPage && firstAssetSendVisit) {
+            firstAssetSendVisit = false;
+            assetsPage->handleFirstSelection();
+        }
+    });
+    connect(overviewPage, &OverviewPage::assetSendClicked, this, [this] {
+        assetManagerTabs->setCurrentWidget(assetsPage);
+    });
 
     // Clicking on a transaction on the overview pre-selects the transaction on the transaction history page
     connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), transactionView, SLOT(focusTransaction(QModelIndex)));
@@ -140,6 +163,11 @@ void WalletView::setBitcoinGUI(BitcoinGUI *gui)
     {
         // Clicking on a transaction on the overview page simply sends you to transaction history page
         connect(overviewPage, SIGNAL(transactionClicked(QModelIndex)), gui, SLOT(gotoHistoryPage()));
+
+        connect(assetManagerPage, &AssetManagerPage::historyRequested, this, [this] {
+            transactionView->showAssetHistory();
+        });
+        connect(assetManagerPage, SIGNAL(historyRequested()), gui, SLOT(gotoHistoryPage()));
 
         // Clicking on a asset menu item Send
         connect(overviewPage, SIGNAL(assetSendClicked(QModelIndex)), gui, SLOT(gotoAssetsPage()));
@@ -198,6 +226,7 @@ void WalletView::setWalletModel(WalletModel *_walletModel)
     usedReceivingAddressesPage->setModel(_walletModel->getAddressTableModel());
     usedSendingAddressesPage->setModel(_walletModel->getAddressTableModel());
 
+    assetManagerPage->setModel(_walletModel->getAssetTableModel());
     assetsPage->setModel(_walletModel);
     createAssetsPage->setModel(_walletModel);
     manageAssetsPage->setModel(_walletModel);
@@ -301,7 +330,8 @@ void WalletView::gotoSendCoinsPage(QString addr)
 
 void WalletView::gotoCreateAssetsPage()
 {
-    setCurrentWidget(createAssetsPage);
+    setCurrentWidget(assetManagerTabs);
+    assetManagerTabs->setCurrentWidget(createAssetsPage);
 }
 
 void WalletView::gotoSignMessageTab(QString addr)
@@ -457,23 +487,19 @@ void WalletView::trxAmount(QString amount)
     transactionSum->setText(amount);
 }
 
-bool fFirstVisit = true;
 void WalletView::gotoAssetsPage()
 {
-    if (fFirstVisit){
-        fFirstVisit = false;
-        assetsPage->handleFirstSelection();
-    }
-    setCurrentWidget(assetsPage);
-    assetsPage->focusAssetListBox();
+    setCurrentWidget(assetManagerTabs);
 }
 
 void WalletView::gotoManageAssetsPage()
 {
-    setCurrentWidget(manageAssetsPage);
+    setCurrentWidget(assetManagerTabs);
+    assetManagerTabs->setCurrentWidget(manageAssetsPage);
 }
 
 void WalletView::gotoRestrictedAssetsPage()
 {
-    setCurrentWidget(restrictedAssetsPage);
+    setCurrentWidget(assetManagerTabs);
+    assetManagerTabs->setCurrentWidget(restrictedAssetsPage);
 }

@@ -66,7 +66,7 @@ public:
     int idx;
 
     /** Whether the transaction was sent/received with a watch-only address */
-    bool involvesWatchAddress;
+    bool involvesWatchAddress{false};
 
     /** Return the unique identifier for this transaction (part) */
     QString getTxID() const;

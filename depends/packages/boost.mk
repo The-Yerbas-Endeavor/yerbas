@@ -1,15 +1,16 @@
 package=boost
-$(package)_version=1_70_0
+$(package)_version=1_92_0
 $(package)_download_path=https://archives.boost.io/release/$(subst _,.,$($(package)_version))/source/
 $(package)_file_name=$(package)_$($(package)_version).tar.bz2
-$(package)_sha256_hash=430ae8354789de4fd19ee52f3b1f739e1fba576f0aded0897c3c2bc00fb38778
-$(package)_patches=boost_gcc11.patch
+$(package)_sha256_hash=5c1d40cb8e19adbf740a4ec2da35b3e58f3f5804b1dce44deb53df72193cbc6c
 
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
 $(package)_config_opts_debug=variant=debug
-$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam
+$(package)_config_opts=--layout=tagged --user-config=user-config.jam
 $(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1
+# Restrict both stage and install, not just bootstrap (which only builds b2).
+$(package)_config_opts+=--with-chrono --with-filesystem --with-program_options --with-thread --with-test
 
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
 $(package)_config_opts_darwin=--toolset=clang-darwin runtime-link=shared
@@ -23,10 +24,10 @@ $(package)_toolset_$(host_os)=gcc
 $(package)_archiver_$(host_os)=$($(package)_ar)
 $(package)_toolset_darwin=clang-darwin
 
-$(package)_config_libraries=chrono,filesystem,program_options,system,thread,test
+$(package)_config_libraries=chrono,filesystem,program_options,thread,test
 
 # Common flags for all platforms
-$(package)_cxxflags=-std=c++11 -fvisibility=hidden
+$(package)_cxxflags=-std=c++17 -fvisibility=hidden
 
 # macOS-only compatibility flags
 $(package)_cxxflags_darwin=-Wno-enum-constexpr-conversion
@@ -35,7 +36,6 @@ $(package)_cxxflags_linux=-fPIC
 endef
 
 define $(package)_preprocess_cmds
- patch -p1 -i $($(package)_patch_dir)/boost_gcc11.patch && \
   echo "using $(boost_toolset_$(host_os)) : : $($(package)_cxx) : <cxxflags>\"$($(package)_cxxflags) $($(package)_cxxflags_$(host_os)) $($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$(boost_archiver_$(host_os))\" <striper>\"$(host_STRIP)\" <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;" > user-config.jam
 endef
 

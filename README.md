@@ -10,6 +10,13 @@ WARNING! Yerbas is a work in progress...Use at your own risk!
 Yerbas is a community driven, developmental, grassroots, digital currency that enables instant payments to anyone, anywhere in the world. The Yerbas Coin uses peer-to-peer technology to operate with no central authority. Managing transactions and issuing money are carried out collectively by the network. Yerbas is a code fork of Bitcoin/Dash/Ravencoin/Raptoreum and inherits current and optionally future features such as chain locks, oracles etc. The inspiration for the name Yerbas is derived from the Latin(herba) and Español(hierba) words for herb, grass, or weeds.
 
 
+Documentation for 4.0.1.3
+-------------------------
+
+See the [release and upgrade guide](doc/release-notes.md),
+[recorded recovery operator guide](doc/signed-spork-release-checklist.txt), and
+[Asset Manager guide](doc/asset-manager.md).
+
 License
 -------
 

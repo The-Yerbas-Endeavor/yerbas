@@ -1,3 +1,4 @@
+#include "wallet/assetissuance.h"
 // Copyright (c) 2017-2021 The Yerbas Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -3591,14 +3592,14 @@ bool GetBestAssetAddressAmount(CAssetsCache& cache, const std::string& assetName
 
 #ifdef ENABLE_WALLET
 //! sets _balances_ with the total quantity of each owned asset
-bool GetAllMyAssetBalances(std::map<std::string, std::vector<COutput> >& outputs, std::map<std::string, CAmount>& amounts, const int confirmations, const std::string& prefix) {
+bool GetAllMyAssetBalances(CWallet& wallet, std::map<std::string, std::vector<COutput> >& outputs, std::map<std::string, CAmount>& amounts, const int confirmations, const std::string& prefix) {
 
-    // Return false if no wallet was found to compute asset balances
-    if (!vpwallets.size())
-        return false;
+    LOCK2(cs_main, wallet.cs_wallet);
 
+    outputs.clear();
+    amounts.clear();
     // Get the map of assetnames to outputs
-    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
+    wallet.AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
 
     // Loop through all pairs of Asset Name -> vector<COutput>
     for (const auto& pair : outputs) {
@@ -3616,16 +3617,15 @@ bool GetAllMyAssetBalances(std::map<std::string, std::vector<COutput> >& outputs
     return true;
 }
 
-bool GetMyAssetBalance(const std::string& name, CAmount& balance, const int& confirmations) {
+bool GetMyAssetBalance(CWallet& wallet, const std::string& name, CAmount& balance, const int& confirmations) {
 
-    // Return false if no wallet was found to compute asset balances
-    if (!vpwallets.size())
-        return false;
+    LOCK2(cs_main, wallet.cs_wallet);
 
     // Get the map of assetnames to outputs
     std::map<std::string, std::vector<COutput> > outputs;
-    vpwallets[0]->AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
+    wallet.AvailableAssets(outputs, true, nullptr, 1, MAX_ASSET_MONEY, MAX_ASSET_MONEY, 0, confirmations);
 
+    balance = 0;
     // Loop through all pairs of Asset Name -> vector<COutput>
     if (outputs.count(name)) {
         auto& ref = outputs.at(name);
@@ -3689,6 +3689,29 @@ std::string EncodeIPFS(std::string decoded){
 };
 
 #ifdef ENABLE_WALLET
+bool IsWalletAssetTransaction(const CTransaction& tx)
+{
+    if (tx.nType == TRANSACTION_ASSET_REGISTER || tx.nType == TRANSACTION_ASSET_REISUE) return true;
+    for (const auto& output : tx.vout) {
+        const auto& script = output.scriptPubKey;
+        if (script.IsAssetScript() || script.IsNullAssetTxDataScript() ||
+            script.IsNullAssetVerifierTxDataScript() || script.IsNullGlobalRestrictionAssetTxDataScript()) return true;
+    }
+    return false;
+}
+
+bool WalletAssetOperationsAllowed(std::string& reason)
+{
+    LOCK(cs_main);
+    reason.clear();
+    if (WalletAssetHeightReached(Params().NetworkIDString() == CBaseChainParams::MAIN,
+                                       chainActive.Height(), MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT)) return true;
+    reason = MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT < 0
+        ? "Asset creation and sending are temporarily disabled on mainnet. The activation height has not been set."
+        : strprintf("Asset creation and sending are disabled until mainnet block %d (estimated January 1, 2027 UTC).", MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT);
+    return false;
+}
+
 bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const CNewAsset& asset, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string)
 {
     std::vector<CNewAsset> assets;
@@ -3698,6 +3721,11 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const C
 
 bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const std::vector<CNewAsset> assets, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string)
 {
+    std::string issuanceReason;
+    if (!WalletAssetOperationsAllowed(issuanceReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, issuanceReason);
+        return false;
+    }
     std::string change_address = EncodeDestination(coinControl.destChange);
 
     auto currentActiveAssetCache = GetCurrentAssetCache();
@@ -3798,7 +3826,7 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
     if (assetType == AssetType::SUB || assetType == AssetType::UNIQUE || assetType == AssetType::MSGCHANNEL) {
         // Verify that this wallet is the owner for the asset, and get the owner asset outpoint
         for (auto asset : assets) {
-            if (!VerifyWalletHasAsset(parentName + OWNER_TAG, error)) {
+            if (!VerifyWalletHasAsset(*pwallet, parentName + OWNER_TAG, error)) {
                 return false;
             }
         }
@@ -3808,7 +3836,7 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
     if (assetType == AssetType::SUB_QUALIFIER) {
         // Verify that this wallet is the owner for the asset, and get the owner asset outpoint
         for (auto asset : assets) {
-            if (!VerifyWalletHasAsset(parentName, error)) {
+            if (!VerifyWalletHasAsset(*pwallet, parentName, error)) {
                 return false;
             }
         }
@@ -3822,7 +3850,7 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
         std::string strStripped = parentName.substr(1, parentName.size() - 1);
 
         // Verify that this wallet is the owner for the asset, and get the owner asset outpoint
-        if (!VerifyWalletHasAsset(strStripped + OWNER_TAG, error)) {
+        if (!VerifyWalletHasAsset(*pwallet, strStripped + OWNER_TAG, error)) {
             return false;
         }
 
@@ -3858,6 +3886,12 @@ bool CreateAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const s
 
 bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, const CReissueAsset& reissueAsset, const std::string& address, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::string* verifier_string)
 {
+    std::string activationReason;
+    if (!WalletAssetOperationsAllowed(activationReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, activationReason);
+        return false;
+    }
+
     // Create transaction variables
     std::string strTxError;
     std::vector<CRecipient> vecSend;
@@ -3937,12 +3971,12 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
     // If we are reissuing a restricted asset, check to see if we have the root owner token $TOKEN check for TOKEN!
     if (asset_type == AssetType::RESTRICTED) {
         // Verify that this wallet is the owner for the asset, and get the owner asset outpoint
-        if (!VerifyWalletHasAsset(stripped_asset_name + OWNER_TAG, error)) {
+        if (!VerifyWalletHasAsset(*pwallet, stripped_asset_name + OWNER_TAG, error)) {
             return false;
         }
     } else {
         // Verify that this wallet is the owner for the asset, and get the owner asset outpoint
-        if (!VerifyWalletHasAsset(asset_name + OWNER_TAG, error)) {
+        if (!VerifyWalletHasAsset(*pwallet, asset_name + OWNER_TAG, error)) {
             return false;
         }
     }
@@ -4039,6 +4073,12 @@ bool CreateReissueAssetTransaction(CWallet* pwallet, CCoinControl& coinControl, 
 // nullGlobalRestrictionData -> Use this to globally freeze/unfreeze a restricted asset.
 bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinControl, const std::vector< std::pair<CAssetTransfer, std::string> >vTransfers, const std::string& changeAddress, std::pair<int, std::string>& error, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRequired, std::vector<std::pair<CNullAssetTxData, std::string> >* nullAssetTxData, std::vector<CNullAssetTxData>* nullGlobalRestrictionData)
 {
+    std::string activationReason;
+    if (!WalletAssetOperationsAllowed(activationReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, activationReason);
+        return false;
+    }
+
     // Initialize Values for transaction
     std::string strTxError;
     std::vector<CRecipient> vecSend;
@@ -4076,7 +4116,7 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
             return false;
         }
 
-        if (!VerifyWalletHasAsset(asset_name, error)) // Sets error if it fails
+        if (!VerifyWalletHasAsset(*pwallet, asset_name, error)) // Sets error if it fails
             return false;
 
         // If it is an ownership transfer, make a quick check to make sure the amount is 1
@@ -4188,6 +4228,12 @@ bool CreateTransferAssetTransaction(CWallet* pwallet, const CCoinControl& coinCo
 
 bool SendAssetTransaction(CWallet* pwallet, CWalletTx& transaction, CReserveKey& reserveKey, std::pair<int, std::string>& error, std::string& txid)
 {
+    std::string activationReason;
+    if (!WalletAssetOperationsAllowed(activationReason)) {
+        error = std::make_pair(RPC_WALLET_ERROR, activationReason);
+        return false;
+    }
+
     CValidationState state;
     if (!pwallet->CommitTransaction(transaction, reserveKey, g_connman.get(), state)) {
         error = std::make_pair(RPC_WALLET_ERROR, strprintf("Error: The transaction was rejected! Reason given: %s", state.GetRejectReason()));
@@ -4198,19 +4244,10 @@ bool SendAssetTransaction(CWallet* pwallet, CWalletTx& transaction, CReserveKey&
     return true;
 }
 
-bool VerifyWalletHasAsset(const std::string& asset_name, std::pair<int, std::string>& pairError)
+bool VerifyWalletHasAsset(CWallet& wallet, const std::string& asset_name, std::pair<int, std::string>& pairError)
 {
-    CWallet* pwallet;
-    if (vpwallets.size() > 0)
-        pwallet = vpwallets[0];
-    else {
-        pairError = std::make_pair(RPC_WALLET_ERROR, strprintf("Wallet not found. Can't verify if it contains: %s", asset_name));
-        return false;
-    }
-
-    std::vector<COutput> vCoins;
     std::map<std::string, std::vector<COutput> > mapAssetCoins;
-    pwallet->AvailableAssets(mapAssetCoins);
+    wallet.AvailableAssets(mapAssetCoins);
 
     if (mapAssetCoins.count(asset_name))
         return true;
@@ -4917,9 +4954,13 @@ bool ContextualCheckNullAssetTxOut(const CTxOut& txout, CAssetsCache* assetCache
     }
 
 #ifdef ENABLE_WALLET
-    if (myNullAssetData && vpwallets.size()) {
-        if (IsMine(*vpwallets[0], DecodeDestination(address)) & ISMINE_ALL) {
-            myNullAssetData->emplace_back(std::make_pair(address, data));
+    if (myNullAssetData) {
+        for (auto wallet : vpwallets) {
+            LOCK(wallet->cs_wallet);
+            if (IsMine(*wallet, DecodeDestination(address)) & ISMINE_ALL) {
+                myNullAssetData->emplace_back(address, data);
+                break;
+            }
         }
     }
 #endif

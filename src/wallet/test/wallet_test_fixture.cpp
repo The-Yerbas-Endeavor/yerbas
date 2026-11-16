@@ -19,6 +19,8 @@ WalletTestingSetup::WalletTestingSetup(const std::string& chainName):
     std::unique_ptr<CWalletDBWrapper> dbw(new CWalletDBWrapper(&bitdb, "wallet_test.dat"));
     pwalletMain = new CWallet(std::move(dbw));
     pwalletMain->LoadWallet(fFirstRun);
+    if (!InitializeWalletAssetStores(*pwalletMain, false))
+        throw std::runtime_error("Failed to initialize test wallet asset stores");
     RegisterValidationInterface(pwalletMain);
 
     RegisterWalletRPCCommands(tableRPC);

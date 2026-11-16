@@ -84,7 +84,7 @@ BOOST_FIXTURE_TEST_CASE(tx_mempool_block_doublespend, TestChain100Setup)
     oneSpend.push_back(spends[0]);
     BOOST_CHECK(ToMemPool(spends[1]));
     block = CreateAndProcessBlock(oneSpend, scriptPubKey);
-    BOOST_CHECK(chainActive.Tip()->GetBlockHash() == block.GetHash());
+    BOOST_REQUIRE(chainActive.Tip()->GetBlockHash() == block.GetHash());
     // spends[1] should have been removed from the mempool when the
     // block with spends[0] is accepted:
     BOOST_CHECK_EQUAL(mempool.size(), 0);
@@ -210,14 +210,19 @@ BOOST_FIXTURE_TEST_CASE(checkinputs_test, TestChain100Setup)
         ValidateCheckInputsForAllFlags(spend_tx, SCRIPT_VERIFY_DERSIG | SCRIPT_VERIFY_LOW_S | SCRIPT_VERIFY_STRICTENC, false, false);
     }
 
-    // And if we produce a block with this tx, it should be valid (DERSIG not
-    // enabled yet), even though there's no cache entry.
+    // Yerbas enforces DERSIG from genesis. Keep the invalid-signature cache
+    // checks above, then sign a valid transaction for the on-chain checks below.
+    spend_tx.vin[0].scriptSig.clear();
+    std::vector<unsigned char> validSig;
+    BOOST_REQUIRE(coinbaseKey.Sign(SignatureHash(p2pk_scriptPubKey, spend_tx, 0, SIGHASH_ALL, 0, SIGVERSION_BASE), validSig));
+    validSig.push_back(static_cast<unsigned char>(SIGHASH_ALL));
+    spend_tx.vin[0].scriptSig << validSig;
     CBlock block;
 
     block = CreateAndProcessBlock({spend_tx}, p2pk_scriptPubKey);
     LOCK(cs_main);
-    BOOST_CHECK(chainActive.Tip()->GetBlockHash() == block.GetHash());
-    BOOST_CHECK(pcoinsTip->GetBestBlock() == block.GetHash());
+    BOOST_REQUIRE(chainActive.Tip()->GetBlockHash() == block.GetHash());
+    BOOST_REQUIRE(pcoinsTip->GetBestBlock() == block.GetHash());
 
     // Test P2SH: construct a transaction that is valid without P2SH, and
     // then test validity with P2SH.

@@ -14,13 +14,14 @@
 #include <map>
 #include <unordered_map>
 #include <list>
+#include <vector>
 
 
 class CRewardSnapshot;
 class CWallet;
 class CRewardSnapshot;
 
-extern std::map<uint256, CRewardSnapshot> mapRewardSnapshots;
+
 
 //  Addresses are delimited by commas
 static const std::string ADDRESS_COMMA_DELIMITER = ",";
@@ -90,7 +91,8 @@ public:
         STUCK_TX = 6,
         NETWORK_ERROR = 7,
         FAILED_CREATE_TRANSACTION = 8,
-        FAILED_COMMIT_TRANSACTION = 9
+        FAILED_COMMIT_TRANSACTION = 9,
+        PAUSED = 10
     };
 
     std::string strOwnershipAsset;
@@ -146,10 +148,16 @@ enum {
     FAILED_
 };
 
-bool GenerateDistributionList(const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList);
-bool AddDistributeRewardSnapshot(CRewardSnapshot& p_rewardSnapshot);
 
 #ifdef ENABLE_WALLET
+// Allocate whole distribution units, rounding down and leaving dust unspent.
+bool CalculateRewardPayments(CAmount budget, int units, const std::vector<OwnerAndAmount>& owners,
+                             std::vector<OwnerAndAmount>& payments);
+bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList);
+bool AddDistributeRewardSnapshot(CWallet& wallet, CRewardSnapshot& p_rewardSnapshot);
+
+bool ReserveRewardPayment(CWallet& wallet, const uint256& plan, int batch, const uint256& txid);
+
 void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewardSnapshot);
 
 bool BuildTransaction(

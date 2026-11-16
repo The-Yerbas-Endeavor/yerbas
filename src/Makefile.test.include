@@ -32,6 +32,7 @@ BITCOIN_TESTS =\
   test/scriptnum10.h \
   test/addrman_tests.cpp \
   test/amount_tests.cpp \
+  test/assetdb_tests.cpp \
   test/allocator_tests.cpp \
   test/base32_tests.cpp \
   test/base58_tests.cpp \
@@ -42,6 +43,9 @@ BITCOIN_TESTS =\
   test/bloom_tests.cpp \
   test/bls_tests.cpp \
   test/bswap_tests.cpp \
+  test/chainparams_tests.cpp \
+  test/founder_payment_tests.cpp \
+  test/llmq_recovery_tests.cpp \
   test/checkqueue_tests.cpp \
   test/cachemap_tests.cpp \
   test/cachemultimap_tests.cpp \
@@ -105,6 +109,7 @@ BITCOIN_TESTS += \
   wallet/test/wallet_test_fixture.cpp \
   wallet/test/wallet_test_fixture.h \
   wallet/test/accounting_tests.cpp \
+  wallet/test/asset_wallet_tests.cpp \
   wallet/test/wallet_tests.cpp \
   wallet/test/crypto_tests.cpp
 endif

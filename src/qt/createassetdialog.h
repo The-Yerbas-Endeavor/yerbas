@@ -60,13 +60,14 @@ public:
 
 private:
     Ui::CreateAssetDialog *ui;
-    ClientModel *clientModel;
-    WalletModel *model;
+    ClientModel *clientModel = nullptr;
+    WalletModel *model = nullptr;
     bool fFeeMinimized;
     const PlatformStyle *platformStyle;
 
     bool checkedAvailablity = false;
 
+    void updateIssuanceAvailability();
     void toggleIPFSText();
     void setUpValues();
     void showMessage(QString string);

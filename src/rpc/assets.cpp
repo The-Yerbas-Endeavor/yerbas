@@ -30,6 +30,7 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "wallet/coincontrol.h"
+#include "wallet/assetissuance.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 
@@ -63,7 +64,11 @@ void CheckRestrictedAssetTransferInputs(const CWalletTx& transaction, const std:
 
 std::string AssetActivationWarning()
 {
-    return AreAssetsDeployed() ? "" : "\nTHIS COMMAND IS NOT YET ACTIVE!\nhttps://github.com/The-Yerbas-Endeavor/yerbas\n";
+    return (AreAssetsDeployed() ? std::string() : "\nTHIS COMMAND IS NOT YET ACTIVE!\nhttps://github.com/The-Yerbas-Endeavor/yerbas\n") +
+        strprintf("\nV4 mainnet wallet policy: asset creation, sending, reissuance, ownership transfers, and asset reward payouts\n"
+                  "are locked below tip height %d. Receiving/viewing assets and ordinary YERB payments remain available.\n"
+                  "Testnet/regtest are unaffected. This is wallet policy, not a consensus restriction on raw transactions.\n",
+                  MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT);
 }
 
 
@@ -313,7 +318,7 @@ UniValue UpdateAddressRestriction(const JSONRPCRequest &request, const int8_t &f
 
 UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t &flag)
 {
-    /*CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
+    CWallet * const pwallet = GetWalletForJSONRPCRequest(request);
     if (!EnsureWalletIsAvailable(pwallet, request.fHelp)) {
         return NullUniValue;
     }
@@ -333,14 +338,6 @@ UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t
 
     if (assetType != AssetType::RESTRICTED) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Unsupported asset type: ") + AssetTypeToString(assetType));
-    }
-
-    if (flag == 1 && mempool.mapGlobalFreezingAssetTransactions.count(restricted_name)){
-        throw JSONRPCError(RPC_TRANSACTION_REJECTED, std::string("Freezing transaction already in mempool"));
-    }
-
-    if (flag == 0 && mempool.mapGlobalUnFreezingAssetTransactions.count(restricted_name)){
-        throw JSONRPCError(RPC_TRANSACTION_REJECTED, std::string("Unfreezing transaction already in mempool"));
     }
 
     // Get the optional change address
@@ -403,11 +400,15 @@ UniValue UpdateGlobalRestrictedAsset(const JSONRPCRequest &request, const int8_t
     // Display the transaction id
     UniValue result(UniValue::VARR);
     result.push_back(txid);
-    return result;*/
+    return result;
 }
 
 UniValue issue(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 1 || request.params.size() > 8)
         throw std::runtime_error(
             "issue \"asset_name\" qty \"( to_address )\" \"( change_address )\" ( units ) ( reissuable ) ( has_ipfs ) \"( ipfs_hash )\"\n"
@@ -581,6 +582,10 @@ UniValue issue(const JSONRPCRequest& request)
 
 UniValue issueunique(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 2 || request.params.size() > 5)
         throw std::runtime_error(
                 "issueunique \"root_name\" [asset_tags] ( [ipfs_hashes] ) \"( to_address )\" \"( change_address )\"\n"
@@ -964,20 +969,26 @@ UniValue listmyassets(const JSONRPCRequest &request)
     std::map<std::string, CAmount> balances;
     std::map<std::string, std::vector<COutput> > outputs;
     if (filter == "*") {
-        if (!GetAllMyAssetBalances(outputs, balances, confs))
+        if (!GetAllMyAssetBalances(*pwallet, outputs, balances, confs))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't get asset balances. For all assets");
     }
     else if (filter.back() == '*') {
         std::vector<std::string> assetNames;
         filter.pop_back();
-        if (!GetAllMyAssetBalances(outputs, balances, confs, filter))
+        if (!GetAllMyAssetBalances(*pwallet, outputs, balances, confs, filter))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't get asset balances. For all assets");
     }
     else {
         if (!IsAssetNameValid(filter))
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid asset name.");
-        if (!GetAllMyAssetBalances(outputs, balances, confs, filter))
+        if (!GetAllMyAssetBalances(*pwallet, outputs, balances, confs, filter))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Couldn't get asset balances. For all assets");
+        for (auto it = balances.begin(); it != balances.end();) {
+            if (it->first != filter)
+                it = balances.erase(it);
+            else
+                ++it;
+        }
     }
 
     // pagination setup
@@ -1132,6 +1143,10 @@ UniValue listaddressesbyasset(const JSONRPCRequest &request)
 
 UniValue transfer(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 3 || request.params.size() > 7)
         throw std::runtime_error(
                 "transfer \"asset_name\" qty \"to_address\" \"message\" expire_time \"change_address\" \"asset_change_address\"\n"
@@ -1250,6 +1265,10 @@ UniValue transfer(const JSONRPCRequest& request)
 
 UniValue transferfromaddresses(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 4 || request.params.size() > 8)
         throw std::runtime_error(
             "transferfromaddresses \"asset_name\" [\"from_addresses\"] qty \"to_address\" \"message\" expire_time \"yerb_change_address\" \"asset_change_address\"\n"
@@ -1402,6 +1421,10 @@ UniValue transferfromaddresses(const JSONRPCRequest& request)
 
 UniValue transferfromaddress(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 4 || request.params.size() > 8)
         throw std::runtime_error(
                 "transferfromaddress \"asset_name\" \"from_address\" qty \"to_address\" \"message\" expire_time \"yerb_change_address\" \"asset_change_address\"\n"
@@ -1547,6 +1570,10 @@ UniValue transferfromaddress(const JSONRPCRequest& request)
 
 UniValue reissue(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() > 7 || request.params.size() < 3)
         throw std::runtime_error(
                 "reissue \"asset_name\" qty \"to_address\" \"change_address\" ( reissuable ) ( new_units) \"( new_ipfs )\" \n"
@@ -2303,6 +2330,10 @@ UniValue checkglobalrestriction(const JSONRPCRequest& request)
 
 UniValue issuequalifierasset(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 1 || request.params.size() > 6)
         throw std::runtime_error(
                 "issuequalifierasset \"asset_name\" qty \"( to_address )\" \"( change_address )\" ( has_ipfs ) \"( ipfs_hash )\"\n"
@@ -2459,6 +2490,10 @@ UniValue issuequalifierasset(const JSONRPCRequest& request)
 
 UniValue issuerestrictedasset(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || request.params.size() < 4 || request.params.size() > 9)
         throw std::runtime_error(
                 "issuerestrictedasset \"asset_name\" qty \"verifier\" \"to_address\" \"( change_address )\" (units) ( reissuable ) ( has_ipfs ) \"( ipfs_hash )\"\n"
@@ -2607,6 +2642,10 @@ UniValue issuerestrictedasset(const JSONRPCRequest& request)
 
 UniValue reissuerestrictedasset(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || request.params.size() < 3 || request.params.size() > 9)
         throw std::runtime_error(
                 "reissuerestrictedasset \"asset_name\" qty to_address ( change_verifier ) ( \"new_verifier\" ) \"( change_address )\" ( new_units ) ( reissuable ) \"( new_ipfs )\"\n"
@@ -2749,6 +2788,10 @@ UniValue reissuerestrictedasset(const JSONRPCRequest& request)
 
 UniValue transferqualifier(const JSONRPCRequest& request)
 {
+    if (!request.fHelp) {
+        std::string reason;
+        if (!WalletAssetOperationsAllowed(reason)) throw JSONRPCError(RPC_WALLET_ERROR, reason);
+    }
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 3 || request.params.size() > 6)
         throw std::runtime_error(
                 "transferqualifier \"qualifier_name\" qty \"to_address\" (\"change_address\") (\"message\") (expire_time) \n"
@@ -2888,6 +2931,7 @@ UniValue isvalidverifierstring(const JSONRPCRequest& request)
     return _("Valid Verifier");
 }
 
+#ifdef ENABLE_WALLET
 UniValue getsnapshot(const JSONRPCRequest& request)
 {
     if (request.fHelp || !AreAssetsDeployed() || request.params.size() < 2)
@@ -2919,10 +2963,13 @@ UniValue getsnapshot(const JSONRPCRequest& request)
     std::string asset_name = request.params[0].get_str();
     int block_height = request.params[1].get_int();
 
+    CWallet* const wallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(wallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, wallet->cs_wallet);
+    auto pAssetSnapshotDb = wallet->assetSnapshots.get();
     if (!pAssetSnapshotDb)
         throw JSONRPCError(RPC_DATABASE_ERROR, std::string("Asset Snapshot database is not setup. Please restart wallet to try again"));
 
-    LOCK(cs_main);
     UniValue result (UniValue::VOBJ);
 
     CAssetSnapshotDBEntry snapshotDbEntry;
@@ -2976,13 +3023,16 @@ UniValue purgesnapshot(const JSONRPCRequest& request)
     std::string asset_name = request.params[0].get_str();
     int block_height = 0;
     if (request.params.size() > 1) {
-        block_height = request.params[2].get_int();
+        block_height = request.params[1].get_int();
     }
 
+    CWallet* const wallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(wallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, wallet->cs_wallet);
+    auto pAssetSnapshotDb = wallet->assetSnapshots.get();
     if (!pAssetSnapshotDb)
         throw JSONRPCError(RPC_DATABASE_ERROR, std::string("Asset Snapshot database is not setup. Please restart wallet to try again"));
 
-    LOCK(cs_main);
     UniValue result (UniValue::VOBJ);
 
     if (pAssetSnapshotDb->RemoveOwnershipSnapshot(asset_name, block_height)) {
@@ -2996,6 +3046,8 @@ UniValue purgesnapshot(const JSONRPCRequest& request)
 
     return NullUniValue;
 }
+
+#endif
 
 static const CRPCCommand commands[] =
 { //  category    name                          actor (function)             argNames
@@ -3021,7 +3073,7 @@ static const CRPCCommand commands[] =
     { "restricted assets",   "transferqualifier",          &transferqualifier,          true, {"qualifier_name", "qty", "to_address", "change_address", "message", "expire_time"}},
     { "restricted assets",   "issuerestrictedasset",       &issuerestrictedasset,       true, {"asset_name","qty","verifier","to_address","change_address","units","reissuable","has_ipfs","ipfs_hash"} },
     { "restricted assets",   "issuequalifierasset",        &issuequalifierasset,        true, {"asset_name","qty","to_address","change_address","has_ipfs","ipfs_hash"} },
-    { "restricted assets",   "reissuerestrictedasset",     &reissuerestrictedasset,     true, {"asset_name", "qty", "change_verifier", "new_verifier", "to_address", "change_address", "new_units", "reissuable", "new_ipfs"}},
+    { "restricted assets",   "reissuerestrictedasset",     &reissuerestrictedasset,     true, {"asset_name", "qty", "to_address", "change_verifier", "new_verifier", "change_address", "new_units", "reissuable", "new_ipfs"}},
     { "restricted assets",   "addtagtoaddress",            &addtagtoaddress,            true, {"tag_name", "to_address", "change_address", "asset_data"}},
     { "restricted assets",   "removetagfromaddress",       &removetagfromaddress,       true, {"tag_name", "to_address", "change_address", "asset_data"}},
     { "restricted assets",   "freezeaddress",              &freezeaddress,              true, {"asset_name", "address", "change_address", "asset_data"}},
@@ -3039,8 +3091,12 @@ static const CRPCCommand commands[] =
     { "restricted assets",   "checkglobalrestriction",     &checkglobalrestriction,     true, {"restricted_name"}},
     { "restricted assets",   "isvalidverifierstring",      &isvalidverifierstring,      true, {"verifier_string"}},
 
+#ifdef ENABLE_WALLET
     { "assets",   "getsnapshot",                &getsnapshot,                true, {"asset_name", "block_height"}},
+#endif
+#ifdef ENABLE_WALLET
     { "assets",   "purgesnapshot",              &purgesnapshot,              true, {"asset_name", "block_height"}},
+#endif
 };
 
 void RegisterAssetRPCCommands(CRPCTable &t)

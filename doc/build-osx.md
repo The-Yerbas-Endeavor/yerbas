@@ -1,3 +1,12 @@
+# macOS builds for 4.0.1.3
+
+For the tested macOS 15 Intel Qt 6 build and app packaging, follow
+[build.yaml](../.github/workflows/build.yaml) and [CI artifacts](ci-qt-artifacts.md).
+The release ships an app bundle in tar.gz; it does not use the optional legacy
+DMG/Gitian process described below. Apple Silicon is not in the release matrix.
+
+## Legacy general build notes
+
 Mac OS X Build Instructions and Notes
 ====================================
 The commands in this guide should be executed in a Terminal application.

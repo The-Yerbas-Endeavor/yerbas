@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <algorithm>
 #include "recentrequeststablemodel.h"
 
 #include "bitcoinunits.h"
@@ -206,7 +207,7 @@ void RecentRequestsTableModel::addNewRequest(RecentRequestEntry &recipient)
 
 void RecentRequestsTableModel::sort(int column, Qt::SortOrder order)
 {
-    qSort(list.begin(), list.end(), RecentRequestEntryLessThan(column, order));
+    std::sort(list.begin(), list.end(), RecentRequestEntryLessThan(column, order));
     Q_EMIT dataChanged(index(0, 0, QModelIndex()), index(list.size() - 1, NUMBER_OF_COLUMNS - 1, QModelIndex()));
 }
 
@@ -225,7 +226,7 @@ bool RecentRequestEntryLessThan::operator()(RecentRequestEntry &left, RecentRequ
     switch(column)
     {
     case RecentRequestsTableModel::Date:
-        return pLeft->date.toTime_t() < pRight->date.toTime_t();
+        return pLeft->date.toSecsSinceEpoch() < pRight->date.toSecsSinceEpoch();
     case RecentRequestsTableModel::Label:
         return pLeft->recipient.label < pRight->recipient.label;
     case RecentRequestsTableModel::Message:

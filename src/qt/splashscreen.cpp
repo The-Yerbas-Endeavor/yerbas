@@ -5,6 +5,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <boost/bind/bind.hpp>
 #if defined(HAVE_CONFIG_H)
 #include "config/yerbas-config.h"
 #endif
@@ -25,7 +26,7 @@
 
 #include <QApplication>
 #include <QCloseEvent>
-#include <QDesktopWidget>
+#include <QScreen>
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QPainter>
@@ -59,7 +60,7 @@ SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle *networkStyle) 
     // Clamp splash size to the current available desktop area.
     // This prevents HiDPI / scaled desktops from turning the splash
     // into a near-fullscreen window.
-    QRect screenGeometry = QApplication::desktop()->availableGeometry(this);
+    QRect screenGeometry = screen()->availableGeometry();
 
     int maxSplashWidth  = qMax(320, qMin(480, int(screenGeometry.width() * 0.55)));
     int maxSplashHeight = qMax(360, qMin(540, int(screenGeometry.height() * 0.72)));
@@ -98,7 +99,7 @@ SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle *networkStyle) 
     // Shrink title if it does not fit the current splash width.
     pixPaint.setFont(titleFont);
     QFontMetrics fm = pixPaint.fontMetrics();
-    int titleTextWidth = fm.width(titleText);
+    int titleTextWidth = fm.horizontalAdvance(titleText);
     const int availableTextWidth = pixmap.width() - paddingLeft - paddingRight;
 
     if (titleTextWidth > availableTextWidth && titleTextWidth > 0) {
@@ -191,7 +192,7 @@ SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle *networkStyle) 
 
         pixPaint.setFont(boldFont);
         QFontMetrics addTextMetrics = pixPaint.fontMetrics();
-        int titleAddTextWidth = addTextMetrics.width(titleAddText);
+        int titleAddTextWidth = addTextMetrics.horizontalAdvance(titleAddText);
 
         pixPaint.drawText(
             pixmap.width() - titleAddTextWidth - 10,
@@ -268,7 +269,7 @@ static void SetProgressBreakAction(SplashScreen *splash, const std::function<voi
 #ifdef ENABLE_WALLET
 void SplashScreen::ConnectWallet(CWallet* wallet)
 {
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
+    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
     connectedWallets.push_back(wallet);
 }
 #endif
@@ -276,22 +277,22 @@ void SplashScreen::ConnectWallet(CWallet* wallet)
 void SplashScreen::subscribeToCoreSignals()
 {
     // Connect signals to client
-    uiInterface.InitMessage.connect(boost::bind(InitMessage, this, _1));
-    uiInterface.ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
-    uiInterface.SetProgressBreakAction.connect(boost::bind(SetProgressBreakAction, this, _1));
+    uiInterface.InitMessage.connect(boost::bind(InitMessage, this, boost::placeholders::_1));
+    uiInterface.ShowProgress.connect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
+    uiInterface.SetProgressBreakAction.connect(boost::bind(SetProgressBreakAction, this, boost::placeholders::_1));
 #ifdef ENABLE_WALLET
-    uiInterface.LoadWallet.connect(boost::bind(&SplashScreen::ConnectWallet, this, _1));
+    uiInterface.LoadWallet.connect(boost::bind(&SplashScreen::ConnectWallet, this, boost::placeholders::_1));
 #endif
 }
 
 void SplashScreen::unsubscribeFromCoreSignals()
 {
     // Disconnect signals from client
-    uiInterface.InitMessage.disconnect(boost::bind(InitMessage, this, _1));
-    uiInterface.ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    uiInterface.InitMessage.disconnect(boost::bind(InitMessage, this, boost::placeholders::_1));
+    uiInterface.ShowProgress.disconnect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
 #ifdef ENABLE_WALLET
     for (CWallet* const & pwallet : connectedWallets) {
-        pwallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+        pwallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, boost::placeholders::_1, boost::placeholders::_2));
     }
 #endif
 }

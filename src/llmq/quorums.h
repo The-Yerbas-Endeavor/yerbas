@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -36,6 +37,7 @@ class CQuorum
 {
     friend class CQuorumManager;
 public:
+    const Consensus::LLMQParams frozenParams;
     const Consensus::LLMQParams& params;
     CFinalCommitment qc;
     const CBlockIndex* pindexQuorum;
@@ -54,7 +56,7 @@ private:
     std::thread cachePopulatorThread;
 
 public:
-    CQuorum(const Consensus::LLMQParams& _params, CBLSWorker& _blsWorker) : params(_params), blsCache(_blsWorker), stopCachePopulatorThread(false) {}
+    CQuorum(const Consensus::LLMQParams& _params, CBLSWorker& _blsWorker) : frozenParams(_params), params(RecoveryProtocolEnabled() ? frozenParams : _params), blsCache(_blsWorker), stopCachePopulatorThread(false) {}
     ~CQuorum();
     void Init(const CFinalCommitment& _qc, const CBlockIndex* _pindexQuorum, const uint256& _minedBlockHash, const std::vector<CDeterministicMNCPtr>& _members);
 

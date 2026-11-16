@@ -17,6 +17,7 @@
 
 #include "llmq/quorums_commitment.h"
 #include "llmq/quorums_blockprocessor.h"
+#include "llmq/quorums_recovery.h"
 
 bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
 {
@@ -41,6 +42,8 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
         return CheckCbTx(tx, pindexPrev, state);
     case TRANSACTION_QUORUM_COMMITMENT:
         return llmq::CheckLLMQCommitment(tx, pindexPrev, state);
+    case TRANSACTION_LLMQ_RECOVERY:
+        return llmq::CheckRecoveryTransaction(tx, pindexPrev, state);
     case TRANSACTION_ASSET_REGISTER:
         return CheckAssetTx(tx, pindexPrev, state);
     case TRANSACTION_ASSET_REISUE:
@@ -66,6 +69,8 @@ bool ProcessSpecialTx(const CTransaction& tx, const CBlockIndex* pindex, CValida
         return true; // nothing to do
     case TRANSACTION_QUORUM_COMMITMENT:
         return true; // handled per block
+    case TRANSACTION_LLMQ_RECOVERY:
+        return llmq::RecoveryProtocolEnabled();
     case TRANSACTION_ASSET_REGISTER:
     case TRANSACTION_ASSET_REISUE:
         return true;
@@ -90,6 +95,8 @@ bool UndoSpecialTx(const CTransaction& tx, const CBlockIndex* pindex)
         return true; // nothing to do
     case TRANSACTION_QUORUM_COMMITMENT:
         return true; // handled per block
+    case TRANSACTION_LLMQ_RECOVERY:
+        return llmq::RecoveryProtocolEnabled();
     case TRANSACTION_ASSET_REGISTER:
     case TRANSACTION_ASSET_REISUE:
         return true;
@@ -106,6 +113,8 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
     static int64_t nTimeMerkle = 0;
 
     int64_t nTime1 = GetTimeMicros();
+
+    if (!llmq::ConnectRecoveryBlock(block, *pindex, state)) return false;
 
     for (int i = 0; i < (int)block.vtx.size(); i++) {
         const CTransaction& tx = *block.vtx[i];
@@ -165,6 +174,8 @@ bool UndoSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex)
     if (!llmq::quorumBlockProcessor->UndoBlock(block, pindex)) {
         return false;
     }
+
+    if (!llmq::DisconnectRecoveryBlock(*pindex)) return false;
 
     return true;
 }

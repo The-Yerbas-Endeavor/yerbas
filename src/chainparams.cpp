@@ -6,7 +6,11 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "hash.h"
+#include "evo/cbtx.h"
+#include "evo/specialtx.h"
 #include "consensus/merkle.h"
+#include "consensus/consensus.h"
 
 #include "tinyformat.h"
 #include "util.h"
@@ -128,13 +132,26 @@ static CBlock FindDevNetGenesisBlock(const Consensus::Params& params, const CBlo
 
     CBlock block = CreateDevNetGenesisBlock(prevBlock.GetHash(), devNetName.c_str(), prevBlock.nTime + 1, 0, prevBlock.nBits, reward);
 
+    if (gArgs.GetBoolArg("-llmqrecoverydevnet", false)) {
+        // This profile starts with DIP3 enabled, including its named bootstrap block.
+        CMutableTransaction coinbase(*block.vtx[0]);
+        coinbase.nVersion = 3;
+        coinbase.nType = TRANSACTION_COINBASE;
+        coinbase.vout[0].nValue = 0; // Unspendable bootstrap output; claim no subsidy.
+        CCbTx payload;
+        payload.nHeight = 1;
+        SetTxPayload(coinbase, payload);
+        block.vtx[0] = MakeTransactionRef(std::move(coinbase));
+        block.hashMerkleRoot = BlockMerkleRoot(block);
+    }
+
     arith_uint256 bnTarget;
     bnTarget.SetCompact(block.nBits);
 
     for (uint32_t nNonce = 0; nNonce < UINT32_MAX; nNonce++) {
         block.nNonce = nNonce;
 
-        uint256 hash = block.GetHash();
+        uint256 hash = gArgs.GetBoolArg("-llmqrecoverydevnet", false) ? block.GetPOWHash() : block.GetHash();
         if (UintToArith256(hash) <= bnTarget)
             return block;
     }
@@ -409,6 +426,7 @@ class CMainParams : public CChainParams {
 public:
     CMainParams() {
         strNetworkID = "main";
+        consensus.fLLMQRecoveryByRecord = true;
         consensus.nSubsidyHalvingInterval = 210240; // Note: actual number of blocks per calendar year with DGW v3 is ~200700 (for example 449750 - 249050)
         consensus.nSmartnodePaymentsStartBlock = 4200; // 
         consensus.nSmartnodePaymentsIncreaseBlock = 158000; // actual historical value
@@ -449,10 +467,10 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = 1230767999; // December 31, 2008
 
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000001df37a2d3f0e"); // 0
+        consensus.nMinimumChainWork = uint256S("0x00000000000000000000000000000000000000000000000000001e92d1d15b16"); // Block 1152420
 
         // By default assume that the signatures in ancestors of this block are valid.
-        consensus.defaultAssumeValid = uint256S("0xf70aa712f4d467d4e28e431ac2b8851c37e9335669075b4c25f072b1b032feb0"); // 0
+        consensus.defaultAssumeValid = uint256S("0x53c34a2a736776ec3ff6ca11bcaa05c6fe3e4b52853352ab76608b3ff80428fa"); // Block 1152420
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -545,13 +563,15 @@ public:
              {310420, uint256S("0x5e36ff7864c6ef90a165d28b702884fa1c91be4ffea3111d9fbc3724fa6f410f")},
 	         {410420, uint256S("0xb21e783ad0b134010e08f1641e425fc4cf74db586bf928ca4ed202da21c50be5")},
              {811220, uint256S("0xbe1c1caf6166786435a81c81b61d809f98823641dbe64b15516ad59b3e4bce10")},
-             {1060820, uint256S("0xf70aa712f4d467d4e28e431ac2b8851c37e9335669075b4c25f072b1b032feb0")}
+             {1060820, uint256S("0xf70aa712f4d467d4e28e431ac2b8851c37e9335669075b4c25f072b1b032feb0")},
+             {1078436, uint256S("0x7168c4a4f4ac744d2047e64a1291aecf9fe1bc1cca0f0f80c0d5522d4c890b37")},
+             {1152420, uint256S("0x53c34a2a736776ec3ff6ca11bcaa05c6fe3e4b52853352ab76608b3ff80428fa")}
           }
 	};
 
         chainTxData = ChainTxData{
-          1782270814,   // * UNIX timestamp of last known number of transactions (Block 0)
-             1698704,   // * total number of transactions between genesis and that timestamp
+          1784431314,   // * UNIX timestamp of last known number of transactions (Block 0)
+             1725106,   // * total number of transactions between genesis and that timestamp
                         //   (the tx=... number in the SetBestChain debug.log lines)
                  0.01    // * estimated number of transactions per second after that timestamp
         };
@@ -565,6 +585,7 @@ class CTestNetParams : public CChainParams {
 public:
     CTestNetParams() {
         strNetworkID = "test";
+        consensus.fLLMQRecoveryByRecord = true;
         consensus.nSubsidyHalvingInterval = 210240;
         consensus.nSmartnodePaymentsStartBlock = 4010; // not true, but it's ok as long as it's less then nSmartnodePaymentsIncreaseBlock
         consensus.nSmartnodePaymentsIncreaseBlock = 4030;
@@ -614,6 +635,10 @@ public:
         pchMessageStart[1] = 0x79;//y
         pchMessageStart[2] = 0x65;//e
         pchMessageStart[3] = 0x72;//r
+        // Separate this incompatible private profile from ordinary testnet peers.
+        if (gArgs.GetBoolArg("-testnetfastcollateral", false)) {
+            pchMessageStart[0] = 0x7b;
+        }
         nDefaultPort = 21421;
         nPruneAfterHeight = 1000;
         //FindMainNetGenesisBlock(1675905317, 0x20001fff, "test");
@@ -653,7 +678,7 @@ public:
 
 		consensus.nCollaterals = SmartnodeCollaterals(
 			{
-				{INT_MAX, 4000 * COIN}
+				{INT_MAX, (gArgs.GetBoolArg("-testnetfastcollateral", false) ? 4 : 4000) * COIN}
 			},
 			{
 				{INT_MAX, 20}
@@ -677,7 +702,7 @@ public:
         nPoolMaxParticipants = 5;
         nFulfilledRequestExpireTime = 5*60; // fulfilled requests expire in 5 minutes
 
-        vSporkAddresses = {"rWToSNnngGUfA1GP578U3HNEL5itQnkGV8"};
+        vSporkAddresses = {"rj8TFXrsjZjSgSLphThAkWhiNzZ8SHg56s"};
         nMinSporkKeys = 1;
         fBIP9CheckSmartnodesUpgraded = true;
 
@@ -807,6 +832,26 @@ public:
         // devnets are started with no blocks and no MN, so we can't check for upgraded MN (as there are none)
         fBIP9CheckSmartnodesUpgraded = false;
 
+        if (gArgs.GetBoolArg("-llmqrecoverydevnet", false)) {
+            // Dedicated fast developer network, not public testnet consensus.
+            const auto authority = gArgs.GetArg("-llmqrecoveryauthority", "");
+            if (authority.empty()) throw std::runtime_error("Recovery devnet requires -llmqrecoveryauthority");
+            CHashWriter identity(SER_GETHASH, 0);
+            identity << std::string("Yerbas/recovery-devnet/v1") << GetDevNetName() << authority;
+            const auto magic = identity.GetHash();
+            std::copy(magic.begin(), magic.begin() + 4, pchMessageStart);
+            vSporkAddresses = {authority};
+            nMinSporkKeys = 1;
+            consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
+            consensus.nCollaterals = SmartnodeCollaterals({{INT_MAX, 4000 * COIN}}, {{INT_MAX, 20}});
+            consensus.nSmartnodePaymentsStartBlock = 1;
+            consensus.nPowDGWHeight = INT_MAX;
+            consensus.fPowNoRetargeting = true;
+            fMineBlocksOnDemand = true;
+            fRequireRoutableExternalIP = false;
+            miningRequiresPeers = false;
+        }
+
         checkpointData = (CCheckpointData) {
             {
                 { 0, uint256S("")},
@@ -899,7 +944,7 @@ public:
         nPoolMinParticipants = 3;
         nPoolMaxParticipants = 5;
 
-        // privKey: cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK
+        // Regtest signing authority used by the functional test framework.
         vSporkAddresses = {"yj949n1UH6fDhw6HtVE5VMj2iSTaSWBMcW"};
         nMinSporkKeys = 1;
         // regtest usually has no smartnodes in most tests, so don't check for upgraged MNs
@@ -935,9 +980,33 @@ public:
         // Regtest Yerbas BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 1;
 
-        // long living quorum params
-        consensus.llmqs[Consensus::LLMQ_5_60] = llmq3_60;
-        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        consensus.fLLMQRecoveryByRecord = gArgs.GetBoolArg("-llmqrecoverybyrecord", false);
+        if (gArgs.IsArgSet("-llmqrecoverycutoverheight")) {
+            const int64_t height = gArgs.GetArg("-llmqrecoverycutoverheight", -1);
+            if (height <= 0 || height > std::numeric_limits<int32_t>::max() || height % 720 != 0)
+                throw std::runtime_error("Recovery cutover must be a positive 720-block boundary");
+            consensus.nLLMQRecoveryHeight = height;
+        }
+
+        // Keep the small regtest quorum's serialized type consistent with its
+        // map key. Do not mutate llmq3_60: mainnet/testnet use it as LLMQ_50_60.
+        auto regtestQuorum = llmq3_60;
+        regtestQuorum.type = Consensus::LLMQ_5_60;
+        consensus.llmqs[Consensus::LLMQ_5_60] = regtestQuorum;
+        // Match the zero-smartnode adaptive parameters before first registration.
+        // Otherwise block assembly can resize a null commitment from 50 to 3 bits.
+        consensus.llmqs[Consensus::LLMQ_50_60] = llmq3_60;
+        // Explicit fixture for real-DKG functional tests. Never enabled on a
+        // public network, and leave ordinary regtest consensus unchanged.
+        if (gArgs.GetBoolArg("-llmqtestfixture", false)) {
+            // Public networks register all adaptive types at startup. The
+            // replay fixture must do so too, independent of its first spork.
+            consensus.llmqs[Consensus::LLMQ_400_60] = llmq20_60;
+            consensus.llmqs[Consensus::LLMQ_400_85] = llmq20_85;
+            consensus.nCollaterals = SmartnodeCollaterals({{INT_MAX, 10 * COIN}}, {{INT_MAX, 20}});
+            consensus.nSmartnodePaymentsStartBlock = 1;
+            consensus.nPowDGWHeight = INT_MAX;
+        }
         consensus.llmqTypeChainLocks = Consensus::LLMQ_5_60;
         consensus.llmqTypeInstantSend = Consensus::LLMQ_5_60;
     }
@@ -965,6 +1034,33 @@ std::unique_ptr<CChainParams> CreateChainParams(const std::string& chain)
 
 void SelectParams(const std::string& network)
 {
+    if (gArgs.GetBoolArg("-testnetfastcollateral", false) && network != CBaseChainParams::TESTNET)
+        throw std::runtime_error("-testnetfastcollateral requires -testnet");
+    if (gArgs.GetBoolArg("-llmqtestfixture", false) && network != CBaseChainParams::REGTEST)
+        throw std::runtime_error("-llmqtestfixture is only supported on regtest");
+    if (gArgs.GetBoolArg("-llmqrecoverytest", false) && network != CBaseChainParams::REGTEST)
+        throw std::runtime_error("-llmqrecoverytest is only supported on regtest");
+
+    if (gArgs.GetBoolArg("-llmqrecoverydevnet", false) &&
+        (network != CBaseChainParams::DEVNET || gArgs.GetArg("-devnet", "").empty()))
+        throw std::runtime_error("-llmqrecoverydevnet requires a named devnet");
+
+    if (gArgs.IsArgSet("-llmqrecoveryactivationheight")) {
+        const int64_t height = gArgs.GetArg("-llmqrecoveryactivationheight", 0);
+        if (network != CBaseChainParams::REGTEST || !gArgs.GetBoolArg("-llmqrecoverytest", false) ||
+            height < 0 || height > std::numeric_limits<int32_t>::max() || height % 30 != 0)
+            throw std::runtime_error("-llmqrecoveryactivationheight requires recovery regtest and a nonnegative 30-block boundary");
+    }
+
+    if (gArgs.IsArgSet("-llmqrecoverycutoverheight") &&
+        (network != CBaseChainParams::REGTEST || gArgs.IsArgSet("-llmqrecoveryactivationheight")))
+        throw std::runtime_error("-llmqrecoverycutoverheight is regtest-only and cannot be combined with experimental activation");
+
+    if (gArgs.IsArgSet("-llmqrecoverybyrecord") &&
+        (network != CBaseChainParams::REGTEST || gArgs.IsArgSet("-llmqrecoverycutoverheight") ||
+         gArgs.IsArgSet("-llmqrecoveryactivationheight") || gArgs.GetBoolArg("-llmqrecoverytest", false)))
+        throw std::runtime_error("-llmqrecoverybyrecord requires standalone regtest recovery policy");
+
     SelectBaseParams(network);
     globalChainParams = CreateChainParams(network);
 }
@@ -1015,7 +1111,55 @@ bool IsLLMQsMiningPhase(int nHeight) {
 	return false;
 }
 
+bool IsLegacyNullCommitmentSize(Consensus::LLMQType type, size_t size)
+{
+    // Use the actual legacy profiles, not arbitrary bitset sizes. Type 5 and
+    // other fixed/experimental types retain their exact configured size.
+    for (const auto* profile : {&llmq3_60, &llmq10_60, &llmq50_60, &llmq200_2,
+                               &llmq20_60, &llmq40_60, &llmq400_60,
+                               &llmq20_85, &llmq40_85, &llmq400_85}) {
+        if (profile->type == type && static_cast<size_t>(profile->size) == size) return true;
+    }
+    if (Params().NetworkIDString() == CBaseChainParams::TESTNET) {
+        for (const auto* profile : {&llmq5_60, &llmq5_85}) {
+            if (profile->type == type && static_cast<size_t>(profile->size) == size) return true;
+        }
+    }
+    return false;
+}
+
+Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low)
+{
+    return low ? llmq200_2 : (mnCount < 5 ? llmq3_60 : (mnCount < 100 ? llmq10_60 : llmq50_60));
+}
+
+// Owned templates for recorded-history validation. Resolve using the count at
+// the quorum-start parent, never the process-wide mutable legacy parameter map.
+bool RecoveryDynamicParams(Consensus::LLMQType type, size_t count, bool low, bool testnet, Consensus::LLMQParams& out)
+{
+    switch (type) {
+    case Consensus::LLMQ_50_60:
+        out = RecoveryType1Params(count, low);
+        return true;
+    case Consensus::LLMQ_400_60:
+        out = count < 5 && testnet ? llmq5_60 :
+            (count < 100 ? llmq20_60 : (count < 600 ? llmq40_60 : llmq400_60));
+        return true;
+    case Consensus::LLMQ_400_85:
+        out = count < 5 && testnet ? llmq5_85 :
+            (count < 100 ? llmq20_85 : (count < 600 ? llmq40_85 : llmq400_85));
+        return true;
+    default:
+        return false; // Fixed network-specific types are not resized by LOW_LLMQ.
+    }
+}
+
 void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLMQParams) {
+    if (consensus.nLLMQRecoveryHeight >= 0) {
+        if (height >= consensus.nLLMQRecoveryHeight) return;
+        // Preserve the existing update behavior below the release cutover.
+    } else if ((NetworkIDString() == CBaseChainParams::REGTEST && gArgs.GetBoolArg("-llmqrecoverytest", false)) ||
+        (NetworkIDString() == CBaseChainParams::DEVNET && gArgs.GetBoolArg("-llmqrecoverydevnet", false))) return;
 	bool isNotLLMQsMiningPhase;
     //on startup if block height % dkgInterval fall between dkgMiningWindowStart and dkgMiningWindowEnd
     //it will not switch to the correct llmq. if lastCheckHeight is 0 then force switch to the correct llmq
@@ -1074,4 +1218,10 @@ void CChainParams::UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLM
             }
         }
     }
+}
+
+int GetCoinbaseMaturity()
+{
+    return Params().NetworkIDString() == CBaseChainParams::TESTNET &&
+           gArgs.GetBoolArg("-testnetfastcollateral", false) ? 10 : COINBASE_MATURITY;
 }

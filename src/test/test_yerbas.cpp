@@ -41,6 +41,17 @@ void CConnmanTest::ClearNodes()
     g_connman->vNodes.clear();
 }
 
+void CConnmanTest::AddConnectedNode(CConnman& connman, CNode& node)
+{
+    connman.AddConnectedNode(&node);
+}
+
+void CConnmanTest::ClearNodes(CConnman& connman)
+{
+    LOCK(connman.cs_vNodes);
+    connman.vNodes.clear();
+}
+
 uint256 insecure_rand_seed = GetRandHash();
 FastRandomContext insecure_rand_ctx(insecure_rand_seed);
 
@@ -95,6 +106,11 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
         llmq::InitLLMQSystem(*evoDb, nullptr, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
+        // Yerbas block validation copies the current asset cache, even for
+        // blocks without asset transactions. Keep test state in memory.
+        passetsdb = new CAssetsDB(1 << 20, true);
+        passets = new CAssetsCache();
+        passetsCache = new CLRUCache<std::string, CDatabasedAssetData>(MAX_CACHE_ASSETS_SIZE);
         if (!LoadGenesisBlock(chainparams)) {
             throw std::runtime_error("LoadGenesisBlock failed.");
         }
@@ -124,6 +140,12 @@ TestingSetup::~TestingSetup()
         llmq::DestroyLLMQSystem();
         delete pcoinsdbview;
         delete pblocktree;
+        delete passetsCache;
+        passetsCache = nullptr;
+        delete passets;
+        passets = nullptr;
+        delete passetsdb;
+        passetsdb = nullptr;
         fs::remove_all(pathTemp);
 }
 

@@ -1,13 +1,13 @@
-AC_PREREQ([2.60])
-define(_CLIENT_VERSION_MAJOR, 3)
-define(_CLIENT_VERSION_MINOR, 2)
-define(_CLIENT_VERSION_REVISION, 0)
-define(_CLIENT_VERSION_BUILD, 15)
+AC_PREREQ([2.69])
+define(_CLIENT_VERSION_MAJOR, 4)
+define(_CLIENT_VERSION_MINOR, 0)
+define(_CLIENT_VERSION_REVISION, 1)
+define(_CLIENT_VERSION_BUILD, 4)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2026)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
 define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Yerbas Core]])
-AC_INIT([Yerbas Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION],[https://github.com/The-Yerbas-Endeavor/yerbas/issues],[yerbascore],[https://yerbas.org/])
+AC_INIT([Yerbas Core],[_CLIENT_VERSION_MAJOR._CLIENT_VERSION_MINOR._CLIENT_VERSION_REVISION._CLIENT_VERSION_BUILD],[https://github.com/The-Yerbas-Endeavor/yerbas/issues],[yerbascore],[https://yerbas.org/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/yerbas-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -34,7 +34,7 @@ dnl faketime breaks configure and is only needed for make. Disable it here.
 unset FAKETIME
 
 dnl Automake init set-up and checks
-AM_INIT_AUTOMAKE([no-define subdir-objects foreign])
+AM_INIT_AUTOMAKE([1.16 no-define subdir-objects foreign])
 
 dnl faketime messes with timestamps and causes configure to be re-run.
 dnl --disable-maintainer-mode can be used to bypass this.
@@ -82,8 +82,9 @@ AC_PATH_TOOL(RANLIB, ranlib)
 AC_PATH_TOOL(STRIP, strip)
 AC_PATH_TOOL(GCOV, gcov)
 AC_PATH_PROG(LCOV, lcov)
-dnl Python 3.x is supported from 3.4 on (see https://github.com/bitcoin/bitcoin/issues/7893)
-AC_PATH_PROGS([PYTHON], [python3.7 python3.6 python3.5 python3.4 python3 python])
+dnl The test runner uses Python 3.8+ APIs; never silently select Python 2.
+AC_ARG_VAR([PYTHON], [Python 3.8 or newer interpreter])
+AC_PATH_PROG([PYTHON], [python3])
 AC_PATH_PROG(GENHTML, genhtml)
 AC_PATH_PROG([GIT], [git])
 AC_PATH_PROG(CCACHE,ccache)
@@ -204,7 +205,6 @@ AC_ARG_ENABLE([zmq],
   [use_zmq=$enableval],
   [use_zmq=yes])
 
-AC_ARG_WITH([protoc-bindir],[AS_HELP_STRING([--with-protoc-bindir=BIN_DIR],[specify protoc bin path])], [protoc_bin_path=$withval], [])
 
 AC_ARG_ENABLE(man,
     [AS_HELP_STRING([--disable-man],
@@ -498,6 +498,8 @@ case $host in
      AC_CHECK_LIB([shlwapi],      [main],, AC_MSG_ERROR(libshlwapi missing))
      AC_CHECK_LIB([iphlpapi],      [main],, AC_MSG_ERROR(libiphlpapi missing))
      AC_CHECK_LIB([crypt32],      [main],, AC_MSG_ERROR(libcrypt32 missing))
+     # Boost.Filesystem uses BCrypt for unique_path on Windows.
+     AC_CHECK_LIB([bcrypt],       [main],, AC_MSG_ERROR(libbcrypt missing))
 
      # -static is interpreted by libtool, where it has a different meaning.
      # In libtool-speak, it's -all-static.
@@ -561,7 +563,7 @@ case $host in
 
          openssl_prefix=`$BREW --prefix openssl 2>/dev/null`
          bdb_prefix=`$BREW --prefix berkeley-db4 2>/dev/null`
-         qt5_prefix=`$BREW --prefix qt5 2>/dev/null`
+         qt6_prefix=`$BREW --prefix qt6 2>/dev/null`
          if test x$openssl_prefix != x; then
            PKG_CONFIG_PATH="$openssl_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
            export PKG_CONFIG_PATH
@@ -570,8 +572,8 @@ case $host in
            CPPFLAGS="$CPPFLAGS -I$bdb_prefix/include"
            LIBS="$LIBS -L$bdb_prefix/lib"
          fi
-         if test x$qt5_prefix != x; then
-           PKG_CONFIG_PATH="$qt5_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+         if test x$qt6_prefix != x; then
+           PKG_CONFIG_PATH="$qt6_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
            export PKG_CONFIG_PATH
          fi
        fi
@@ -640,6 +642,15 @@ if test x$use_pkgconfig = xyes; then
     AC_MSG_ERROR(pkg-config not found.)
   fi
   ])
+fi
+
+if test -n "$PYTHON"; then
+  AC_MSG_CHECKING([whether $PYTHON is Python 3.8 or newer])
+  AS_IF(["$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 8))'],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no]); AC_MSG_ERROR([Python 3.8 or newer is required; set PYTHON to a supported interpreter.])])
+elif test "x$use_tests" = xyes; then
+  AC_MSG_ERROR([Python 3.8 or newer is required for tests; install python3 or set PYTHON.])
 fi
 
 if test x$use_extended_functional_tests != xno; then
@@ -937,7 +948,8 @@ fi
 BITCOIN_QT_INIT
 
 dnl sets $bitcoin_enable_qt, $bitcoin_enable_qt_test, $bitcoin_enable_qt_dbus
-BITCOIN_QT_CONFIGURE([5.5.1])
+dnl Native GUI builds use shared system Qt 6.8 or newer.
+BITCOIN_QT_CONFIGURE([6.8.0])
 
 if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononono; then
     use_boost=no
@@ -948,7 +960,7 @@ fi
 if test x$use_boost = xyes; then
 
 dnl Minimum required Boost version
-define(MINIMUM_REQUIRED_BOOST, 1.47.0)
+define(MINIMUM_REQUIRED_BOOST, 1.70.0)
 
 dnl Check for boost libs
 AX_BOOST_BASE([MINIMUM_REQUIRED_BOOST])
@@ -1122,24 +1134,23 @@ if test x$use_pkgconfig = xyes; then
   m4_ifdef(
     [PKG_CHECK_MODULES],
     [
-      PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl not found.)])
-      PKG_CHECK_MODULES([CRYPTO], [libcrypto],,[AC_MSG_ERROR(libcrypto not found.)])
-      BITCOIN_QT_CHECK([PKG_CHECK_MODULES([PROTOBUF], [protobuf], [have_protobuf=yes], [BITCOIN_QT_FAIL(libprotobuf not found)])])
+      PKG_CHECK_MODULES([SSL], [libssl >= 3.5],, [AC_MSG_ERROR(openssl not found.)])
+      PKG_CHECK_MODULES([CRYPTO], [libcrypto >= 3.5],,[AC_MSG_ERROR(libcrypto not found.)])
       if test x$use_qr != xno; then
-        BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode], [have_qrencode=yes], [have_qrencode=no])])
+        BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode >= 4.1.1], [have_qrencode=yes], [have_qrencode=no])])
       fi
       if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests != xnononono; then
-        PKG_CHECK_MODULES([EVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
+        PKG_CHECK_MODULES([EVENT], [libevent >= 2.1.12],, [AC_MSG_ERROR(libevent not found.)])
         if test x$TARGET_OS != xwindows; then
-          PKG_CHECK_MODULES([EVENT_PTHREADS], [libevent_pthreads],, [AC_MSG_ERROR(libevent_pthreads not found.)])
+          PKG_CHECK_MODULES([EVENT_PTHREADS], [libevent_pthreads >= 2.1.12],, [AC_MSG_ERROR(libevent_pthreads not found.)])
         fi
       fi
 
       if test "x$use_zmq" = "xyes"; then
-        PKG_CHECK_MODULES([ZMQ],[libzmq >= 4],
+        PKG_CHECK_MODULES([ZMQ],[libzmq >= 4.3.5],
           [AC_DEFINE([ENABLE_ZMQ],[1],[Define to 1 to enable ZMQ functions])],
           [AC_DEFINE([ENABLE_ZMQ],[0],[Define to 1 to enable ZMQ functions])
-           AC_MSG_WARN([libzmq version 4.x or greater not found, disabling])
+           AC_MSG_WARN([libzmq version 4.3.5 or greater not found, disabling])
            use_zmq=no])
       else
           AC_DEFINE_UNQUOTED([ENABLE_ZMQ],[0],[Define to 1 to enable ZMQ functions])
@@ -1184,7 +1195,6 @@ else
     esac
   fi
 
-  BITCOIN_QT_CHECK(AC_CHECK_LIB([protobuf] ,[main],[PROTOBUF_LIBS=-lprotobuf], BITCOIN_QT_FAIL(libprotobuf not found)))
   if test x$use_qr != xno; then
     BITCOIN_QT_CHECK([AC_CHECK_LIB([qrencode], [main],[QR_LIBS=-lqrencode], [have_qrencode=no])])
     BITCOIN_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, have_qrencode=no)])
@@ -1193,10 +1203,39 @@ fi
 
 save_CXXFLAGS="${CXXFLAGS}"
 CXXFLAGS="${CXXFLAGS} ${CRYPTO_CFLAGS} ${SSL_CFLAGS}"
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <openssl/opensslv.h>
+#if OPENSSL_VERSION_NUMBER < 0x30500000L
+#error OpenSSL 3.5 or newer required
+#endif
+]], [[]])], [], [AC_MSG_ERROR([OpenSSL 3.5 or newer is required])])
 AC_CHECK_DECLS([EVP_MD_CTX_new],,,[AC_INCLUDES_DEFAULT
 #include <openssl/x509_vfy.h>
 ])
 CXXFLAGS="${save_CXXFLAGS}"
+
+dnl Fail during configure when the pinned BLS/GMP development files are missing.
+AC_ARG_VAR([BLS_LIBS], [Linker flags for the compatible Chia BLS fork and GMP])
+AS_IF([test -z "$BLS_LIBS"], [BLS_LIBS="-lchiabls -lgmp"])
+AC_CHECK_HEADER([chiabls/bls.hpp], [],
+  [AC_MSG_ERROR([Compatible chiabls headers not found. Build depends and use its config.site, or set CPPFLAGS to its include directory.])])
+save_LIBS="$LIBS"
+LIBS="$CRYPTO_LIBS $BLS_LIBS $PTHREAD_LIBS $LIBS"
+AC_MSG_CHECKING([whether Chia BLS, GMP and OpenSSL link together])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <openssl/bn.h>
+#include <chiabls/bls.hpp>
+]], [[
+  BIGNUM* n = BN_new();
+  BN_free(n);
+  const uint8_t seed[] = {1, 2, 3, 4};
+  if (!bls::BLS::Init()) return 1;
+  bls::PrivateKey::FromSeed(seed, sizeof(seed));
+]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no]); AC_MSG_ERROR([Cannot link Chia BLS/GMP with OpenSSL. Rebuild the pinned depends BLS library with RELIC symbol namespacing; check LDFLAGS/BLS_LIBS.])])
+LIBS="$save_LIBS"
+AC_SUBST([BLS_LIBS])
 
 dnl univalue check
 
@@ -1245,8 +1284,6 @@ fi
 AM_CONDITIONAL([EMBEDDED_UNIVALUE],[test x$need_bundled_univalue = xyes])
 AC_SUBST(UNIVALUE_CFLAGS)
 AC_SUBST(UNIVALUE_LIBS)
-
-BITCOIN_QT_PATH_PROGS([PROTOC], [protoc],$protoc_bin_path)
 
 AC_MSG_CHECKING([whether to build yerbasd])
 AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_bitcoind = xyes])
@@ -1466,7 +1503,6 @@ AC_SUBST(SSL_LIBS)
 AC_SUBST(EVENT_LIBS)
 AC_SUBST(EVENT_PTHREADS_LIBS)
 AC_SUBST(ZMQ_LIBS)
-AC_SUBST(PROTOBUF_LIBS)
 AC_SUBST(QR_LIBS)
 AC_SUBST(DSYMUTIL_FLAT)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile share/setup.nsi share/qt/Info.plist test/config.ini])

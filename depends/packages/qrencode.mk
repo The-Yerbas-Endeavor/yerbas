@@ -1,21 +1,18 @@
 package=qrencode
-$(package)_version=3.4.4
-$(package)_download_path=https://bitcoincore.org/depends-sources/
-$(package)_file_name=$(package)-$($(package)_version).tar.bz2
-$(package)_sha256_hash=efe5188b1ddbcbf98763b819b146be6a90481aac30cfc8d858ab78a19cde1fa5
+$(package)_version=4.1.1
+$(package)_download_path=https://github.com/fukuchi/libqrencode/archive/refs/tags
+$(package)_download_file=v$($(package)_version).tar.gz
+$(package)_file_name=$(package)-$($(package)_download_file)
+$(package)_sha256_hash=5385bc1b8c2f20f3b91d258bf8ccc8cf62023935df2d2676b5b67049f31a049c
 
 define $(package)_set_vars
-$(package)_config_opts=--disable-shared -without-tools --without-tests --disable-sdltest
-$(package)_config_opts += --disable-gprof --disable-gcov --disable-mudflap --disable-dependency-tracking --enable-option-checking
+$(package)_config_opts=--disable-shared --without-tools --without-tests --disable-dependency-tracking --enable-option-checking
 $(package)_config_opts_linux=--with-pic
 $(package)_config_opts_android=--with-pic
 endef
 
 define $(package)_preprocess_cmds
-  cp -f $(BASEDIR)/config.guess $(BASEDIR)/config.sub use
-endef
-
-define $(package)_preprocess_cmds
+  autoreconf -fi && \
   cp -f $(BASEDIR)/config.guess $(BASEDIR)/config.sub use
 endef
 

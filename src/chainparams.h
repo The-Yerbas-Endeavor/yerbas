@@ -15,6 +15,10 @@
 #include <vector>
 #include <chain.h>
 
+// Immutable type-1 templates for the experimental chain-derived resolver.
+Consensus::LLMQParams RecoveryType1Params(size_t mnCount, bool low);
+bool RecoveryDynamicParams(Consensus::LLMQType type, size_t mnCount, bool low, bool testnet, Consensus::LLMQParams& out);
+
 struct CDNSSeedData {
     std::string host;
     bool supportsServiceBitsFiltering;
@@ -193,5 +197,10 @@ void UpdateDevnetSubsidyAndDiffParams(int nMinimumDifficultyBlocks, int nHighSub
 void UpdateDevnetLLMQChainLocks(Consensus::LLMQType llmqType);
 
 void UpdateLLMQParams(size_t totalMnCount, int height, bool lowLLMQParams = false);
+
+// Null commitments carry no quorum authority. Their historical wire sizes must
+// remain readable when adaptive node counts or the LOW_LLMQ spork change.
+// Never use this allowlist to select thresholds for a signed commitment.
+bool IsLegacyNullCommitmentSize(Consensus::LLMQType type, size_t size);
 
 #endif // BITCOIN_CHAINPARAMS_H

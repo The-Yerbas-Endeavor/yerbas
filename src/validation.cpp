@@ -12,6 +12,7 @@
 #include "chain.h"
 #include "chainparams.h"
 #include "checkpoints.h"
+#include "llmq/quorums_recovery.h"
 #include "checkqueue.h"
 #include "consensus/consensus.h"
 #include "consensus/merkle.h"
@@ -424,7 +425,8 @@ bool ContextualCheckTransaction(const CTransaction& tx, CValidationState &state,
                 tx.nType != TRANSACTION_COINBASE &&
                 tx.nType != TRANSACTION_QUORUM_COMMITMENT &&
                 tx.nType != TRANSACTION_ASSET_REGISTER &&
-                tx.nType != TRANSACTION_ASSET_REISUE) {
+                tx.nType != TRANSACTION_ASSET_REISUE &&
+                !(tx.nType == TRANSACTION_LLMQ_RECOVERY && llmq::RecoveryProtocolEnabled())) {
                 return state.DoS(100, false, REJECT_INVALID, "bad-txns-type");
             }
             if (tx.IsCoinBase() && tx.nType != TRANSACTION_COINBASE)
@@ -765,8 +767,32 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
         // check special TXs after all the other checks. If we'd do this before the other checks, we might end up
         // DoS scoring a node for non-critical errors, e.g. duplicate keys because a TX is received that was already
         // mined
-        if (!CheckSpecialTx(tx, chainActive.Tip(), state))
+        if (tx.nVersion == 3 && tx.nType == TRANSACTION_LLMQ_RECOVERY) {
+            // An authorized request can expire or lose its anchor while in
+            // transit. Reject it without punishing the relaying peer. Block
+            // validation retains the full consensus validation state.
+            CValidationState recoveryState;
+            if (!CheckSpecialTx(tx, chainActive.Tip(), recoveryState)) {
+                if (recoveryState.IsInvalid())
+                    return state.Invalid(false, recoveryState.GetRejectCode(),
+                        recoveryState.GetRejectReason(), recoveryState.GetDebugMessage());
+                state = recoveryState;
+                return false;
+            }
+        } else if (!CheckSpecialTx(tx, chainActive.Tip(), state)) {
             return false;
+        }
+
+        // One pending transition is sufficient; alternate funding transactions
+        // for the same authorization must not make a miner assemble two records.
+        if (tx.nVersion == 3 && tx.nType == TRANSACTION_LLMQ_RECOVERY) {
+            LOCK(pool.cs);
+            for (const auto& entry : pool.mapTx) {
+                const auto& pending = entry.GetTx();
+                if (pending.nVersion == 3 && pending.nType == TRANSACTION_LLMQ_RECOVERY)
+                    return state.Invalid(false, REJECT_DUPLICATE, "recovery-pending-duplicate");
+            }
+        }
 
         if (pool.existsProviderTxConflict(tx)) {
             return state.DoS(0, false, REJECT_DUPLICATE, "protx-dup");
@@ -1935,6 +1961,13 @@ static DisconnectResult DisconnectBlock(const CBlock& block, const CBlockIndex* 
                 int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
                 if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
                 fClean = fClean && res != DISCONNECT_UNCLEAN;
+                // Restoring the UTXO must also restore its asset address balance.
+                // This is needed for both real reorgs and VerifyDB's temporary undo.
+                if (isAssetsactive && assetsCache) {
+                    const Coin& restored = view.AccessCoin(out);
+                    if (restored.IsAsset() && !assetsCache->UndoAssetCoin(restored, out))
+                        return DISCONNECT_FAILED;
+                }
 
                 const CTxIn input = tx.vin[j];
 
@@ -2169,6 +2202,23 @@ static int64_t nTimeIndex = 0;
 static int64_t nTimeCallbacks = 0;
 static int64_t nTimeTotal = 0;
 
+bool CheckBlockFounderPayment(const CBlock& block, CValidationState& state,
+                             const Consensus::Params& consensusParams, int blockHeight)
+{
+    // Preserve the historical previous-height subsidy/payment convention.
+    // This check must not be cached by CBlock::fChecked: compact reconstruction
+    // and out-of-order delivery do not yet know the block's chain height.
+    const int paymentHeight = blockHeight - 1;
+    auto payment = consensusParams.nFounderPayment;
+    const CAmount subsidy = GetBlockSubsidy(1, paymentHeight, consensusParams, false);
+    if (paymentHeight > payment.getStartBlock() &&
+        payment.getFounderPaymentAmount(paymentHeight, subsidy) &&
+        !payment.IsBlockPayeeValid(*block.vtx[0], paymentHeight, subsidy)) {
+        return state.DoS(100, false, REJECT_INVALID, "bad-cb-founder-payment-not-found");
+    }
+    return true;
+}
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
@@ -2185,6 +2235,8 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
     // Check it again in case a previous version let a bad block in
     if (!CheckBlock(block, state, chainparams.GetConsensus(), pindex->nHeight, !fJustCheck, !fJustCheck))
         return error("%s: Consensus::CheckBlock: %s", __func__, FormatStateMessage(state));
+    if (!CheckBlockFounderPayment(block, state, chainparams.GetConsensus(), pindex->nHeight))
+        return false;
 
     if (pindex->pprev && pindex->phashBlock && llmq::chainLocksHandler->HasConflictingChainLock(pindex->nHeight, pindex->GetBlockHash())) {
         return state.DoS(10, error("%s: conflicting with chainlock", __func__), REJECT_INVALID, "bad-chainlock");
@@ -2640,20 +2692,18 @@ static bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockInd
         }
     }
     #ifdef ENABLE_WALLET
-        if (myNullAssetData.size() && pmyrestricteddb) {
-            for (auto item : myNullAssetData) {
-                if (IsAssetNameAQualifier(item.second.asset_name)) {
-                    // TODO we can add block height to this data also, and use it to pull more info on when this was tagged/untagged
-                    pmyrestricteddb->WriteTaggedAddress(item.first, item.second.asset_name, item.second.flag ? true : false, block.nTime);
-                } else if (IsAssetNameAnRestricted(item.second.asset_name)) {
-                    pmyrestricteddb->WriteRestrictedAddress(item.first, item.second.asset_name, item.second.flag ? true : false, block.nTime);
-                }
-
-
-                if (vpwallets.size())
-                    //reenable later
-                    vpwallets[0]->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
-
+        for (auto item : myNullAssetData) {
+            for (auto wallet : vpwallets) {
+                LOCK(wallet->cs_wallet);
+                if (!(IsMine(*wallet, DecodeDestination(item.first)) & ISMINE_ALL)) continue;
+                auto db = wallet->assetRestrictions.get();
+                bool written = db != nullptr;
+                if (db && IsAssetNameAQualifier(item.second.asset_name))
+                    written = db->WriteTaggedAddress(item.first, item.second.asset_name, item.second.flag != 0, block.nTime);
+                else if (db && IsAssetNameAnRestricted(item.second.asset_name))
+                    written = db->WriteRestrictedAddress(item.first, item.second.asset_name, item.second.flag != 0, block.nTime);
+                if (!written) throw std::runtime_error("Failed to save wallet restricted asset record");
+                wallet->UpdateMyRestrictedAssets(item.first, item.second.asset_name, item.second.flag, block.nTime);
             }
         }
     #endif
@@ -2949,6 +2999,10 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         bool flushed = view.Flush();
         assert(flushed);
+        // Publish the asset undo changes just as ConnectTip publishes additions.
+        // Otherwise restrictions, supply and address balances retain the removed block.
+        if (!assetCache.Flush())
+            return AbortNode(state, "Failed to apply disconnected block asset state");
         dbTx->Commit();
     }
     LogPrint(BCLog::BENCHMARK, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
@@ -3013,11 +3067,11 @@ private:
 
 public:
     ConnectTrace(CTxMemPool &_pool) : blocksConnected(1), pool(_pool) {
-        pool.NotifyEntryRemoved.connect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, _1, _2));
+        pool.NotifyEntryRemoved.connect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, boost::placeholders::_1, boost::placeholders::_2));
     }
 
     ~ConnectTrace() {
-        pool.NotifyEntryRemoved.disconnect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, _1, _2));
+        pool.NotifyEntryRemoved.disconnect(boost::bind(&ConnectTrace::NotifyEntryRemoved, this, boost::placeholders::_1, boost::placeholders::_2));
     }
 
     void BlockConnected(CBlockIndex* pindex, std::shared_ptr<const CBlock> pblock) {
@@ -3136,6 +3190,20 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
     // Update chainActive & related variables.
     UpdateTip(pindexNew, chainparams);
 
+    // Recovery requests bind to a branch, predecessor and inclusion deadline.
+    // Revalidate after committing the new tip, including blocks without a record.
+    if (llmq::RecoveryProtocolEnabled()) {
+        std::vector<uint256> pendingHashes;
+        mempool.queryHashes(pendingHashes);
+        for (const auto& hash : pendingHashes) {
+            const auto pending = mempool.get(hash);
+            if (!pending || pending->nVersion != 3 || pending->nType != TRANSACTION_LLMQ_RECOVERY) continue;
+            CValidationState recoveryState;
+            if (!llmq::CheckRecoveryTransaction(*pending, pindexNew, recoveryState))
+                mempool.removeRecursive(*pending, MemPoolRemovalReason::CONFLICT);
+        }
+    }
+
     int64_t nTime6 = GetTimeMicros(); nTimePostConnect += nTime6 - nTime5; nTimeTotal += nTime6 - nTime1;
     LogPrint(BCLog::BENCHMARK, "  - Connect postprocess: %.2fms [%.2fs]\n", (nTime6 - nTime5) * 0.001, nTimePostConnect * 0.000001);
     LogPrint(BCLog::BENCHMARK, "- Connect block: %.2fms [%.2fs]\n", (nTime6 - nTime1) * 0.001, nTimeTotal * 0.000001);
@@ -3144,29 +3212,18 @@ bool static ConnectTip(CValidationState& state, const CChainParams& chainparams,
 
         /** YERB START */
 
-    //  Determine if the new block height has any pending snapshot requests,
-    //      and if so, capture a snapshot of the relevant target assets.
-    if (pSnapshotRequestDb != nullptr) {
-        //  Retrieve the scheduled snapshot requests
-        std::set<CSnapshotRequestDBEntry> assetsToSnapshot;
-        if (pSnapshotRequestDb->RetrieveSnapshotRequestsForHeight("", pindexNew->nHeight, assetsToSnapshot)) {
-            //  Loop through them
-            for (auto const & assetEntry : assetsToSnapshot) {
-                //  Add a snapshot entry for the target asset ownership
-                if (!pAssetSnapshotDb->AddAssetOwnershipSnapshot(assetEntry.assetName, pindexNew->nHeight)) {
-                   LogPrint(BCLog::REWARDS, "ConnectTip: Failed to snapshot owners for '%s' at height %d!\n",
-                       assetEntry.assetName.c_str(), pindexNew->nHeight);
-                }
-            }
-        }
-        else {
-            LogPrint(BCLog::REWARDS, "ConnectTip: Failed to load payable Snapshot Requests at height %d!\n", pindexNew->nHeight);
-        }
-    }
-
 #ifdef ENABLE_WALLET
-    if (vpwallets.size()) {
-        CheckRewardDistributions(vpwallets[0]);
+    for (auto wallet : vpwallets) {
+        LOCK(wallet->cs_wallet);
+        std::set<CSnapshotRequestDBEntry> requests;
+        if (!fAssetIndex || !wallet->assetSnapshotRequests || !wallet->assetSnapshots) continue;
+        if (!wallet->assetSnapshotRequests->RetrieveSnapshotRequestsForHeight("", pindexNew->nHeight, requests))
+            throw std::runtime_error("Cannot read wallet asset snapshot schedules");
+        for (const auto& request : requests) {
+            if (!wallet->assetSnapshots->AddAssetOwnershipSnapshot(request.assetName, pindexNew->nHeight))
+                LogPrintf("Failed to capture wallet asset snapshot %s at height %d\n", request.assetName, pindexNew->nHeight);
+        }
+        CheckRewardDistributions(wallet);
     }
 #endif
     /** YERB END */
@@ -3801,7 +3858,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
     for (unsigned int i = 1; i < block.vtx.size(); i++)
         if (block.vtx[i]->IsCoinBase())
             return state.DoS(100, false, REJECT_INVALID, "bad-cb-multiple", false, "more than one coinbase");
-    CAmount blockReward = GetBlockSubsidy(1, nHeight - 1, Params().GetConsensus(), false);
     // Check transactions
     bool fCheckBlock = true;
     bool fCheckMempool = false;
@@ -3813,7 +3869,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::P
         if (fDBCheck){
             fCheckBlock = false;
         }
-        if (!CheckTransaction(*tx, state, nHeight - 1, blockReward, fCheckMempool, fCheckBlock))
+        if (!CheckTransaction(*tx, state, 0, 0, fCheckMempool, fCheckBlock))
             return state.Invalid(false, state.GetRejectCode(), state.GetRejectReason(),
                                  strprintf("Transaction check failed (tx hash %s) %s", tx->GetHash().ToString(), state.GetDebugMessage()));
     }
@@ -3906,6 +3962,9 @@ static bool ContextualCheckBlock(const CBlock& block, CValidationState& state, c
     unsigned int nMaxBlockSize = MaxBlockSize(fDIP0001Active_context);
     if (block.vtx.empty() || block.vtx.size() > nMaxBlockSize || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION) > nMaxBlockSize)
         return state.DoS(10, false, REJECT_INVALID, "bad-blk-length", false, "size limits failed");
+
+    if (!CheckBlockFounderPayment(block, state, consensusParams, nHeight))
+        return false;
 
     // Check that all transactions are finalized and not over-sized
     // Also count sigops
@@ -4142,8 +4201,9 @@ bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<cons
         CValidationState state;
         // Ensure that CheckBlock() passes before calling AcceptBlock, as
         // belt-and-suspenders.
-        int nHeight = chainActive.Tip()->nHeight + 1;
-        bool ret = CheckBlock(*pblock, state, chainparams.GetConsensus(), nHeight);
+        // Height-dependent founder payments are checked by AcceptBlock using
+        // the accepted header's height, not the current active tip.
+        bool ret = CheckBlock(*pblock, state, chainparams.GetConsensus(), 0);
 
         LOCK(cs_main);
 
@@ -4625,7 +4685,9 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         if (!ReadBlockFromDisk(block, pindex, chainparams.GetConsensus()))
             return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         // check level 1: verify block validity
-        if (nCheckLevel >= 1 && !CheckBlock(block, state, chainparams.GetConsensus(),pindex->nHeight))
+        if (nCheckLevel >= 1 &&
+            (!CheckBlock(block, state, chainparams.GetConsensus(), pindex->nHeight) ||
+             !CheckBlockFounderPayment(block, state, chainparams.GetConsensus(), pindex->nHeight)))
             return error("%s: *** found bad block at %d, hash=%s (%s)\n", __func__,
                          pindex->nHeight, pindex->GetBlockHash().ToString(), FormatStateMessage(state));
         // check level 2: verify undo validity

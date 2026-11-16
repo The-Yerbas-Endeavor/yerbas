@@ -6,6 +6,41 @@ AC_DEFUN([BITCOIN_FIND_BDB48],[
   AC_ARG_VAR(BDB_CFLAGS, [C compiler flags for BerkeleyDB, bypasses autodetection])
   AC_ARG_VAR(BDB_LIBS, [Linker flags for BerkeleyDB, bypasses autodetection])
 
+  AC_ARG_WITH([bdb],
+    [AS_HELP_STRING([--with-bdb=DIR], [use Berkeley DB 4.8 built in DIR (default: dependency prefix or depends/bdb)])],
+    [bdb_root=$withval], [bdb_root=])
+  if test -z "$bdb_root" && test -z "$BDB_CFLAGS" && test -z "$BDB_LIBS"; then
+    for bdb_candidate in "$prefix" "$srcdir/depends/bdb"; do
+      if test -f "$bdb_candidate/include/db_cxx.h" && test -f "$bdb_candidate/lib/libdb_cxx-4.8.a"; then
+        bdb_root=$bdb_candidate
+        break
+      fi
+    done
+  fi
+  if test -n "$bdb_root"; then
+    if test ! -f "$bdb_root/include/db_cxx.h" || test ! -f "$bdb_root/lib/libdb_cxx-4.8.a"; then
+      AC_MSG_ERROR([Berkeley DB 4.8 headers/static library missing in $bdb_root. Run sh contrib/build-bdb.sh without sudo, then configure again.])
+    fi
+    bdb_root=`cd "$bdb_root" && pwd`
+    BDB_CFLAGS="-I$bdb_root/include"
+    BDB_LIBS="$bdb_root/lib/libdb_cxx-4.8.a"
+    bdb_save_CPPFLAGS=$CPPFLAGS
+    bdb_save_LIBS=$LIBS
+    CPPFLAGS="$BDB_CFLAGS $CPPFLAGS"
+    LIBS="$BDB_LIBS $LIBS"
+    AC_MSG_CHECKING([whether local Berkeley DB 4.8 headers and library link])
+    AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+      #include <db_cxx.h>
+      #if DB_VERSION_MAJOR != 4 || DB_VERSION_MINOR != 8
+      #error Berkeley DB 4.8 required
+      #endif
+    ]], [[Db db(nullptr, 0);]])],
+      [AC_MSG_RESULT([yes])],
+      [AC_MSG_RESULT([no]); AC_MSG_ERROR([Local Berkeley DB 4.8 cannot be linked; see config.log. Rebuild it with sh contrib/build-bdb.sh using the same compiler.])])
+    CPPFLAGS=$bdb_save_CPPFLAGS
+    LIBS=$bdb_save_LIBS
+  fi
+
   if test "x$BDB_CFLAGS" = "x"; then
     AC_MSG_CHECKING([for Berkeley DB C++ headers])
     BDB_CPPFLAGS=
@@ -45,13 +80,13 @@ AC_DEFUN([BITCOIN_FIND_BDB48],[
     done
     if test "x$bdbpath" = "xX"; then
       AC_MSG_RESULT([no])
-      AC_MSG_ERROR([libdb_cxx headers missing, ]AC_PACKAGE_NAME[ requires this library for wallet functionality (--disable-wallet to disable wallet functionality)])
+      AC_MSG_ERROR([Berkeley DB headers missing. Run sh contrib/build-bdb.sh without sudo, then rerun configure. ]AC_PACKAGE_NAME[ requires this library for wallet functionality (--disable-wallet to disable wallet functionality)])
     elif test "x$bdb48path" = "xX"; then
       BITCOIN_SUBDIR_TO_INCLUDE(BDB_CPPFLAGS,[${bdbpath}],db_cxx)
       AC_ARG_WITH([incompatible-bdb],[AS_HELP_STRING([--with-incompatible-bdb], [allow using a bdb version other than 4.8])],[
         AC_MSG_WARN([Found Berkeley DB other than 4.8; wallets opened by this build will not be portable!])
       ],[
-        AC_MSG_ERROR([Found Berkeley DB other than 4.8, required for portable wallets (--with-incompatible-bdb to ignore or --disable-wallet to disable wallet functionality)])
+        AC_MSG_ERROR([Found system Berkeley DB other than 4.8. Build the portable wallet dependency without sudo: sh contrib/build-bdb.sh; then rerun configure. Use --disable-wallet only if wallet support is not needed])
       ])
     else
       BITCOIN_SUBDIR_TO_INCLUDE(BDB_CPPFLAGS,[${bdb48path}],db_cxx)

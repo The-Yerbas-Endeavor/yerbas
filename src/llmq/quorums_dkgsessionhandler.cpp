@@ -1,3 +1,4 @@
+#include "llmq/quorums_recovery.h"
 // Copyright (c) 2018-2019 The Dash Core developers
 // Copyright (c) 2020 The Yerbas developers
 // Distributed under the MIT/X11 software license, see the accompanying
@@ -74,6 +75,12 @@ bool CDKGPendingMessages::HasSeen(const uint256& hash) const
     return seenMessages.count(hash) != 0;
 }
 
+void CDKGPendingMessages::SetMaxMessagesPerNode(size_t limit)
+{
+    LOCK(cs);
+    maxMessagesPerNode = limit;
+}
+
 void CDKGPendingMessages::Clear()
 {
     LOCK(cs);
@@ -147,7 +154,18 @@ bool CDKGSessionHandler::InitNewQuorum(const CBlockIndex* pindexQuorum)
 
     const auto& consensus = Params().GetConsensus();
 
-    curSession = std::make_shared<CDKGSession>(params, blsWorker, dkgManager);
+    Consensus::LLMQParams resolved;
+    if (RecoveryProtocolEnabled() && !ResolveRecoveryQuorumParams(params.type, pindexQuorum, resolved)) return false;
+    const auto& sessionParams = RecoveryProtocolEnabled() ? resolved : params;
+    curSession = std::make_shared<CDKGSession>(sessionParams, blsWorker, dkgManager);
+    // The handler survives quorum-size transitions, including SPORK_21.
+    // Resize all queues for this session, retaining the two-message allowance
+    // per selected member so double messages can still be detected.
+    const size_t limit = static_cast<size_t>(sessionParams.size) * 2;
+    pendingContributions.SetMaxMessagesPerNode(limit);
+    pendingComplaints.SetMaxMessagesPerNode(limit);
+    pendingJustifications.SetMaxMessagesPerNode(limit);
+    pendingPrematureCommitments.SetMaxMessagesPerNode(limit);
 
     if (!deterministicMNManager->IsDIP3Enforced(pindexQuorum->nHeight)) {
         return false;

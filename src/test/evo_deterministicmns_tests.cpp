@@ -4,6 +4,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "test/test_yerbas.h"
+#include "chainparams.h"
+#include <climits>
 
 #include "script/interpreter.h"
 #include "script/standard.h"
@@ -24,12 +26,14 @@
 
 typedef std::map<COutPoint, std::pair<int, CAmount>> SimpleUTXOMap;
 
-static SimpleUTXOMap BuildSimpleUtxoMap(const std::vector<CTransaction>& txs)
+static SimpleUTXOMap BuildSimpleUtxoMap(const std::vector<CTransaction>& txs, const CKey& key)
 {
     SimpleUTXOMap utxos;
+    const CScript ownedScript = CScript() << ToByteVector(key.GetPubKey()) << OP_CHECKSIG;
     for (size_t i = 0; i < txs.size(); i++) {
         auto& tx = txs[i];
         for (size_t j = 0; j < tx.vout.size(); j++) {
+            if (tx.vout[j].scriptPubKey != ownedScript) continue;
             utxos.emplace(COutPoint(tx.GetHash(), j), std::make_pair((int)i + 1, tx.vout[j].nValue));
         }
     }
@@ -55,7 +59,7 @@ static std::vector<COutPoint> SelectUTXOs(SimpleUTXOMap& utoxs, CAmount amount, 
             utoxs.erase(it);
             break;
         }
-        BOOST_ASSERT(found);
+        BOOST_REQUIRE(found);
         if (selectedAmount >= amount) {
             changeRet = selectedAmount - amount;
             break;
@@ -86,8 +90,8 @@ static void SignTransaction(CMutableTransaction& tx, const CKey& coinbaseKey)
     for (size_t i = 0; i < tx.vin.size(); i++) {
         CTransactionRef txFrom;
         uint256 hashBlock;
-        BOOST_ASSERT(GetTransaction(tx.vin[i].prevout.hash, txFrom, Params().GetConsensus(), hashBlock));
-        BOOST_ASSERT(SignSignature(tempKeystore, *txFrom, tx, i, SIGHASH_ALL));
+        BOOST_REQUIRE(GetTransaction(tx.vin[i].prevout.hash, txFrom, Params().GetConsensus(), hashBlock));
+        BOOST_REQUIRE_MESSAGE(SignSignature(tempKeystore, *txFrom, tx, i, SIGHASH_ALL), "prev script " << HexStr(txFrom->vout[tx.vin[i].prevout.n].scriptPubKey) << " key " << HexStr(coinbaseKey.GetPubKey()));
     }
 }
 
@@ -96,9 +100,7 @@ static CMutableTransaction CreateProRegTx(SimpleUTXOMap& utxos, int port, const 
     ownerKeyRet.MakeNewKey(true);
     operatorKeyRet.MakeNewKey();
 
-    CAmount change;
     CAmount collateralAmount = Params().GetConsensus().nCollaterals.getCollateral(chainActive.Height() < 0 ? 1 : chainActive.Height());
-    auto inputs = SelectUTXOs(utxos, collateralAmount, change);
 
     CProRegTx proTx;
     proTx.collateralOutpoint.n = 0;
@@ -238,7 +240,7 @@ static bool CheckTransactionSignature(const CMutableTransaction& tx)
         const auto& txin = tx.vin[i];
         CTransactionRef txFrom;
         uint256 hashBlock;
-        BOOST_ASSERT(GetTransaction(txin.prevout.hash, txFrom, Params().GetConsensus(), hashBlock));
+        BOOST_REQUIRE(GetTransaction(txin.prevout.hash, txFrom, Params().GetConsensus(), hashBlock));
 
         CAmount amount = txFrom->vout[txin.prevout.n].nValue;
         if (!VerifyScript(txin.scriptSig, txFrom->vout[txin.prevout.n].scriptPubKey, STANDARD_SCRIPT_VERIFY_FLAGS, MutableTransactionSignatureChecker(&tx, i, amount))) {
@@ -248,40 +250,44 @@ static bool CheckTransactionSignature(const CMutableTransaction& tx)
     return true;
 }
 
+// Isolated parameters for exercising the provider-transaction lifecycle.
+// Yerbas regtest enables DIP3 at genesis and has no collateral/reward schedule.
+struct FundedDIP3Setup : TestChainSetup
+{
+    FundedDIP3Setup() : TestChainSetup(0)
+    {
+        auto& params = const_cast<Consensus::Params&>(Params().GetConsensus());
+        params.nCollaterals = SmartnodeCollaterals({{INT_MAX, 10 * COIN}}, {{INT_MAX, 20}});
+        params.nSmartnodePaymentsStartBlock = 1;
+        // Keep the fixed-difficulty regtest rules throughout this synthetic chain.
+        params.nPowDGWHeight = INT_MAX;
+        for (int i = 0; i < 200; ++i) {
+            CBlock block = CreateAndProcessBlock({}, coinbaseKey);
+            BOOST_REQUIRE(chainActive.Tip()->GetBlockHash() == block.GetHash());
+            coinbaseTxns.push_back(*block.vtx[0]);
+        }
+    }
+};
+
 BOOST_AUTO_TEST_SUITE(evo_dip3_activation_tests)
 
-BOOST_FIXTURE_TEST_CASE(dip3_activation, TestChainDIP3BeforeActivationSetup)
+BOOST_FIXTURE_TEST_CASE(dip3_activation, FundedDIP3Setup)
 {
-    auto utxos = BuildSimpleUtxoMap(coinbaseTxns);
+    auto utxos = BuildSimpleUtxoMap(coinbaseTxns, coinbaseKey);
     CKey ownerKey;
     CBLSSecretKey operatorKey;
-    CBitcoinAddress payoutAddress("yRq1Ky1AfFmf597rnotj7QRxsDUKePVWNF");
-    auto tx = CreateProRegTx(utxos, 1, GetScriptForDestination(payoutAddress.Get()), coinbaseKey, ownerKey, operatorKey);
-    std::vector<CMutableTransaction> txns = {tx};
-
-    int nHeight = chainActive.Height();
-
-    // We start one block before DIP3 activation, so mining a block with a DIP3 transaction should fail
-    auto block = std::make_shared<CBlock>(CreateBlock(txns, coinbaseKey));
-    ProcessNewBlock(Params(), block, true, nullptr);
-    BOOST_ASSERT(chainActive.Height() == nHeight);
-    BOOST_ASSERT(block->GetHash() != chainActive.Tip()->GetBlockHash());
-    BOOST_ASSERT(!deterministicMNManager->GetListAtChainTip().HasMN(tx.GetHash()));
-
-    // This block should activate DIP3
-    CreateAndProcessBlock({}, coinbaseKey);
-    BOOST_ASSERT(chainActive.Height() == nHeight + 1);
-
-    // Mining a block with a DIP3 transaction should succeed now
-    block = std::make_shared<CBlock>(CreateBlock(txns, coinbaseKey));
-    ProcessNewBlock(Params(), block, true, nullptr);
+    BOOST_REQUIRE(Params().GetConsensus().DIP0003Enabled);
+    auto tx = CreateProRegTx(utxos, 1, GenerateRandomAddress(), coinbaseKey, ownerKey, operatorKey);
+    const int height = chainActive.Height();
+    auto block = std::make_shared<CBlock>(CreateBlock({tx}, coinbaseKey));
+    BOOST_REQUIRE(ProcessNewBlock(Params(), block, true, nullptr));
     deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-    BOOST_ASSERT(chainActive.Height() == nHeight + 2);
-    BOOST_ASSERT(block->GetHash() == chainActive.Tip()->GetBlockHash());
-    BOOST_ASSERT(deterministicMNManager->GetListAtChainTip().HasMN(tx.GetHash()));
+    BOOST_REQUIRE_EQUAL(chainActive.Height(), height + 1);
+    BOOST_REQUIRE(chainActive.Tip()->GetBlockHash() == block->GetHash());
+    BOOST_REQUIRE(deterministicMNManager->GetListAtChainTip().HasMN(tx.GetHash()));
 }
 
-BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
+BOOST_FIXTURE_TEST_CASE(dip3_protx, FundedDIP3Setup)
 {
     CKey sporkKey;
     sporkKey.MakeNewKey(false);
@@ -291,7 +297,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
     sporkManager.SetSporkAddress(sporkAddress.ToString());
     sporkManager.SetPrivKey(sporkSecret.ToString());
 
-    auto utxos = BuildSimpleUtxoMap(coinbaseTxns);
+    auto utxos = BuildSimpleUtxoMap(coinbaseTxns, coinbaseKey);
 
     int nHeight = chainActive.Height();
     int port = 1;
@@ -300,8 +306,8 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
     std::map<uint256, CKey> ownerKeys;
     std::map<uint256, CBLSSecretKey> operatorKeys;
 
-    // register one MN per block
-    for (size_t i = 0; i < 6; i++) {
+    // GetMNPayee requires more than ten registered nodes on Yerbas.
+    for (size_t i = 0; i < 11; i++) {
         CKey ownerKey;
         CBLSSecretKey operatorKey;
         auto tx = CreateProRegTx(utxos, port++, GenerateRandomAddress(), coinbaseKey, ownerKey, operatorKey);
@@ -316,24 +322,21 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
         auto tx2 = MalleateProTxPayout<CProRegTx>(tx);
         CValidationState dummyState;
         // Technically, the payload is still valid...
-        BOOST_ASSERT(CheckProRegTx(tx, chainActive.Tip(), dummyState));
-        BOOST_ASSERT(CheckProRegTx(tx2, chainActive.Tip(), dummyState));
+        BOOST_REQUIRE(CheckProRegTx(tx, chainActive.Tip(), dummyState));
+        BOOST_REQUIRE(CheckProRegTx(tx2, chainActive.Tip(), dummyState));
         // But the signature should not verify anymore
-        BOOST_ASSERT(CheckTransactionSignature(tx));
-        BOOST_ASSERT(!CheckTransactionSignature(tx2));
+        BOOST_REQUIRE(CheckTransactionSignature(tx));
+        BOOST_REQUIRE(!CheckTransactionSignature(tx2));
 
         CreateAndProcessBlock({tx}, coinbaseKey);
         deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
 
-        BOOST_ASSERT(chainActive.Height() == nHeight + 1);
-        BOOST_ASSERT(deterministicMNManager->GetListAtChainTip().HasMN(tx.GetHash()));
+        BOOST_REQUIRE(chainActive.Height() == nHeight + 1);
+        BOOST_REQUIRE(deterministicMNManager->GetListAtChainTip().HasMN(tx.GetHash()));
 
         nHeight++;
     }
 
-    //int DIP0003EnforcementHeightBackup = Params().GetConsensus().DIP0003EnforcementHeight;
-    int DIP0003EnforcementHeightBackup = 1;
-    //const_cast<Consensus::Params&>(Params().GetConsensus()).DIP0003EnforcementHeight = chainActive.Height() + 1;
     CreateAndProcessBlock({}, coinbaseKey);
     deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
     nHeight++;
@@ -344,10 +347,10 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
 
         CBlock block = CreateAndProcessBlock({}, coinbaseKey);
         deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-        BOOST_ASSERT(!block.vtx.empty());
+        BOOST_REQUIRE(!block.vtx.empty());
 
         auto dmnPayout = FindPayoutDmn(block);
-        BOOST_ASSERT(dmnPayout != nullptr);
+        BOOST_REQUIRE_MESSAGE(dmnPayout != nullptr, "nodes=" << deterministicMNManager->GetListAtChainTip().GetAllMNsCount() << " percentage=" << Params().GetConsensus().nCollaterals.getRewardPercentage(chainActive.Height()) << " payment=" << GetSmartnodePayment(chainActive.Height(), 100 * COIN, 0) << " outputs=" << block.vtx[0]->vout.size());
         BOOST_CHECK_EQUAL(dmnPayout->proTxHash.ToString(), dmnExpectedPayee->proTxHash.ToString());
 
         nHeight++;
@@ -367,10 +370,10 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
         }
         CreateAndProcessBlock(txns, coinbaseKey);
         deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-        BOOST_ASSERT(chainActive.Height() == nHeight + 1);
+        BOOST_REQUIRE(chainActive.Height() == nHeight + 1);
 
         for (size_t j = 0; j < 3; j++) {
-            BOOST_ASSERT(deterministicMNManager->GetListAtChainTip().HasMN(txns[j].GetHash()));
+            BOOST_REQUIRE(deterministicMNManager->GetListAtChainTip().HasMN(txns[j].GetHash()));
         }
 
         nHeight++;
@@ -380,33 +383,33 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
     auto tx = CreateProUpServTx(utxos, dmnHashes[0], operatorKeys[dmnHashes[0]], 1000, CScript(), coinbaseKey);
     CreateAndProcessBlock({tx}, coinbaseKey);
     deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-    BOOST_ASSERT(chainActive.Height() == nHeight + 1);
+    BOOST_REQUIRE(chainActive.Height() == nHeight + 1);
     nHeight++;
 
     auto dmn = deterministicMNManager->GetListAtChainTip().GetMN(dmnHashes[0]);
-    BOOST_ASSERT(dmn != nullptr && dmn->pdmnState->addr.GetPort() == 1000);
+    BOOST_REQUIRE(dmn != nullptr && dmn->pdmnState->addr.GetPort() == 1000);
 
     // test ProUpRevTx
     tx = CreateProUpRevTx(utxos, dmnHashes[0], operatorKeys[dmnHashes[0]], coinbaseKey);
     CreateAndProcessBlock({tx}, coinbaseKey);
     deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-    BOOST_ASSERT(chainActive.Height() == nHeight + 1);
+    BOOST_REQUIRE(chainActive.Height() == nHeight + 1);
     nHeight++;
 
     dmn = deterministicMNManager->GetListAtChainTip().GetMN(dmnHashes[0]);
-    BOOST_ASSERT(dmn != nullptr && dmn->pdmnState->nPoSeBanHeight == nHeight);
+    BOOST_REQUIRE(dmn != nullptr && dmn->pdmnState->nPoSeBanHeight == nHeight);
 
     // test that the revoked MN does not get paid anymore
     for (size_t i = 0; i < 20; i++) {
         auto dmnExpectedPayee = deterministicMNManager->GetListAtChainTip().GetMNPayee();
-        BOOST_ASSERT(dmnExpectedPayee->proTxHash != dmnHashes[0]);
+        BOOST_REQUIRE(dmnExpectedPayee->proTxHash != dmnHashes[0]);
 
         CBlock block = CreateAndProcessBlock({}, coinbaseKey);
         deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-        BOOST_ASSERT(!block.vtx.empty());
+        BOOST_REQUIRE(!block.vtx.empty());
 
         auto dmnPayout = FindPayoutDmn(block);
-        BOOST_ASSERT(dmnPayout != nullptr);
+        BOOST_REQUIRE_MESSAGE(dmnPayout != nullptr, "nodes=" << deterministicMNManager->GetListAtChainTip().GetAllMNsCount() << " percentage=" << Params().GetConsensus().nCollaterals.getRewardPercentage(chainActive.Height()) << " payment=" << GetSmartnodePayment(chainActive.Height(), 100 * COIN, 0) << " outputs=" << block.vtx[0]->vout.size());
         BOOST_CHECK_EQUAL(dmnPayout->proTxHash.ToString(), dmnExpectedPayee->proTxHash.ToString());
 
         nHeight++;
@@ -420,25 +423,25 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
     // check malleability protection again, but this time by also relying on the signature inside the ProUpRegTx
     auto tx2 = MalleateProTxPayout<CProUpRegTx>(tx);
     CValidationState dummyState;
-    BOOST_ASSERT(CheckProUpRegTx(tx, chainActive.Tip(), dummyState));
-    BOOST_ASSERT(!CheckProUpRegTx(tx2, chainActive.Tip(), dummyState));
-    BOOST_ASSERT(CheckTransactionSignature(tx));
-    BOOST_ASSERT(!CheckTransactionSignature(tx2));
+    BOOST_REQUIRE(CheckProUpRegTx(tx, chainActive.Tip(), dummyState));
+    BOOST_REQUIRE(!CheckProUpRegTx(tx2, chainActive.Tip(), dummyState));
+    BOOST_REQUIRE(CheckTransactionSignature(tx));
+    BOOST_REQUIRE(!CheckTransactionSignature(tx2));
     // now process the block
     CreateAndProcessBlock({tx}, coinbaseKey);
     deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-    BOOST_ASSERT(chainActive.Height() == nHeight + 1);
+    BOOST_REQUIRE(chainActive.Height() == nHeight + 1);
     nHeight++;
 
     tx = CreateProUpServTx(utxos, dmnHashes[0], newOperatorKey, 100, CScript(), coinbaseKey);
     CreateAndProcessBlock({tx}, coinbaseKey);
     deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-    BOOST_ASSERT(chainActive.Height() == nHeight + 1);
+    BOOST_REQUIRE(chainActive.Height() == nHeight + 1);
     nHeight++;
 
     dmn = deterministicMNManager->GetListAtChainTip().GetMN(dmnHashes[0]);
-    BOOST_ASSERT(dmn != nullptr && dmn->pdmnState->addr.GetPort() == 100);
-    BOOST_ASSERT(dmn != nullptr && dmn->pdmnState->nPoSeBanHeight == -1);
+    BOOST_REQUIRE(dmn != nullptr && dmn->pdmnState->addr.GetPort() == 100);
+    BOOST_REQUIRE(dmn != nullptr && dmn->pdmnState->nPoSeBanHeight == -1);
 
     // test that the revived MN gets payments again
     bool foundRevived = false;
@@ -450,16 +453,15 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChainDIP3Setup)
 
         CBlock block = CreateAndProcessBlock({}, coinbaseKey);
         deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
-        BOOST_ASSERT(!block.vtx.empty());
+        BOOST_REQUIRE(!block.vtx.empty());
 
         auto dmnPayout = FindPayoutDmn(block);
-        BOOST_ASSERT(dmnPayout != nullptr);
+        BOOST_REQUIRE_MESSAGE(dmnPayout != nullptr, "nodes=" << deterministicMNManager->GetListAtChainTip().GetAllMNsCount() << " percentage=" << Params().GetConsensus().nCollaterals.getRewardPercentage(chainActive.Height()) << " payment=" << GetSmartnodePayment(chainActive.Height(), 100 * COIN, 0) << " outputs=" << block.vtx[0]->vout.size());
         BOOST_CHECK_EQUAL(dmnPayout->proTxHash.ToString(), dmnExpectedPayee->proTxHash.ToString());
 
         nHeight++;
     }
-    BOOST_ASSERT(foundRevived);
+    BOOST_REQUIRE(foundRevived);
 
-    //const_cast<Consensus::Params&>(Params().GetConsensus()).DIP0003EnforcementHeight = DIP0003EnforcementHeightBackup;
 }
 BOOST_AUTO_TEST_SUITE_END()

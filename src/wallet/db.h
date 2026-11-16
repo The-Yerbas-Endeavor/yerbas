@@ -15,6 +15,8 @@
 
 #include <atomic>
 #include <map>
+#include <memory>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,7 @@ static const bool DEFAULT_WALLET_PRIVDB = true;
 class CDBEnv
 {
 private:
+    std::unique_ptr<FILE, decltype(&std::fclose)> errorFile{nullptr, &std::fclose};
     bool fDbEnvInit;
     bool fMockDb;
     // Don't change into fs::path, as that can result in
@@ -330,18 +333,18 @@ public:
     {
         if (!pdb || activeTxn)
             return false;
-        DbTxn* ptxn = bitdb.TxnBegin();
+        DbTxn* ptxn = env->TxnBegin();
         if (!ptxn)
             return false;
         activeTxn = ptxn;
         return true;
     }
 
-    bool TxnCommit()
+    bool TxnCommit(bool sync = false)
     {
         if (!pdb || !activeTxn)
             return false;
-        int ret = activeTxn->commit(0);
+        int ret = activeTxn->commit(sync ? DB_TXN_SYNC : 0);
         activeTxn = nullptr;
         return (ret == 0);
     }

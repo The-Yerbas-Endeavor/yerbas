@@ -28,6 +28,7 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "wallet/coincontrol.h"
+#include "wallet/assetissuance.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 #include "assets/snapshotrequestdb.h"
@@ -86,6 +87,10 @@ UniValue requestsnapshot(const JSONRPCRequest& request) {
                 + HelpExampleRpc("requestsnapshot", "\"PHATSTACKS\" 34987")
         );
 
+    CWallet* const walletPtr = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(walletPtr, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, walletPtr->cs_wallet);
+    auto pSnapshotRequestDb = walletPtr->assetSnapshotRequests.get();
     if (!fAssetIndex) {
         return "_This rpc call is not functional unless -assetindex is enabled. To enable, please run the wallet with -assetindex, this will require a reindex to occur";
     }
@@ -149,6 +154,10 @@ UniValue getsnapshotrequest(const JSONRPCRequest& request) {
                 + HelpExampleRpc("getsnapshotrequest", "\"PHATSTACKS\" 34987")
         );
 
+    CWallet* const walletPtr = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(walletPtr, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, walletPtr->cs_wallet);
+    auto pSnapshotRequestDb = walletPtr->assetSnapshotRequests.get();
     if (!fAssetIndex) {
         return "_This rpc call is not functional unless -assetindex is enabled. To enable, please run the wallet with -assetindex, this will require a reindex to occur";
     }
@@ -202,6 +211,10 @@ UniValue listsnapshotrequests(const JSONRPCRequest& request) {
                 + HelpExampleRpc("listsnapshotrequests", "\"TRONCO\" 345333")
         );
 
+    CWallet* const walletPtr = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(walletPtr, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, walletPtr->cs_wallet);
+    auto pSnapshotRequestDb = walletPtr->assetSnapshotRequests.get();
     if (!fAssetIndex)
         return "_This rpc call is not functional unless -assetindex is enabled. To enable, please run the wallet with -assetindex, this will require a reindex to occur";
 
@@ -255,6 +268,10 @@ UniValue cancelsnapshotrequest(const JSONRPCRequest& request) {
                 + HelpExampleRpc("cancelsnapshotrequest", "\"PHATSTACKS\" 34987")
         );
 
+    CWallet* const walletPtr = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(walletPtr, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, walletPtr->cs_wallet);
+    auto pSnapshotRequestDb = walletPtr->assetSnapshotRequests.get();
     if (!fAssetIndex) {
         return "_This rpc call is not functional unless -assetindex is enabled. To enable, please run the wallet with -assetindex, this will require a reindex to occur";
     }
@@ -288,6 +305,9 @@ UniValue distributereward(const JSONRPCRequest& request) {
                 "distributereward \"asset_name\" snapshot_height \"distribution_asset_name\" gross_distribution_amount ( \"exception_addresses\" ) (\"change_address\") (\"dry_run\")\n"
                 "\nSplits the specified amount of the distribution asset to all owners of asset_name that are not in the optional exclusion_addresses\n"
 
+                + strprintf("\nV4 mainnet asset payouts are locked below tip height %d. YERB payments remain available.\n"
+                            "Testnet/regtest are unaffected; activation follows block height, not a calendar date.\n",
+                            MAINNET_ASSET_WALLET_ACTIVATION_HEIGHT) +
                 "\nArguments:\n"
                 "1. \"asset_name\"                 (string, required) The reward will be distributed all owners of this asset\n"
                 "2. \"snapshot_height\"            (number, required) The block height of the ownership snapshot\n"
@@ -334,6 +354,8 @@ UniValue distributereward(const JSONRPCRequest& request) {
     }
  
     LOCK2(cs_main, walletPtr->cs_wallet);
+    auto pAssetSnapshotDb = walletPtr->assetSnapshots.get();
+    auto pSnapshotRequestDb = walletPtr->assetSnapshotRequests.get();
 
     EnsureWalletIsUnlocked(walletPtr);
 
@@ -377,7 +399,7 @@ UniValue distributereward(const JSONRPCRequest& request) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid distribution_asset_name: OWNER, UNQIUE, MSGCHANNEL assets are not allowed for this call"));
 
         std::pair<int, std::string> errorPair;
-        if (!VerifyWalletHasAsset(distribution_asset_name + OWNER_TAG, errorPair))
+        if (!VerifyWalletHasAsset(*walletPtr, distribution_asset_name + OWNER_TAG, errorPair))
             throw JSONRPCError(RPC_INVALID_REQUEST, std::string("Wallet doesn't have the ownership token(!) for the distribution asset"));
     }
 
@@ -405,7 +427,7 @@ UniValue distributereward(const JSONRPCRequest& request) {
         throw JSONRPCError(RPC_INVALID_REQUEST, std::string("Snapshot request not found"));
 
     CRewardSnapshot distribRewardSnapshotData(asset_name, distribution_asset_name, exception_addresses, distribution_amount, snapshot_height);
-    if (!AddDistributeRewardSnapshot(distribRewardSnapshotData))
+    if (!AddDistributeRewardSnapshot(*walletPtr, distribRewardSnapshotData))
         throw JSONRPCError(RPC_INVALID_REQUEST, std::string("Distribution of reward has already be created. You must remove the distribution before creating another one"));
 
     // Trigger the distribution
@@ -434,6 +456,10 @@ UniValue getdistributestatus(const JSONRPCRequest& request) {
                 + HelpExampleRpc("getdistributestatus", "\"PHATSTACKS\" 34987 \"YERB\" 100000 \"mwN7xC3yomYdvJuVXkVC7ymY9wNBjWNduD,n4Rf18edydDaRBh7t6gHUbuByLbWEoWUTg\"")
         );
 
+    CWallet* const walletPtr = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(walletPtr, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, walletPtr->cs_wallet);
+    auto pDistributeSnapshotDb = walletPtr->assetDistributions.get();
     if (!fAssetIndex) {
         return "_This rpc call is not functional unless -assetindex is enabled. To enable, please run the wallet with -assetindex, this will require a reindex to occur";
     }
@@ -469,9 +495,34 @@ UniValue getdistributestatus(const JSONRPCRequest& request) {
     responseObj.push_back(std::make_pair("Distribution Name", temp.strDistributionAsset));
     responseObj.push_back(std::make_pair("Distribution Amount", ValueFromAmount(temp.nDistributionAmount)));
     responseObj.push_back(std::make_pair("Status", temp.nStatus));
+    responseObj.push_back(std::make_pair("Distribution Hash", hash.GetHex()));
+    responseObj.push_back(std::make_pair("Paused", temp.nStatus == CRewardSnapshot::PAUSED));
 
     return responseObj;
 }
+UniValue resumerewarddistribution(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error("resumerewarddistribution distribution_hash\nResume an imported, paused reward plan in the selected wallet. Other imported copies must remain paused.\n");
+    CWallet* const wallet = GetWalletForJSONRPCRequest(request);
+    if (!EnsureWalletIsAvailable(wallet, request.fHelp)) return NullUniValue;
+    LOCK2(cs_main, wallet->cs_wallet);
+    EnsureWalletIsUnlocked(wallet);
+    const uint256 hash = ParseHashV(request.params[0], "distribution_hash");
+    auto found = wallet->rewardSnapshots.find(hash);
+    if (found == wallet->rewardSnapshots.end() || found->second.nStatus != CRewardSnapshot::PAUSED)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "No paused distribution with this hash in the selected wallet");
+    CAssetSnapshotDBEntry snapshot;
+    if (!wallet->assetSnapshots->RetrieveOwnershipSnapshot(found->second.strOwnershipAsset, found->second.nHeight, snapshot))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "The ownership snapshot must be restored before resuming this plan");
+    auto plan = found->second;
+    plan.nStatus = CRewardSnapshot::PROCESSING;
+    if (!wallet->assetDistributions->OverrideDistributeSnapshot(hash, plan))
+        throw JSONRPCError(RPC_DATABASE_ERROR, "Cannot save resumed reward plan");
+    found->second = plan;
+    return "Reward distribution resumed in the selected wallet";
+}
+
 #endif
 
 
@@ -480,6 +531,7 @@ static const CRPCCommand commands[] =
     {           //  category    name                          actor (function)             argNames
                 //  ----------- ------------------------      -----------------------      ----------
 #ifdef ENABLE_WALLET
+            {   "rewards",      "resumerewarddistribution", &resumerewarddistribution, true, {"distribution_hash"}},
             {   "rewards",      "requestsnapshot",            &requestsnapshot,            true, {"asset_name", "block_height"}},
             {   "rewards",      "getsnapshotrequest",         &getsnapshotrequest,         true, {"asset_name", "block_height"}},
             {   "rewards",      "listsnapshotrequests",       &listsnapshotrequests,       true, {"asset_name", "block_height"}},

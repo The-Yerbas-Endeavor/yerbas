@@ -12,6 +12,8 @@
 #include <core_io.h>
 #include <net.h>
 #include <base58.h>
+#include <boost/multiprecision/cpp_int.hpp>
+#include <limits>
 #include <consensus/validation.h>
 #include <wallet/coincontrol.h>
 #include <utilmoneystr.h>
@@ -19,167 +21,95 @@
 #include "assetsnapshotdb.h"
 #include "wallet/wallet.h"
 
-std::map<uint256, CRewardSnapshot> mapRewardSnapshots;
+
 
 uint256 CRewardSnapshot::GetHash() const
 {
     return SerializeHash(*this, SER_GETHASH);
 }
 
-bool AddDistributeRewardSnapshot(CRewardSnapshot& p_rewardSnapshot)
+#ifdef ENABLE_WALLET
+bool AddDistributeRewardSnapshot(CWallet& wallet, CRewardSnapshot& p_rewardSnapshot)
 {
+    auto pDistributeSnapshotDb = wallet.assetDistributions.get();
+    auto& mapRewardSnapshots = wallet.rewardSnapshots;
+
     auto hash = p_rewardSnapshot.GetHash();
     CRewardSnapshot temp;
     if (pDistributeSnapshotDb->RetrieveDistributeSnapshotRequest(hash, temp)) {
         return false;
     }
 
-    if (pDistributeSnapshotDb->AddDistributeSnapshot(hash, p_rewardSnapshot)) {
-        mapRewardSnapshots[hash] = p_rewardSnapshot;
-    }
+    if (!pDistributeSnapshotDb->AddDistributeSnapshot(hash, p_rewardSnapshot)) return false;
+    mapRewardSnapshots[hash] = p_rewardSnapshot;
 
     return true;
 }
 
-bool GenerateDistributionList(const CRewardSnapshot& p_rewardSnapshot, std::vector<OwnerAndAmount>& vecDistributionList)
+bool CalculateRewardPayments(CAmount budget, int units, const std::vector<OwnerAndAmount>& owners,
+                             std::vector<OwnerAndAmount>& payments)
 {
-    vecDistributionList.clear();
-
-    if (passets == nullptr) {
-        LogPrint(BCLog::REWARDS, "%s: Invalid assets cache!\n", __func__);
-        return false;
+    payments.clear();
+    if (budget <= 0 || units < 0 || units > 8) return false;
+    CAmount quantum = 1;
+    for (int i = units; i < 8; ++i) quantum *= 10;
+    CAmount total = 0;
+    std::set<std::string> addresses;
+    for (const auto& owner : owners) {
+        if (owner.amount < 0 || owner.amount > std::numeric_limits<CAmount>::max() - total ||
+            !addresses.insert(owner.address).second) return false;
+        total += owner.amount;
     }
-    if (pSnapshotRequestDb == nullptr) {
-        LogPrint(BCLog::REWARDS, "%s: Invalid Snapshot Request cache!\n", __func__);
-        return false;
+    if (total == 0) return false;
+    // A signed 64-bit amount times another fits in unsigned 128 bits. Never
+    // convert monetary amounts through floating point (notably on Windows).
+    const boost::multiprecision::uint128_t wholeUnits = budget / quantum;
+    for (const auto& owner : owners) {
+        const auto share = (wholeUnits * owner.amount / total).convert_to<CAmount>();
+        if (share > 0) payments.emplace_back(owner.address, share * quantum);
     }
-    if (pAssetSnapshotDb == nullptr) {
-        LogPrint(BCLog::REWARDS, "%s: Invalid asset snapshot cache!\n", __func__);
-        return false;
-    }
-
-    //  Get details on the specified source asset
-    CNewAsset distributionAsset;
-    //bool srcIsIndivisible = false;
-    CAmount srcUnitDivisor = COIN;  //  Default to divisor for YERB
-    const int8_t COIN_DIGITS_PAST_DECIMAL = 8;
-
-    //  This value is in indivisible units of the source asset
-    CAmount modifiedPaymentInAssetUnits = p_rewardSnapshot.nDistributionAmount;
-
-    if (p_rewardSnapshot.strDistributionAsset != "YERB" && p_rewardSnapshot.strDistributionAsset != "tYERB") {
-        if (!passets->GetAssetMetaDataIfExists(p_rewardSnapshot.strDistributionAsset, distributionAsset)) {
-            LogPrint(BCLog::REWARDS, "%s: Failed to retrieve asset details for '%s'\n", __func__, p_rewardSnapshot.strDistributionAsset.c_str());
-            return false;
-        }
-
-        //  If the token is indivisible, signal this to later code with a zero divisor
-        if (distributionAsset.units == 0) {
-            //srcIsIndivisible = true;
-        }
-
-        srcUnitDivisor = static_cast<CAmount>(pow(10, distributionAsset.units));
-
-        CAmount srcDivisor = pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units);
-        modifiedPaymentInAssetUnits /= srcDivisor;
-
-        LogPrint(BCLog::REWARDS, "%s: Distribution asset '%s' has units %d and divisor %d\n", __func__,
-                 p_rewardSnapshot.strDistributionAsset.c_str(), distributionAsset.units, srcUnitDivisor);
-    }
-    else {
-        LogPrint(BCLog::REWARDS, "%s: Distribution is YERB with divisor %d\n", __func__, srcUnitDivisor);
-    }
-
-    LogPrint(BCLog::REWARDS, "%s: Scaled payment amount in %s is %d\n", __func__,
-             p_rewardSnapshot.strDistributionAsset.c_str(), modifiedPaymentInAssetUnits);
-
-    //  Get details on the ownership asset
-    CNewAsset ownershipAsset;
-    CAmount tgtUnitDivisor = 0;
-    if (!passets->GetAssetMetaDataIfExists(p_rewardSnapshot.strOwnershipAsset, ownershipAsset)) {
-        LogPrint(BCLog::REWARDS, "%s: Failed to retrieve asset details for '%s'\n", __func__, p_rewardSnapshot.strOwnershipAsset.c_str());
-        return false;
-    }
-
-    //  Save the ownership asset's divisor
-    tgtUnitDivisor = static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - ownershipAsset.units));
-
-    LogPrint(BCLog::REWARDS, "%s: Ownership asset '%s' has units %d and divisor %d\n", __func__,
-             p_rewardSnapshot.strOwnershipAsset.c_str(), ownershipAsset.units, tgtUnitDivisor);
-
-    //  Remove exception addresses & amounts from the list
-    std::set<std::string> exceptionAddressSet;
-    boost::split(exceptionAddressSet, p_rewardSnapshot.strExceptionAddresses, boost::is_any_of(ADDRESS_COMMA_DELIMITER));
-
-    std::set<OwnerAndAmount> nonExceptionOwnerships;
-    CAmount totalAmtOwned = 0;
-
-    CAssetSnapshotDBEntry snapshotEntry;
-    if (!pAssetSnapshotDb->RetrieveOwnershipSnapshot(p_rewardSnapshot.strOwnershipAsset, p_rewardSnapshot.nHeight, snapshotEntry)) {
-        LogPrint(BCLog::REWARDS, "%s: Failed to retrieve ownership snapshot list!\n", __func__);
-        return false;
-    }
-
-    for (auto const & currPair : snapshotEntry.ownersAndAmounts) {
-        //  Ignore exception and burn addresses
-        if (
-                exceptionAddressSet.find(currPair.first) == exceptionAddressSet.end()
-                && !Params().IsBurnAddress(currPair.first)
-                ) {
-            //  Address is valid so add it to the payment list
-            nonExceptionOwnerships.insert(OwnerAndAmount(currPair.first, currPair.second));
-            totalAmtOwned += currPair.second;
-        }
-    }
-
-    //  Make sure we have some addresses to pay to
-    if (nonExceptionOwnerships.size() == 0) {
-        LogPrint(BCLog::REWARDS, "%s: Ownership of '%s' includes only exception/burn addresses.\n", __func__,
-                 p_rewardSnapshot.strOwnershipAsset.c_str());
-        return false;
-    }
-
-    LogPrint(BCLog::REWARDS, "%s: Total amount owned %d\n", __func__,
-             totalAmtOwned);
-
-    LogPrint(BCLog::REWARDS, "%s: Total payout amount %d\n", __func__,
-             modifiedPaymentInAssetUnits);
-
-    CAmount totalSentAsRewards = 0;
-    //  Loop through asset owners
-    for (auto & ownership : nonExceptionOwnerships) {
-        // Get percentage of total ownership
-        long double percent = (long double)ownership.amount / (long double)totalAmtOwned;
-        // Caculate the reward with potentional unit inaccurancies e.g with units 4, 90054100 satoshis = 0.90054100
-        CAmount rewardAmt = percent * modifiedPaymentInAssetUnits * static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units));
-        // Remove all none accurate units e.g with units 4 90054100 => 9005
-        rewardAmt /= static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units));
-        // Replace all none accurate units back with zeros e.g with units 4 9005 => 90050000 satoshis = 0.90050000
-        rewardAmt *= static_cast<CAmount>(pow(10, COIN_DIGITS_PAST_DECIMAL - distributionAsset.units));
-
-        totalSentAsRewards += rewardAmt;
-
-        LogPrint(BCLog::REWARDS, "%s: Found ownership address for '%s': '%s' owns %d => reward %d\n", __func__,
-                 p_rewardSnapshot.strOwnershipAsset.c_str(), ownership.address.c_str(),
-                 ownership.amount, rewardAmt);
-
-        //  Save it into our list if the reward payment is above zero
-        if (rewardAmt > 0)
-            vecDistributionList.push_back(OwnerAndAmount(ownership.address, rewardAmt));
-    }
-
-    CAmount change = totalAmtOwned - totalSentAsRewards;
-    if (change > 0) {
-        LogPrint(BCLog::REWARDS, "%s: Found change amount of %u\n", __func__, change);
-    }
-
-    return true;
+    return !payments.empty();
 }
 
-#ifdef ENABLE_WALLET
+bool GenerateDistributionList(CWallet& wallet, const CRewardSnapshot& plan, std::vector<OwnerAndAmount>& payments)
+{
+    payments.clear();
+    if (!passets || !wallet.assetSnapshots) return false;
+    int units = 8;
+    if (plan.strDistributionAsset != "YERB" && plan.strDistributionAsset != "tYERB") {
+        CNewAsset asset;
+        if (!passets->GetAssetMetaDataIfExists(plan.strDistributionAsset, asset)) return false;
+        units = asset.units;
+    }
+    CAssetSnapshotDBEntry snapshot;
+    if (!wallet.assetSnapshots->RetrieveOwnershipSnapshot(plan.strOwnershipAsset, plan.nHeight, snapshot)) return false;
+    std::set<std::string> exceptions;
+    boost::split(exceptions, plan.strExceptionAddresses, boost::is_any_of(ADDRESS_COMMA_DELIMITER));
+    std::vector<OwnerAndAmount> owners;
+    for (const auto& entry : snapshot.ownersAndAmounts) {
+        if (!exceptions.count(entry.first) && !Params().IsBurnAddress(entry.first))
+            owners.emplace_back(entry.first, entry.second);
+    }
+    return CalculateRewardPayments(plan.nDistributionAmount, units, owners, payments);
+}
+
+// Never replace an existing reservation, even if its wallet transaction is
+// missing. An interrupted commit needs operator review, not a second payment.
+bool ReserveRewardPayment(CWallet& wallet, const uint256& plan, int batch, const uint256& txid)
+{
+    LOCK(wallet.cs_wallet);
+    uint256 existing;
+    if (batch < 0 || txid.IsNull() || !wallet.assetDistributions ||
+        wallet.assetDistributions->GetDistributeTransaction(plan, batch, existing)) return false;
+    return wallet.assetDistributions->AddDistributeTransaction(plan, batch, txid);
+}
 
 void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewardSnapshot)
 {
+    auto pDistributeSnapshotDb = (*p_wallet).assetDistributions.get();
+    auto pAssetSnapshotDb = (*p_wallet).assetSnapshots.get();
+
+    if (p_rewardSnapshot.nStatus == CRewardSnapshot::PAUSED) return;
     if (p_wallet->IsLocked()) {
         LogPrint(BCLog::REWARDS, "Skipping distribution: Wallet is locked!\n");
         return;
@@ -200,13 +130,21 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
 
     //  Generate payment transactions and store in the payments DB
     std::vector<OwnerAndAmount> paymentDetails;
-    if (!GenerateDistributionList(p_rewardSnapshot, paymentDetails)) {
+    if (!GenerateDistributionList(*p_wallet, p_rewardSnapshot, paymentDetails)) {
         LogPrint(BCLog::REWARDS, "Failed to generate payment details!\n");
         return;
     }
 
-    int nNumberOfTransactions = ((int)paymentDetails.size() / MAX_PAYMENTS_PER_TRANSACTION) + 1;
-    CRewardSnapshot copyRewardSnapshot = p_rewardSnapshot;
+    int nNumberOfTransactions = ((int)paymentDetails.size() + MAX_PAYMENTS_PER_TRANSACTION - 1) / MAX_PAYMENTS_PER_TRANSACTION;
+    auto setStatus = [&](int status) {
+        CRewardSnapshot updated = p_rewardSnapshot;
+        updated.nStatus = status;
+        if (updated.nStatus == p_rewardSnapshot.nStatus) return;
+        if (!pDistributeSnapshotDb->OverrideDistributeSnapshot(updated.GetHash(), updated))
+            throw std::runtime_error("Cannot save reward distribution status");
+        p_wallet->rewardSnapshots[updated.GetHash()] = updated;
+    };
+    bool allConfirmed = true;
     for (int i = 0; i < nNumberOfTransactions; i++) {
         uint256 txid;
         if (pDistributeSnapshotDb->GetDistributeTransaction(p_rewardSnapshot.GetHash(), i, txid)) {
@@ -216,9 +154,11 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
             if (walletTx) {
                 int depth = walletTx->GetDepthInMainChain();
                 if (depth < 0) {
+                    setStatus(CRewardSnapshot::STUCK_TX);
                     LogPrint(BCLog::REWARDS, "Failed distribution: Tx conflict with another tx: %s: number of block back %d!\n", txid.GetHex(), depth);
                     return;
                 } else if (depth == 0) {
+                    setStatus(CRewardSnapshot::PROCESSING);
                     LogPrint(BCLog::REWARDS, "Tx is in the mempool! %s\n", txid.GetHex());
                     return;
                 } else if (depth > 0) {
@@ -226,9 +166,19 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                     continue;
                 }
             } else {
+                setStatus(CRewardSnapshot::STUCK_TX);
                 LogPrint(BCLog::REWARDS, "Failed to get wallet Tx: %s\n", txid.GetHex());
+                return; // Do not advance a plan whose recorded payment is absent.
             }
         } else {
+            // Never recreate a payment from a completed or inconsistent plan
+            // merely because its transaction reference cannot be read.
+            if (p_rewardSnapshot.nStatus == CRewardSnapshot::COMPLETE ||
+                p_rewardSnapshot.nStatus == CRewardSnapshot::STUCK_TX) {
+                setStatus(CRewardSnapshot::STUCK_TX);
+                return;
+            }
+            allConfirmed = false;
             LogPrint(BCLog::REWARDS, "Didn't find transaction in database creating new transaction: %s %s %d %d\n", p_rewardSnapshot.strOwnershipAsset, p_rewardSnapshot.strDistributionAsset, p_rewardSnapshot.nDistributionAmount, i);
             // Create a new transaction and database it
             int start = i * MAX_PAYMENTS_PER_TRANSACTION;
@@ -238,9 +188,12 @@ void DistributeRewardSnapshot(CWallet * p_wallet, const CRewardSnapshot& p_rewar
                 LogPrint(BCLog::REWARDS, "Failed to build Tx: distribute: %s, amount: %d\n", p_rewardSnapshot.strDistributionAsset, p_rewardSnapshot.nDistributionAmount);
                 return;
             }
-            pDistributeSnapshotDb->AddDistributeTransaction(p_rewardSnapshot.GetHash(), i, retTxid);
+            // BuildTransaction reserves the batch durably before committing it.
         }
     }
+    // Recheck even completed plans: a reorganization can unconfirm a payment.
+    // Never mark a newly broadcast batch complete before it is mined.
+    setStatus(allConfirmed ? CRewardSnapshot::COMPLETE : CRewardSnapshot::PROCESSING);
 }
 
 bool BuildTransaction(
@@ -248,6 +201,9 @@ bool BuildTransaction(
         const std::vector<OwnerAndAmount> & p_pendingPayments,const int& start,
         std::string& change_address, uint256& retTxid)
 {
+    auto pDistributeSnapshotDb = (*p_walletPtr).assetDistributions.get();
+    auto& mapRewardSnapshots = (*p_walletPtr).rewardSnapshots;
+
     int expectedCount = 0;
     int actualCount = 0;
     CValidationState state;
@@ -325,6 +281,11 @@ bool BuildTransaction(
             return false;
         }
 
+        if (!ReserveRewardPayment(*p_walletPtr, rewardSnapshotHash,
+                                  start / MAX_PAYMENTS_PER_TRANSACTION, txnPtr->GetHash())) {
+            LogPrint(BCLog::REWARDS, "Cannot reserve reward payment; refusing to commit\n");
+            return false;
+        }
         if (!p_walletPtr->CommitTransaction(*txnPtr.get(), *reserveKeyPtr.get(), g_connman.get(), state)) {
             mapRewardSnapshots[rewardSnapshotHash].nStatus = CRewardSnapshot::FAILED_COMMIT_TRANSACTION;
             pDistributeSnapshotDb->OverrideDistributeSnapshot(rewardSnapshotHash, mapRewardSnapshots.at(rewardSnapshotHash));
@@ -339,7 +300,7 @@ bool BuildTransaction(
 
         // Get the total amount of distribution assets this wallet has
         CAmount totalAssetBalance = 0;
-        GetMyAssetBalance(p_rewardSnapshot.strDistributionAsset, totalAssetBalance, 0);
+        GetMyAssetBalance(*p_walletPtr, p_rewardSnapshot.strDistributionAsset, totalAssetBalance, 0);
 
         //  This should (due to external logic) only include pending payments
         for (int i = start; i < (int)p_pendingPayments.size() && i < stop; i++) {
@@ -368,6 +329,11 @@ bool BuildTransaction(
             return false;
         }
 
+        if (!ReserveRewardPayment(*p_walletPtr, rewardSnapshotHash,
+                                  start / MAX_PAYMENTS_PER_TRANSACTION, txnPtr->GetHash())) {
+            LogPrint(BCLog::REWARDS, "Cannot reserve reward payment; refusing to commit\n");
+            return false;
+        }
         if (!p_walletPtr->CommitTransaction(*txnPtr.get(), *reserveKeyPtr.get(), g_connman.get(), state)) {
             mapRewardSnapshots[rewardSnapshotHash].nStatus = CRewardSnapshot::FAILED_COMMIT_TRANSACTION;
             pDistributeSnapshotDb->OverrideDistributeSnapshot(rewardSnapshotHash, mapRewardSnapshots.at(rewardSnapshotHash));
@@ -384,6 +350,10 @@ bool BuildTransaction(
 
 void CheckRewardDistributions(CWallet * p_wallet)
 {
+    LOCK(p_wallet->cs_wallet);
+    auto& mapRewardSnapshots = (*p_wallet).rewardSnapshots;
+
+    if (!fAssetIndex) return;
     for (auto item : mapRewardSnapshots) {
         DistributeRewardSnapshot(p_wallet, item.second);
     }

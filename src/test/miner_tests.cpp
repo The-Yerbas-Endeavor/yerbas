@@ -22,10 +22,15 @@
 #include "test/test_yerbas.h"
 
 #include <memory>
+#include <string>
 
 #include <boost/test/unit_test.hpp>
 
-BOOST_FIXTURE_TEST_SUITE(miner_tests, TestingSetup)
+struct MinerTestingSetup : TestingSetup {
+    MinerTestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
+};
+
+BOOST_FIXTURE_TEST_SUITE(miner_tests, MinerTestingSetup)
 
 static CFeeRate blockMinFeeRate = CFeeRate(DEFAULT_BLOCK_MIN_TX_FEE);
 
@@ -107,20 +112,20 @@ void TestPackageSelection(const CChainParams& chainparams, CScript scriptPubKey,
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vin[0].prevout.n = 0;
     tx.vout.resize(1);
-    tx.vout[0].nValue = 5000000000LL - 1000;
+    tx.vout[0].nValue = txFirst[0]->vout[0].nValue - 1000;
     // This tx has a low fee: 1000 satoshis
     uint256 hashParentTx = tx.GetHash(); // save this txid for later use
     mempool.addUnchecked(hashParentTx, entry.Fee(1000).Time(GetTime()).SpendsCoinbase(true).FromTx(tx));
 
     // This tx has a medium fee: 10000 satoshis
     tx.vin[0].prevout.hash = txFirst[1]->GetHash();
-    tx.vout[0].nValue = 5000000000LL - 10000;
+    tx.vout[0].nValue = txFirst[1]->vout[0].nValue - 10000;
     uint256 hashMediumFeeTx = tx.GetHash();
     mempool.addUnchecked(hashMediumFeeTx, entry.Fee(10000).Time(GetTime()).SpendsCoinbase(true).FromTx(tx));
 
     // This tx has a high fee, but depends on the first transaction
     tx.vin[0].prevout.hash = hashParentTx;
-    tx.vout[0].nValue = 5000000000LL - 1000 - 50000; // 50k satoshi fee
+    tx.vout[0].nValue = txFirst[0]->vout[0].nValue - 1000 - 50000; // 50k satoshi fee
     uint256 hashHighFeeTx = tx.GetHash();
     mempool.addUnchecked(hashHighFeeTx, entry.Fee(50000).Time(GetTime()).SpendsCoinbase(false).FromTx(tx));
 
@@ -131,7 +136,7 @@ void TestPackageSelection(const CChainParams& chainparams, CScript scriptPubKey,
 
     // Test that a package below the block min tx fee doesn't get included
     tx.vin[0].prevout.hash = hashHighFeeTx;
-    tx.vout[0].nValue = 5000000000LL - 1000 - 50000; // 0 fee
+    tx.vout[0].nValue = txFirst[0]->vout[0].nValue - 1000 - 50000; // 0 fee
     uint256 hashFreeTx = tx.GetHash();
     mempool.addUnchecked(hashFreeTx, entry.Fee(0).FromTx(tx));
     size_t freeTxSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
@@ -141,7 +146,7 @@ void TestPackageSelection(const CChainParams& chainparams, CScript scriptPubKey,
     CAmount feeToUse = blockMinFeeRate.GetFee(2*freeTxSize) - 1;
 
     tx.vin[0].prevout.hash = hashFreeTx;
-    tx.vout[0].nValue = 5000000000LL - 1000 - 50000 - feeToUse;
+    tx.vout[0].nValue = txFirst[0]->vout[0].nValue - 1000 - 50000 - feeToUse;
     uint256 hashLowFeeTx = tx.GetHash();
     mempool.addUnchecked(hashLowFeeTx, entry.Fee(feeToUse).FromTx(tx));
     pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey);
@@ -167,8 +172,8 @@ void TestPackageSelection(const CChainParams& chainparams, CScript scriptPubKey,
     // Add a 0-fee transaction that has 2 outputs.
     tx.vin[0].prevout.hash = txFirst[2]->GetHash();
     tx.vout.resize(2);
-    tx.vout[0].nValue = 5000000000LL - 100000000;
-    tx.vout[1].nValue = 100000000; // 1BTC output
+    tx.vout[0].nValue = txFirst[2]->vout[0].nValue - 100000000;
+    tx.vout[1].nValue = 100000000; // 1 YERB output
     uint256 hashFreeTx2 = tx.GetHash();
     mempool.addUnchecked(hashFreeTx2, entry.Fee(0).SpendsCoinbase(true).FromTx(tx));
 
@@ -176,7 +181,7 @@ void TestPackageSelection(const CChainParams& chainparams, CScript scriptPubKey,
     tx.vin[0].prevout.hash = hashFreeTx2;
     tx.vout.resize(1);
     feeToUse = blockMinFeeRate.GetFee(freeTxSize);
-    tx.vout[0].nValue = 5000000000LL - 100000000 - feeToUse;
+    tx.vout[0].nValue = txFirst[2]->vout[0].nValue - 100000000 - feeToUse;
     uint256 hashLowFeeTx2 = tx.GetHash();
     mempool.addUnchecked(hashLowFeeTx2, entry.Fee(feeToUse).SpendsCoinbase(false).FromTx(tx));
     pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey);
@@ -199,7 +204,7 @@ void TestPackageSelection(const CChainParams& chainparams, CScript scriptPubKey,
 // NOTE: These tests rely on CreateNewBlock doing its own self-validation!
 BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
 {
-    const auto chainParams = CreateChainParams(CBaseChainParams::MAIN);
+    const auto chainParams = CreateChainParams(CBaseChainParams::REGTEST);
     const CChainParams& chainparams = *chainParams;
     CScript scriptPubKey = CScript() << ParseHex("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f") << OP_CHECKSIG;
     std::unique_ptr<CBlockTemplate> pblocktemplate, pemptyblocktemplate;
@@ -222,18 +227,17 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
 
     auto createAndProcessEmptyBlock = [&]() {
         int i = chainActive.Height();
+        // Rebuild for the current tip so Yerbas coinbase payloads and quorum
+        // commitments carry the correct height. Use spendable test outputs.
+        // Exclude ordinary mempool transactions while retaining any required
+        // quorum commitments in this deliberately empty block.
+        BlockAssembler::Options emptyOptions;
+        emptyOptions.blockMinFeeRate = CFeeRate(MAX_MONEY);
+        pemptyblocktemplate = BlockAssembler(chainparams, emptyOptions).CreateNewBlock(CScript());
         CBlock *pblock = &pemptyblocktemplate->block; // pointer for convenience
         {
             LOCK(cs_main);
-            pblock->nVersion = 2;
             pblock->nTime = chainActive.Tip()->GetMedianTimePast()+1;
-            CMutableTransaction txCoinbase(*pblock->vtx[0]);
-            txCoinbase.nVersion = 1;
-            txCoinbase.vin[0].scriptSig = CScript() << (chainActive.Height() + 1);
-            txCoinbase.vin[0].scriptSig.push_back(blockinfo[i].extranonce);
-            txCoinbase.vin[0].scriptSig.push_back(chainActive.Height());
-            txCoinbase.vout[0].scriptPubKey = CScript();
-            pblock->vtx[0] = MakeTransactionRef(std::move(txCoinbase));
             if (txFirst.size() == 0)
                 baseheight = chainActive.Height();
             if (txFirst.size() < 4)
@@ -263,12 +267,14 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     // Just to make sure we can still make simple blocks
     BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
 
-    const CAmount BLOCKSUBSIDY = 500*COIN;
-    const CAmount LOWFEE = CENT;
-    const CAmount HIGHFEE = COIN;
-    const CAmount HIGHERFEE = 4*COIN;
+    const CAmount BLOCKSUBSIDY = txFirst[0]->vout[0].nValue;
+    // Keep the sigop-limit chain within the initial 4.20 YERB reward.
+    const CAmount LOWFEE = CENT / 10;
+    const CAmount HIGHFEE = CENT;
+    const CAmount HIGHERFEE = 4*CENT;
 
-    // block sigops > limit: 1000 CHECKMULTISIG + 1
+    // Exceed the active Yerbas sigop limit by one CHECKMULTISIG transaction.
+    const unsigned int sigopTxCount = MaxBlockSigOps(chainparams.GetConsensus().DIP0001Enabled) / 20 + 1;
     tx.vin.resize(1);
     // NOTE: OP_NOP is used to force 20 SigOps for the CHECKMULTISIG
     tx.vin[0].scriptSig = CScript() << OP_0 << OP_0 << OP_0 << OP_NOP << OP_CHECKMULTISIG << OP_1;
@@ -276,7 +282,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[0].prevout.n = 0;
     tx.vout.resize(1);
     tx.vout[0].nValue = BLOCKSUBSIDY;
-    for (unsigned int i = 0; i < 1001; ++i)
+    for (unsigned int i = 0; i < sigopTxCount; ++i)
     {
         tx.vout[0].nValue -= LOWFEE;
         hash = tx.GetHash();
@@ -290,7 +296,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
 
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vout[0].nValue = BLOCKSUBSIDY;
-    for (unsigned int i = 0; i < 1001; ++i)
+    for (unsigned int i = 0; i < sigopTxCount; ++i)
     {
         tx.vout[0].nValue -= LOWFEE;
         hash = tx.GetHash();
@@ -311,7 +317,9 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[0].scriptSig << OP_1;
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();
     tx.vout[0].nValue = BLOCKSUBSIDY;
-    for (unsigned int i = 0; i < 128; ++i)
+    const unsigned int oversizedTxCount = MaxBlockSize(chainparams.GetConsensus().DIP0001Enabled) /
+        ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) + 1;
+    for (unsigned int i = 0; i < oversizedTxCount; ++i)
     {
         tx.vout[0].nValue -= LOWFEE;
         hash = tx.GetHash();
@@ -497,13 +505,13 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
     tx.vin[0].nSequence = CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG | 1;
     BOOST_CHECK(!TestSequenceLocks(tx, flags)); // Sequence locks fail
 
-    BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
-
-    // None of the of the absolute height/time locked tx should have made
-    // it into the template because we still check IsFinalTx in CreateNewBlock,
-    // but relative locked txs will if inconsistently added to mempool.
-    // For now these will still generate a valid template until BIP68 soft fork
-    BOOST_CHECK_EQUAL(pblocktemplate->block.vtx.size(), 3);
+    // BIP68 is already active on Yerbas regtest. Deliberately inserting
+    // relative-locked transactions without mempool admission checks must make
+    // the assembler's final block validation reject the template.
+    BOOST_CHECK_EXCEPTION(AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey),
+                         std::runtime_error, [](const std::runtime_error& error) {
+        return std::string(error.what()).find("bad-txns-nonfinal") != std::string::npos;
+    });
     // However if we advance height by 1 and time by 512, all of them should be mined
     for (int i = 0; i < CBlockIndex::nMedianTimeSpan; i++)
         chainActive.Tip()->GetAncestor(chainActive.Tip()->nHeight - i)->nTime += 512; //Trick the MedianTimePast
