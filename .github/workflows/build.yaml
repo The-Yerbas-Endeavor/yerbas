@@ -65,6 +65,11 @@ jobs:
             container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
             host: x86_64-pc-linux-gnu
             extension: ''
+          - name: Ubuntu 22 ARM64
+            id: ubuntu22-arm64
+            runner: ubuntu-22.04-arm
+            host: aarch64-linux-gnu
+            extension: ''
           - name: Ubuntu 24 ARM64
             id: ubuntu24-arm64
             runner: ubuntu-24.04-arm
@@ -432,6 +437,10 @@ jobs:
             id: debian13
             runner: ubuntu-24.04
             container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
+            binary: test_yerbas
+          - name: Ubuntu 22 ARM64
+            id: ubuntu22-arm64
+            runner: ubuntu-22.04-arm
             binary: test_yerbas
           - name: Ubuntu 24 ARM64
             id: ubuntu24-arm64
