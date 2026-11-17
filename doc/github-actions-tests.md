@@ -15,6 +15,7 @@ available in the Actions UI once the workflow exists on the default branch.
 | Ubuntu 22 | Ubuntu 22.04, x86_64 | Ubuntu 22.04 |
 | Ubuntu 24 | Ubuntu 24.04, x86_64 | Ubuntu 24.04 |
 | Ubuntu 26 | Ubuntu 26.04, x86_64 | Ubuntu 26.04 |
+| Ubuntu 22 ARM64 | Ubuntu 22.04 ARM64, native aarch64 | Ubuntu 22.04 ARM64 |
 | Ubuntu 24 ARM64 | Ubuntu 24.04 ARM64, native aarch64 | Ubuntu 24.04 ARM64 |
 | macOS 15 Intel | macOS 15, native Apple Clang x86_64 | macOS 15 Intel |
 | Windows 64-bit | Ubuntu 26.04, MinGW POSIX | Windows Server 2022 |
@@ -23,7 +24,7 @@ Each build compiles the Qt wallet, daemon, CLI, core unit tests and Qt wallet te
 Pinned depends libraries are combined with the platform's Qt build described in
 [CI artifacts](ci-qt-artifacts.md). UPnP is disabled in these release builds.
 The workflow builds and tests archives; it does not publish a GitHub release.
-Linux ARM64 uses `ubuntu-24.04-arm`; macOS uses `macos-15-intel`, targets macOS 15,
+Linux ARM64 uses `ubuntu-22.04-arm` and `ubuntu-24.04-arm`; macOS uses `macos-15-intel`, targets macOS 15,
 and bundles Qt. Apple Silicon is not included.
 
 Artifacts are kept for 14 days:
