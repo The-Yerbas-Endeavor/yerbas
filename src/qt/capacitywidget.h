@@ -1,94 +1,71 @@
 #ifndef YERBAS_QT_CAPACITYWIDGET_H
 #define YERBAS_QT_CAPACITYWIDGET_H
 #include "rentalwidget.h"
+#include <QProcess>
+#include <QComboBox>
+#include <QMessageBox>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QCoreApplication>
+#include <QFileInfo>
 
 class CapacityWidget : public QWidget {
+ QTableWidget* devices;QLabel* summary;QPushButton* refresh;QProcess* worker;QTimer* timeout;
+ QJsonArray inventory;QByteArray response;bool busy=false;QString helper;
+ void fail(const QString& message){summary->setText(message);inventory={};devices->setRowCount(0);busy=false;refresh->setEnabled(true);timeout->stop();}
+ void send(const QJsonObject& request){
+  if(busy)return;
+  if(!QFileInfo::exists(helper)){fail(tr("GPU controls are not installed. No availability changes were made."));return;}
+  busy=true;response.clear();refresh->setEnabled(false);devices->setEnabled(false);
+  summary->setText(tr("Checking detected GPUs and current availability…"));
+  worker->setProgram("/usr/bin/python3");worker->setArguments({"-I","-B",helper});
+  worker->start();
+  worker->write(QJsonDocument(request).toJson(QJsonDocument::Compact));worker->closeWriteChannel();timeout->start(30000);
+ }
+ void render(const QJsonObject& r){
+  if(r["protocol"]!="wallet-multi-gpu-v1"||r["provider"]!=QSysInfo::machineHostName()||!r["gpus"].isArray()||r["gpus"].toArray().size()>32||r["gpu_started"]!=QJsonValue(false)||r["coins_sent"]!=QJsonValue(false)) {fail(tr("GPU response could not be verified. Refresh before changing availability."));return;}
+  const auto rows=r["gpus"].toArray();QSet<QString> seen;
+  for(const auto& value:rows){const auto g=value.toObject();const auto uuid=g["gpu_uuid"].toString();
+   if(!QRegularExpression("^GPU-[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$").match(uuid).hasMatch()||seen.contains(uuid)||!g["enrolled"].isBool()||!g["display_active"].isBool()||!QStringList{"offer","paused","reserved"}.contains(g["mode"].toString())||!g["revision"].isDouble()||g["revision"].toDouble()<0){fail(tr("Invalid GPU inventory. No new work was started."));return;}seen.insert(uuid);
+  }
+  inventory=rows;devices->setRowCount(rows.size());
+  for(int i=0;i<rows.size();++i){const auto g=rows[i].toObject();
+   auto* name=new QTableWidgetItem(tr("GPU %1 · %2").arg(g["index"].toInt()).arg(g["name"].toString()));name->setToolTip(g["gpu_uuid"].toString());devices->setItem(i,0,name);
+   devices->setItem(i,1,new QTableWidgetItem(tr("%1 / %2 MiB free").arg(g["free_mib"].toInt()).arg(g["total_mib"].toInt())));
+   devices->setItem(i,2,new QTableWidgetItem(g["display_active"].toBool()?tr("Desktop GPU"):tr("No active display")));
+   QString state=g["active_assignment"].toBool()?tr("Busy — current job continues"):g["state"]=="offered"?tr("Offered (up to 10 minutes)"):g["state"]=="reserved"?tr("Reserved for me"):g["state"]=="expired"?tr("Offer expired"):tr("Paused");
+   if(!g["enrolled"].toBool())state=tr("Setup required before offering");devices->setItem(i,3,new QTableWidgetItem(state));
+   auto* modes=new QComboBox(devices);modes->addItem(tr("Reserve for me"),"reserved");modes->addItem(tr("Pause new offers"),"paused");modes->addItem(tr("Offer this GPU"),"offer");modes->setAccessibleName(tr("Availability for GPU %1").arg(g["index"].toInt()));modes->setCurrentIndex(modes->findData(g["mode"].toString()));devices->setCellWidget(i,4,modes);
+   auto* apply=new QPushButton(tr("Apply"),devices);apply->setAccessibleName(tr("Apply availability for GPU %1").arg(g["index"].toInt()));devices->setCellWidget(i,5,apply);apply->setEnabled(g["enrolled"].toBool());
+   connect(apply,&QPushButton::clicked,this,[this,g,modes]{
+    if(busy)return;const auto mode=modes->currentData().toString();
+    if(mode=="offer"&&g["display_active"].toBool()&&QMessageBox::question(this,tr("Offer a display GPU?"),tr("This GPU has an active display. Approved AI work may reduce desktop responsiveness. Offer it for up to 10 minutes?"))!=QMessageBox::Yes)return;
+    send(QJsonObject{{"action","set"},{"slot",g["slot"]},{"gpu_uuid",g["gpu_uuid"]},{"mode",mode},{"revision",g["revision"]}});
+   });
+  }
+  devices->resizeRowsToContents();int tableHeight=devices->horizontalHeader()->height()+8;for(int row=0;row<devices->rowCount();++row)tableHeight+=devices->rowHeight(row);devices->setMinimumHeight(qMin(420,qMax(180,tableHeight)));devices->setEnabled(true);busy=false;refresh->setEnabled(true);
+  summary->setText(rows.isEmpty()?tr("No supported NVIDIA GPUs detected."):tr("Choose each GPU separately. Reserved GPUs receive no new offers; active jobs continue. Offers expire after 10 minutes and are never renewed automatically. Listing starts no work and sends no coins."));
+ }
 public:
  explicit CapacityWidget(QWidget* parent=nullptr):QWidget(parent){
-  setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Maximum);
-  auto* box=new QVBoxLayout(this);box->setContentsMargins(0,0,0,0);box->setSpacing(12);
-  auto* title=new QLabel(tr("GPU availability"),this);title->setProperty("role","sectionTitle");box->addWidget(title);
-  auto* help=new QLabel(tr("Advertise one GPU for approved work. Listing does not start a job. Hardware details are self-reported; payment is not enabled."),this);help->setWordWrap(true);box->addWidget(help);
-  auto* row=new QHBoxLayout;
-  description=new QLineEdit(this);description->setObjectName("capacityDescription");description->setMaxLength(80);description->setPlaceholderText(tr("GPU name, e.g. GTX 1080 Ti"));
-  memory=new QSpinBox(this);memory->setObjectName("capacityMemory");memory->setRange(1,1048576);memory->setSuffix(tr(" MiB VRAM"));memory->setValue(11264);
-  minutes=new QSpinBox(this);minutes->setObjectName("capacityMinutes");minutes->setRange(1,15);minutes->setValue(5);minutes->setSuffix(tr(" minutes"));
-  row->addWidget(description,1);row->addWidget(memory);row->addWidget(minutes);box->addLayout(row);
-  row=new QHBoxLayout;
-  refresh=new QPushButton(tr("Refresh availability"),this);refresh->setObjectName("capacityRefresh");
-  publish=new QPushButton(tr("Make available"),this);publish->setObjectName("capacityPublish");publish->setProperty("variant","primary");
-  pause=new QPushButton(tr("Pause new work"),this);pause->setObjectName("capacityPause");
-  row->addWidget(refresh);row->addWidget(publish);row->addWidget(pause);row->addStretch();box->addLayout(row);
-  summary=new QLabel(tr("Availability service unavailable. Connect a compatible owner agent in Setup."),this);summary->setObjectName("capacitySummary");summary->setWordWrap(true);summary->setTextFormat(Qt::PlainText);summary->setProperty("role","card");box->addWidget(summary);
-  socket=new QLocalSocket(this);deadline=new QTimer(this);deadline->setSingleShot(true);
-  connect(refresh,&QPushButton::clicked,this,[this]{send("capacity");});
-  connect(publish,&QPushButton::clicked,this,[this]{if(publish->isEnabled())send("advertise");});
-  connect(pause,&QPushButton::clicked,this,[this]{if(pause->isEnabled())send("pause");});
-  connect(description,&QLineEdit::textChanged,this,[this]{controls();});
-  connect(deadline,&QTimer::timeout,this,[this]{fail();});
-  connect(socket,&QLocalSocket::errorOccurred,this,[this](QLocalSocket::LocalSocketError){if(!id.isEmpty())fail();});
-  connect(socket,&QLocalSocket::connected,this,[this]{
-#ifdef Q_OS_LINUX
-   struct ucred peer;socklen_t n=sizeof(peer);
-   if(::getsockopt(socket->socketDescriptor(),SOL_SOCKET,SO_PEERCRED,&peer,&n)||peer.uid!=::geteuid()){fail();return;}
-   socket->write(QJsonDocument(QJsonObject{{"v",1},{"id",id},{"method","marketplace."+method},{"params",params}}).toJson(QJsonDocument::Compact)+"\n");
-#else
-   fail();
-#endif
+  helper=QCoreApplication::applicationDirPath()+"/gpu-control/gpu_control.py";
+  auto* box=new QVBoxLayout(this);box->setContentsMargins(0,0,0,0);
+  auto* title=new QLabel(tr("Your GPUs"),this);title->setProperty("role","sectionTitle");box->addWidget(title);
+  auto* help=new QLabel(tr("GPUs are detected automatically by their stable device IDs. Reserve your desktop GPU and offer other GPUs for approved testnet work."),this);help->setWordWrap(true);box->addWidget(help);
+  devices=new QTableWidget(0,6,this);devices->setObjectName("gpuDevices");devices->setHorizontalHeaderLabels({tr("GPU"),tr("Memory"),tr("Desktop"),tr("Availability"),tr("Use"),tr("Control")});devices->setEditTriggers(QAbstractItemView::NoEditTriggers);devices->verticalHeader()->hide();devices->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);devices->horizontalHeader()->setSectionResizeMode(0,QHeaderView::Stretch);devices->setMinimumHeight(180);box->addWidget(devices);
+  refresh=new QPushButton(tr("Refresh GPUs"),this);refresh->setObjectName("gpuRefresh");box->addWidget(refresh);
+  summary=new QLabel(this);summary->setObjectName("gpuSummary");summary->setWordWrap(true);summary->setTextFormat(Qt::PlainText);box->addWidget(summary);
+  worker=new QProcess(this);timeout=new QTimer(this);timeout->setSingleShot(true);
+  connect(refresh,&QPushButton::clicked,this,[this]{send({{"action","status"}});});
+  connect(worker,&QProcess::readyReadStandardOutput,this,[this]{response+=worker->readAllStandardOutput();if(response.size()>65536){worker->kill();fail(tr("GPU response too large. Refresh to recover current settings."));}});
+  connect(timeout,&QTimer::timeout,this,[this]{worker->kill();fail(tr("Availability confirmation timed out. A change may have succeeded; refresh before retrying."));});
+  connect(worker,QOverload<int,QProcess::ExitStatus>::of(&QProcess::finished),this,[this](int code,QProcess::ExitStatus status){
+   if(!busy)return;timeout->stop();response+=worker->readAllStandardOutput();auto doc=QJsonDocument::fromJson(response);
+   if(code||status!=QProcess::NormalExit||!doc.isObject()){fail(tr("GPU availability could not be confirmed. ")+doc.object()["error"].toString().left(200)+tr(" Refresh before retrying."));return;}render(doc.object());
   });
-  connect(socket,&QLocalSocket::readyRead,this,[this]{read();});
-  auto* tick=new QTimer(this);tick->setInterval(1000);connect(tick,&QTimer::timeout,this,[this]{
-   if(known&&until>0&&until<=QDateTime::currentSecsSinceEpoch()&&state=="available"){
-    known=false;summary->setText(tr("Availability expired. Refresh before advertising again. Listings are never renewed automatically."));controls();
-   }
-  });tick->start();controls();
+  connect(worker,&QProcess::errorOccurred,this,[this](QProcess::ProcessError e){if(e==QProcess::FailedToStart)fail(tr("GPU detection helper could not start."));});
+  QTimer::singleShot(0,this,[this]{send({{"action","status"}});});
  }
- void setAgent(const QString& path,bool enabled){
-  bool changed=path!=agentPath||enabled!=ready;
-  if(changed){id.clear();deadline->stop();socket->abort();known=false;}
-  agentPath=path;ready=enabled;
-  if(!ready)summary->setText(tr("Availability service unavailable. Your current jobs and wallet are unchanged."));
-  controls();if(changed&&ready)send("capacity");
- }
-private:
- QLineEdit* description;QSpinBox *memory,*minutes;QPushButton *refresh,*publish,*pause;QLabel* summary;
- QLocalSocket* socket;QTimer* deadline;QString agentPath,id,method,state;QJsonObject params;QByteArray bytes;
- bool ready=false,known=false;int revision=0;qint64 until=0;
- void controls(){bool idle=id.isEmpty();bool can=ready&&!agentPath.isEmpty()&&idle;refresh->setEnabled(can);
-  description->setEnabled(idle);memory->setEnabled(idle);minutes->setEnabled(idle);
-  publish->setEnabled(can&&known&&QRegularExpression("^[A-Za-z0-9 ._()+-]{1,80}$").match(description->text()).hasMatch());
-  pause->setEnabled(can&&known&&revision>0&&state!="paused");
- }
- void fail(){id.clear();deadline->stop();socket->abort();known=false;summary->setText(tr("Availability could not be confirmed. A previous change may have succeeded. Refresh to recover its current state before trying again."));controls();}
- void send(const QString& action){
-  if(!ready||!id.isEmpty())return;method=action;params={};
-  if(action=="advertise")params={{"description",description->text()},{"vram_mib",memory->value()},{"ttl_seconds",minutes->value()*60},{"expected_revision",revision}};
-  if(action=="pause")params={{"expected_revision",revision}};
-  bytes.clear();id=QUuid::createUuid().toString(QUuid::Id128);controls();deadline->start(12000);socket->connectToServer(agentPath);
- }
- void read(){
-  bytes+=socket->readAll();if(bytes.size()>16384){fail();return;}if(!bytes.contains('\n'))return;
-  auto doc=QJsonDocument::fromJson(bytes);auto frame=doc.object();
-  if(!doc.isObject()||!bytes.endsWith('\n')||bytes.count('\n')!=1||frame["v"]!=QJsonValue(1)||frame["id"]!=id||frame["ok"]!=QJsonValue(true)){fail();return;}
-  auto r=frame["result"].toObject();
-  if(r["provider"]!=QSysInfo::machineHostName()){fail();return;}
-  if(method=="capacity"){
-   double rev=r["revision"].toDouble(-1);state=r["state"].toString();
-   if(rev<0||rev>2147483647||std::floor(rev)!=rev||!QStringList{"not_listed","available","paused","expired","busy"}.contains(state)
-      ||r["gpu_started"]!=QJsonValue(false)||r["payments_enabled"]!=QJsonValue(false)||r["verified_hardware"]!=QJsonValue(false)||r["automatic_renewal"]!=QJsonValue(false)
-      ||!r["active_job"].isBool()){fail();return;}
-   double observed=r["observed_at"].toDouble(-1), expiry=r["available_until"].toDouble(-1);
-   const double now=QDateTime::currentSecsSinceEpoch();
-   if(observed<now-60||observed>now+60||std::floor(observed)!=observed
-      ||(rev==0&&(state!="not_listed"||!r["available_until"].isNull()))
-      ||(rev>0&&(!r["available_until"].isDouble()||expiry<0||expiry>observed+900||std::floor(expiry)!=expiry))
-      ||(state=="available"&&(expiry<=now||r["active_job"].toBool()))){fail();return;}
-   revision=int(rev);until=rev>0?qint64(expiry):0;known=true;
-   if(description->text().isEmpty()&&revision>0){description->setText(r["description"].toString());memory->setValue(r["vram_mib"].toInt(1));}
-   const QString label=state=="available"?tr("Available for new offers"):state=="paused"?tr("New work paused"):state=="busy"?tr("Busy with assigned work"):state=="expired"?tr("Availability expired"):tr("Not listed");
-   summary->setText(label+"\n\n"+(r["active_job"].toBool()?tr("An assigned job is active. Pausing this listing does not stop that job."):tr("No active assignment is recorded. Listing alone starts no GPU work."))+"\n"+tr("Availability expires automatically. Refresh and explicitly renew to stay listed."));
-  }else known=false;
-  bool refreshAfter=method!="capacity";id.clear();deadline->stop();socket->abort();controls();if(refreshAfter)send("capacity");
- }
+ void setAgent(const QString&,bool){}
 };
 #endif

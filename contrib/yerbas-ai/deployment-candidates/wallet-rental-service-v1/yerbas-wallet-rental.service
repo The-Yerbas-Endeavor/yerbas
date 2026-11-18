@@ -1,0 +1,22 @@
+[Unit]
+Description=Yerbas owner rental settlement control
+After=local-fs.target
+[Service]
+User=yerbas-coordinator
+Group=yerbas-coordinator
+SupplementaryGroups=anno2
+ExecStart=/usr/bin/python3 -I -B /opt/yerbas-ai/wallet-rental-5a7a73dca3425fab/server.py
+RuntimeDirectory=yerbas-wallet-rental
+RuntimeDirectoryMode=0755
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/yerbas-coordinator/cutover-6b369f541521422486b3963d9629cf83/state
+RestrictAddressFamilies=AF_UNIX
+Restart=on-failure
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

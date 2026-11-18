@@ -13,3 +13,6 @@ The private reduced-collateral testnet is selected explicitly with `-testnet=1
 -testnetfastcollateral=1` and a separate data directory. Never reuse mainnet
 wallet data for pilot tests. Ordinary testnet and the reduced-collateral profile
 are different networks. The AI page does not change the node's network flags.
+
+[Commands and abilities](yerbas-ai-commands.md) describes current wallet controls,
+service health checks, testing, and release limitations.

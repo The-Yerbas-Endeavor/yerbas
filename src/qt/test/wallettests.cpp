@@ -2,6 +2,7 @@
 
 #include "qt/bitcoinamountfield.h"
 #include "qt/callback.h"
+#include "qt/clientmodel.h"
 #include "qt/optionsmodel.h"
 #include "qt/platformstyle.h"
 #include "qt/qvalidatedlineedit.h"
@@ -20,6 +21,9 @@
 #include <QComboBox>
 #include <QRadioButton>
 #include <QTimer>
+#include <QFile>
+#include <QScrollArea>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 namespace
@@ -119,6 +123,34 @@ void TestSendCoins()
     WalletModel walletModel(platformStyle.get(), &wallet, &optionsModel);
     sendCoinsDialog.setModel(&walletModel);
 
+    // Render the actual send form in both modern themes when a QA directory is supplied.
+    const QString themeDirectory = qEnvironmentVariable("YERBAS_SEND_THEME_DIR");
+    if (!themeDirectory.isEmpty()) {
+        for (const QString& theme : {QString("dark"), QString("light")}) {
+            QFile css(themeDirectory + "/modern-" + theme + ".css");
+            QVERIFY(css.open(QFile::ReadOnly));
+            sendCoinsDialog.setStyleSheet(QString::fromUtf8(css.readAll()));
+            sendCoinsDialog.resize(1100, 800);
+            sendCoinsDialog.show();
+            QTest::qWait(100);
+            auto* recipients = sendCoinsDialog.findChild<QWidget*>("scrollAreaWidgetContents");
+            QVERIFY(recipients);
+            const QColor expected(theme == "dark" ? "#182225" : "#ffffff");
+            const QImage image = recipients->grab().toImage();
+            QCOMPARE(image.pixelColor(image.width()/2, image.height()-5), expected);
+            QVERIFY(sendCoinsDialog.grab().save("send-" + theme + ".png"));
+        }
+    }
+    auto* recipientAmount = sendCoinsDialog.findChild<BitcoinAmountField*>("payAmount");
+    auto* useBalance = sendCoinsDialog.findChild<QPushButton*>("useAvailableBalanceButton");
+    auto* subtractFee = sendCoinsDialog.findChild<QCheckBox*>("checkboxSubtractFeeFromAmount");
+    QVERIFY(recipientAmount && useBalance && subtractFee);
+    useBalance->click();
+    QVERIFY(recipientAmount->value() > 0);
+    QVERIFY(subtractFee->isChecked());
+    subtractFee->setChecked(false);
+    sendCoinsDialog.hide();
+
     // Exercise real clicks: removed Qt signal names previously left these controls stale.
     auto* smartFee = sendCoinsDialog.findChild<QRadioButton*>("radioSmartFee");
     auto* customFee = sendCoinsDialog.findChild<QRadioButton*>("radioCustomFee");
@@ -144,6 +176,23 @@ void TestSendCoins()
     QVERIFY(!minimumFee->isEnabled());
     QVERIFY(!feeEditor->isEnabled());
     QVERIFY(!feeUnit->isEnabled());
+
+    // An offline GUI must explain the problem before preparing or signing a payment.
+    ClientModel disconnected(&optionsModel);
+    sendCoinsDialog.setClientModel(&disconnected);
+    bool offlineWarning = false;
+    QTimer::singleShot(0, [&offlineWarning]() {
+        for (QWidget* widget : QApplication::topLevelWidgets()) {
+            if (auto* box = qobject_cast<QMessageBox*>(widget)) {
+                offlineWarning = box->text().contains("No transaction has been created");
+                box->accept();
+            }
+        }
+    });
+    QMetaObject::invokeMethod(&sendCoinsDialog, "on_sendButton_clicked");
+    QVERIFY(offlineWarning);
+    QCOMPARE(walletModel.getTransactionTableModel()->rowCount({}), 101);
+    sendCoinsDialog.setClientModel(nullptr);
 
     // Send two transactions within the mature Yerbas reward, and verify the transaction list.
     TransactionTableModel* transactionTableModel = walletModel.getTransactionTableModel();

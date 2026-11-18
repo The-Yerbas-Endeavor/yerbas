@@ -126,7 +126,7 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     auto* title = new QLabel(tr("AI marketplace"), this);title->setProperty("role","pageTitle");
     auto* badge = new QLabel(tr("PRIVATE TESTNET"), this);badge->setProperty("role","badge");
     heading->addWidget(title);heading->addStretch();heading->addWidget(badge);root->addLayout(heading);
-    auto* intro = new QLabel(tr("Put spare GPUs to work. Request approved AI jobs, contribute capacity, and track verified results."),this);
+    auto* intro = new QLabel(tr("Rent GPUs for approved AI jobs or offer spare capacity. Review the price and each job before confirming."),this);
     intro->setWordWrap(true);intro->setProperty("role","subtitle");root->addWidget(intro);
     auto* connectionBar = new QHBoxLayout;root->addLayout(connectionBar);
     auto* sections = new QTabWidget(this);sections->setObjectName("aiWorkspaceTabs");root->addWidget(sections,1);
@@ -138,14 +138,22 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
         auto* caption=new QLabel(help,content);caption->setWordWrap(true);caption->setProperty("role","subtitle");box->addWidget(caption);
         area->setWidget(content);sections->addTab(area,name);return box;
     };
-    auto* buyLayout=section(tr("Buy AI work"),tr("Your next AI job"),tr("Choose an approved recipe and how many work units you need. Available providers are matched for you."));
-    auto* provideLayout=section(tr("Provide GPUs"),tr("Contribute on your terms"),tr("Review assignments before accepting them. You remain in control of starting and stopping work."));
+    auto* buyLayout=section(tr("Rent GPUs"),tr("Start an AI job"),tr("1. Choose your work  ·  2. Review the price  ·  3. Confirm payment  ·  4. Track the result"));
+    auto* provideLayout=section(tr("My GPUs"),tr("Choose which GPUs to offer"),tr("Keep your desktop GPU reserved. Offer spare GPUs, then review each assignment before starting work."));
     auto* rewardsLayout=section(tr("Rewards"),tr("Contributions & rewards"),tr("Track completed work and testnet reward requests. Saved observations are separate from your wallet balance."));
     auto* localLayout=section(tr("Local AI"),tr("Run a model on this computer"),tr("Private local generation works without blockchain synchronization or a wallet unlock."));
     auto* setupLayout=section(tr("Setup"),tr("Connection & diagnostics"),tr("Connect the local owner agent and inspect pilot workspaces. These tools are for the supervised testnet."));
     capacity=new CapacityWidget(this);provideLayout->addWidget(capacity);
     auto* inbox=new ProviderInboxWidget(this);provideLayout->addWidget(inbox);
     connect(this,&YerbasAIPage::marketplaceAgentChanged,inbox,[inbox](const QString& path,bool ready){inbox->setAgent(path,ready);});
+    auto* advancedProvider=new QPushButton(tr("Advanced: preassigned demo jobs"),this);
+    advancedProvider->setObjectName("aiAdvancedProvider");advancedProvider->setCheckable(true);
+    provideLayout->addWidget(advancedProvider,0,Qt::AlignLeft);
+    auto* legacyProvider=new QWidget(this);legacyProvider->setObjectName("aiLegacyProvider");legacyProvider->hide();
+    provideLayout->addWidget(legacyProvider);
+    provideLayout=new QVBoxLayout(legacyProvider);provideLayout->setContentsMargins(0,12,0,0);
+    connect(advancedProvider,&QPushButton::toggled,legacyProvider,&QWidget::setVisible);
+
     auto* layout=localLayout;
     auto* explanation = new QLabel(tr("Use the model trained by two Yerbas contributors. Local generation needs no wallet unlock, blockchain sync, GPU or network. This tiny demonstration model produces fragmentary text; it is not a chatbot."), this);
     explanation->setWordWrap(true);layout->addWidget(explanation);
@@ -217,8 +225,16 @@ YerbasAIPage::YerbasAIPage(QWidget* parent) : QWidget(parent)
     connect(providerStop, &QPushButton::clicked, this, [this] { agentRequest("provider.cancel"); });
     offers=new OfferWidget(this);provideLayout->addWidget(offers);
     purchase=new WorkPurchaseWidget(this);buyLayout->addWidget(purchase);
-    rentals=new RentalWidget(this);buyLayout->addWidget(rentals);
-    purchase->capabilityChanged=[this](bool supported){rentals->setVisible(!supported);};
+    auto* advancedRental=new QPushButton(tr("Advanced: unfunded demo requests"),this);
+    advancedRental->setObjectName("aiAdvancedRental");advancedRental->setCheckable(true);
+    advancedRental->setToolTip(tr("Legacy test requests do not fund or start a paid GPU job."));
+    buyLayout->addWidget(advancedRental,0,Qt::AlignLeft);
+    rentals=new RentalWidget(this);buyLayout->addWidget(rentals);rentals->hide();
+    connect(advancedRental,&QPushButton::toggled,rentals,&QWidget::setVisible);
+    purchase->capabilityChanged=[this,advancedRental](bool supported){
+        advancedRental->setVisible(!supported);
+        if(supported){advancedRental->setChecked(false);rentals->hide();}
+    };
     layout=provideLayout;
     auto* submissionRow = new QHBoxLayout;
     providerContribution = new QLineEdit(this);providerContribution->setObjectName("aiContribution");providerContribution->setMaxLength(64);providerContribution->setPlaceholderText(tr("Preassigned contribution ID"));

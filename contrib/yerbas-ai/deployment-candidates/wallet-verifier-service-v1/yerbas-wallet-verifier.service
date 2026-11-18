@@ -1,0 +1,26 @@
+[Unit]
+Description=Yerbas fixed testnet verification service
+After=local-fs.target
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 -I -B /opt/yerbas-ai/wallet-verifier-610321f45f8bbd6a/server.py
+StateDirectory=yerbas-wallet-verifier-v1
+StateDirectoryMode=0700
+RuntimeDirectory=yerbas-wallet-verifier
+RuntimeDirectoryMode=0755
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+CapabilityBoundingSet=CAP_CHOWN CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_SETUID
+ReadWritePaths=/var/lib/yerbas-training-experiment /run/lock
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+KillMode=control-group
+TimeoutStopSec=70
+Restart=no
+[Install]
+WantedBy=multi-user.target

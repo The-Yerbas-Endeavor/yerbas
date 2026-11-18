@@ -33,14 +33,18 @@ class ProviderInboxWidget : public QWidget {
  bool ready=false;QComboBox* assignments;QPushButton *refresh,*review,*status,*accept;QPlainTextEdit* details;
  QComboBox* saved;QPushButton *history,*release;
  QProcess worker;QByteArray workerBytes;QJsonObject reviewed;QString workerOperation,workerAssignment,workerDigest;
+ QString slotHelperDirectory=QCoreApplication::applicationDirPath()+"/slot-provider-control";
  QString helperDirectory=QCoreApplication::applicationDirPath()+"/provider-control";
  bool helperBusy=false,modal=false,helperStale=false;
  QString expectedAgent=QDir::homePath()+"/.local/share/yerbas-ai-control-v1/state/control.sock";
  bool ownAgent()const{return path==expectedAgent;}
  void startHelper(const QString& operation,const QString& assignment,const QString& hash){
-  if(helperBusy||!ownAgent()||!QFileInfo::exists(helperDirectory+"/provider_start.py"))return;
+  const bool slotOperation=operation=="preview"||operation=="run";
+  const QString directory=slotOperation?slotHelperDirectory:helperDirectory;
+  if(helperBusy||!ownAgent())return;
+  if(!QFileInfo::exists(directory+"/provider_start.py")){reviewed={};details->appendPlainText(tr("\nProtected GPU-slot execution controller unavailable. Terms can be reviewed; no work can start."));controls();return;}
   helperBusy=true;helperStale=false;workerBytes.clear();workerOperation=operation;workerAssignment=assignment;workerDigest=hash;reviewed={};controls();
-  worker.setProgram("/usr/bin/python3");worker.setArguments({"-I","-B",helperDirectory+"/provider_start.py"});worker.start();
+  worker.setProgram("/usr/bin/python3");worker.setArguments({"-I","-B",directory+"/provider_start.py"});worker.start();
  }
  void finishHelper(int code,QProcess::ExitStatus exit){
   workerBytes+=worker.readAllStandardOutput();helperBusy=false;auto r=QJsonDocument::fromJson(workerBytes).object();reviewed={};
@@ -57,7 +61,7 @@ class ProviderInboxWidget : public QWidget {
    if(r["assignment"]!=workerAssignment||r["released"]!=QJsonValue(true)||r["gpu_started"]!=QJsonValue(false)||r["payment_sent"]!=QJsonValue(false)||r["scope"]!="trusted-private-pilot-shutdown-report"){details->setPlainText(tr("Release acknowledgment uncertain. Refresh the same saved job before retrying."));controls();return;}
    details->setPlainText(tr("Completed slot released for %1. The job remains fenced against restart. No GPU work or payment started. Check GPU availability before offering new work.").arg(workerAssignment));
   }else if(workerOperation=="preview"){
-   if(r["review_ready"]!=QJsonValue(true)||r["assignment"]!=workerAssignment||r["reviewed_digest"]!=workerDigest||r["provider"]!=QSysInfo::machineHostName()||r["steps"]!=QJsonValue(6000)||r["provider_reward_base_units"]!=QJsonValue(100000)||r["gpu_started"]!=QJsonValue(false)||r["payment_sent"]!=QJsonValue(false)||!integer(r["deadline"],QDateTime::currentSecsSinceEpoch()+1,9007199254740991.0)){details->setPlainText(tr("Provider policy review failed. No work started."));controls();return;}
+   if(r["execution_protocol"]!=QJsonValue("gpu-slots-consensus-v1")||r["review_ready"]!=QJsonValue(true)||r["assignment"]!=workerAssignment||r["reviewed_digest"]!=workerDigest||r["provider"]!=QSysInfo::machineHostName()||r["steps"]!=QJsonValue(6000)||r["provider_reward_base_units"]!=QJsonValue(100000)||r["gpu_started"]!=QJsonValue(false)||r["payment_sent"]!=QJsonValue(false)||!integer(r["deadline"],QDateTime::currentSecsSinceEpoch()+1,9007199254740991.0)){details->setPlainText(tr("Provider policy review failed. No work started."));controls();return;}
    reviewed=r;details->appendPlainText(tr("\nProvider policy checked: 6,000-step public-text recipe. Potential verified-work reward: 0.00100000 tYERB. Accept and start rechecks funding, deadline and GPU readiness. Payment is subject to independent verification."));
   }else{
    if(r["assignment"]!=workerAssignment||r["phase"]!="submitted"||!r["new_submission"].isBool()){details->setPlainText(tr("Submission acknowledgment uncertain. Reconcile the saved assignment; do not create another job."));controls();return;}
@@ -73,7 +77,7 @@ class ProviderInboxWidget : public QWidget {
   if(!ready||!id.isEmpty()||helperBusy)return;
   reviewed={};
   selected=assignments->currentData().toString();
-  if(action!="marketplace.pendingwork"&&!identifier(selected))return;
+  if(action!="marketplace.pendingslotwork"&&!identifier(selected))return;
   method=action;bytes.clear();id=QUuid::createUuid().toString(QUuid::Id128);controls();timeout.start(12000);socket.connectToServer(path);
  }
  void read(){
@@ -81,23 +85,23 @@ class ProviderInboxWidget : public QWidget {
   const auto doc=QJsonDocument::fromJson(bytes);const auto frame=doc.object();
   if(!doc.isObject()||bytes.count('\n')!=1||!bytes.endsWith('\n')||frame["v"]!=QJsonValue(1)||frame["id"]!=id||frame["ok"]!=QJsonValue(true)||!frame["result"].isObject()){fail();return;}
   const auto result=frame["result"].toObject();const auto now=QDateTime::currentSecsSinceEpoch();
-  if(method=="marketplace.pendingwork"){
-   if(!result["assignments"].isArray()||result["assignments"].toArray().size()>10||result["gpu_started"]!=QJsonValue(false)){fail();return;}
+  if(method=="marketplace.pendingslotwork"){
+   if(result["protocol"]!=QJsonValue("gpu-slots-v1")||!result["assignments"].isArray()||result["assignments"].toArray().size()>10||result["gpu_started"]!=QJsonValue(false)){fail();return;}
    QSet<QString> seen;const auto rows=result["assignments"].toArray();
-   for(auto value:rows){const auto row=value.toObject();const auto key=row["assignment_id"].toString();if(!value.isObject()||!identifier(key)||seen.contains(key)||!QStringList{"reserved","accepted"}.contains(row["state"].toString())||!integer(row["deadline"],1,9007199254740991.0)){fail();return;}seen.insert(key);}
-   assignments->clear();for(auto value:rows){const auto row=value.toObject();assignments->addItem(tr("%1 · %2").arg(row["state"].toString(),row["assignment_id"].toString()),row["assignment_id"].toString());assignments->setItemData(assignments->count()-1,qint64(row["deadline"].toDouble()),Qt::UserRole+1);}
+   for(auto value:rows){const auto row=value.toObject();const auto key=row["assignment_id"].toString();if(!value.isObject()||!identifier(key)||!QRegularExpression("^[a-f0-9]{64}$").match(row["terms_sha256"].toString()).hasMatch()||row["slot"].toString().isEmpty()||row["gpu_uuid"].toString().isEmpty()||seen.contains(key)||!QStringList{"reserved","accepted"}.contains(row["state"].toString())||!integer(row["deadline"],1,9007199254740991.0)){fail();return;}seen.insert(key);}
+   assignments->clear();for(auto value:rows){const auto row=value.toObject();assignments->addItem(tr("%1 · %2").arg(row["state"].toString(),row["assignment_id"].toString()),row["assignment_id"].toString());assignments->setItemData(assignments->count()-1,qint64(row["deadline"].toDouble()),Qt::UserRole+1);assignments->setItemData(assignments->count()-1,row["terms_sha256"].toString(),Qt::UserRole+2);assignments->setItemData(assignments->count()-1,row["slot"].toString(),Qt::UserRole+3);assignments->setItemData(assignments->count()-1,row["gpu_uuid"].toString(),Qt::UserRole+4);}
    details->setPlainText(rows.isEmpty()?tr("No pending assignments returned. Completed jobs are not listed here.\nChecked %1").arg(QDateTime::currentDateTime().toString(Qt::ISODate)):tr("%1 assigned work unit(s). Review an assignment to inspect its terms.\nThis is a snapshot; availability and deadlines can change. No work has been accepted or started here.").arg(rows.size()));
-  }else if(method=="marketplace.workassignment"){
+  }else if(method=="marketplace.reviewslotwork"){
    const auto t=result["terms"].toObject();
-   if(t["assignment_id"]!=selected||t["run_id"]!=selected||t["provider"]!=QSysInfo::machineHostName()||!QRegularExpression("^[a-f0-9]{64}$").match(result["assignment_sha256"].toString()).hasMatch()||!integer(t["deadline"],1,9007199254740991.0)||!integer(t["steps"],1,6000)||!integer(t["unit_price_base_units"],1,2100000000000000.0)||t["payment_enabled"]!=QJsonValue(true)||t["execution_enabled"]!=QJsonValue(true)){fail();return;}
+   if(result["gpu_started"]!=QJsonValue(false)||result["assignment_sha256"].toString()!=assignments->currentData(Qt::UserRole+2).toString()||t["slot"].toString()!=assignments->currentData(Qt::UserRole+3).toString()||t["gpu_uuid"].toString()!=assignments->currentData(Qt::UserRole+4).toString()||t["assignment_id"]!=selected||t["run_id"]!=selected||t["provider"]!=QSysInfo::machineHostName()||!QRegularExpression("^[a-f0-9]{64}$").match(result["assignment_sha256"].toString()).hasMatch()||!integer(t["deadline"],1,9007199254740991.0)||!integer(t["steps"],1,6000)||!integer(t["unit_price_base_units"],1,2100000000000000.0)||t["payment_enabled"]!=QJsonValue(true)||t["execution_enabled"]!=QJsonValue(true)){fail();return;}
    const auto until=qint64(t["deadline"].toDouble());
    details->setPlainText(tr("Assignment: %1\nProvider: %2\nSteps: %3\nQuoted work-unit price: %4 tYERB\nDeadline: %5%6\n\nReported terms digest: %7\n\nReviewing terms starts no work. The packaged controller must validate provider policy before Accept and start becomes available.")
     .arg(selected,t["provider"].toString()).arg(t["steps"].toInt()).arg(t["unit_price_base_units"].toDouble()/100000000.0,0,'f',8).arg(QDateTime::fromSecsSinceEpoch(until).toString(Qt::ISODate),until<=now?tr(" · expired"):QString(),result["assignment_sha256"].toString()));
-  }else if(method=="provider.status"){
-   if(result["id"]!=selected||!QStringList{"queued","starting","running","completed","failed","cancelled","uncertain","stopping","training"}.contains(result["state"].toString())){fail();return;}
+  }else if(method=="provider.slot_status"){
+   if(result["slot"].toString()!=assignments->currentData(Qt::UserRole+3).toString()||result["gpu_uuid"].toString()!=assignments->currentData(Qt::UserRole+4).toString()||result["id"]!=selected||!QStringList{"queued","starting","running","completed","failed","cancelled","uncertain","stopping","training"}.contains(result["state"].toString())){fail();return;}
    details->setPlainText(tr("Local execution snapshot\nAssignment: %1\nState: %2\nChecked: %3\n\nLocal completion alone does not establish independent verification, payment, or released capacity.").arg(selected,result["state"].toString(),QDateTime::currentDateTime().toString(Qt::ISODate)));
   }else{fail();return;}
-  const bool preview=method=="marketplace.workassignment";const auto hash=result["assignment_sha256"].toString();
+  const bool preview=method=="marketplace.reviewslotwork";const auto hash=result["assignment_sha256"].toString();
   id.clear();timeout.stop();socket.abort();controls();
   if(preview)startHelper("preview",selected,hash);
  }
@@ -109,7 +113,7 @@ public:
   refresh=new QPushButton(tr("Refresh assignments"),this);refresh->setObjectName("providerInboxRefresh");review=new QPushButton(tr("Review terms"),this);review->setObjectName("providerInboxReview");status=new QPushButton(tr("Check local execution"),this);status->setObjectName("providerInboxStatus");for(auto* button:{refresh,review,status})row->addWidget(button);box->addLayout(row);box->addWidget(accept);
   auto* savedRow=new QHBoxLayout;saved=new QComboBox(this);saved->setObjectName("providerSavedJobs");savedRow->addWidget(saved,1);history=new QPushButton(tr("Saved provider jobs"),this);history->setObjectName("providerHistory");release=new QPushButton(tr("Release completed slot"),this);release->setObjectName("providerRelease");savedRow->addWidget(history);savedRow->addWidget(release);box->addLayout(savedRow);
   details=new QPlainTextEdit(this);details->setReadOnly(true);details->setObjectName("providerInboxDetails");details->setMaximumHeight(220);details->setPlainText(tr("Connect the owner agent to see work assigned to this provider."));box->addWidget(details);
-  connect(refresh,&QPushButton::clicked,this,[this]{send("marketplace.pendingwork");});connect(review,&QPushButton::clicked,this,[this]{if(review->isEnabled())send("marketplace.workassignment");});connect(status,&QPushButton::clicked,this,[this]{send("provider.status");});
+  connect(refresh,&QPushButton::clicked,this,[this]{send("marketplace.pendingslotwork");});connect(review,&QPushButton::clicked,this,[this]{if(review->isEnabled())send("marketplace.reviewslotwork");});connect(status,&QPushButton::clicked,this,[this]{send("provider.slot_status");});
   connect(assignments,qOverload<int>(&QComboBox::currentIndexChanged),this,[this]{reviewed={};details->clear();controls();});timeout.setSingleShot(true);connect(&timeout,&QTimer::timeout,this,[this]{fail();});
   connect(&worker,&QProcess::started,this,[this]{QJsonObject input{{"operation",workerOperation}};if(workerOperation!="history"){input["assignment"]=workerAssignment;input["reviewed_digest"]=workerDigest;}worker.write(QJsonDocument(input).toJson(QJsonDocument::Compact));worker.closeWriteChannel();});
   connect(&worker,&QProcess::readyReadStandardOutput,this,[this]{auto b=worker.readAllStandardOutput();if(workerBytes.size()<=16384)workerBytes+=b;});
@@ -130,7 +134,7 @@ public:
   connect(&socket,&QLocalSocket::connected,this,[this]{
 #ifdef Q_OS_LINUX
    struct ucred peer;socklen_t n=sizeof(peer);if(::getsockopt(socket.socketDescriptor(),SOL_SOCKET,SO_PEERCRED,&peer,&n)||peer.uid!=::geteuid()){fail();return;}
-   QJsonObject params;if(method=="marketplace.workassignment")params["assignment_id"]=selected;else if(method=="provider.status")params["run_id"]=selected;
+   QJsonObject params;if(method=="marketplace.reviewslotwork")params["assignment_id"]=selected;else if(method=="provider.slot_status")params["run_id"]=selected;
    socket.write(QJsonDocument(QJsonObject{{"v",1},{"id",id},{"method",method},{"params",params}}).toJson(QJsonDocument::Compact)+"\n");
 #else
    fail();
@@ -140,6 +144,7 @@ public:
 #ifdef YERBAS_PROVIDER_TEST
  void setTestOwnerPath(const QString& value){expectedAgent=value;}
 #endif
+ void setSlotHelperDirectory(const QString& directory){slotHelperDirectory=directory;reviewed={};controls();}
  void setHelperDirectory(const QString& directory){helperDirectory=directory;reviewed={};controls();}
  void setAgent(const QString& agent,bool enabled){if(agent==path&&enabled==ready)return;reviewed={};if(helperBusy)helperStale=true;id.clear();timeout.stop();socket.abort();assignments->clear();saved->clear();path=agent;ready=enabled&&!path.isEmpty();details->setPlainText(ready?tr("Refresh to inspect assigned work. Nothing starts automatically."):tr("Owner agent disconnected. Previous snapshots cleared."));controls();}
 };

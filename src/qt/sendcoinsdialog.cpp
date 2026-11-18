@@ -232,6 +232,12 @@ void SendCoinsDialog::on_sendButton_clicked()
     if(!model || !model->getOptionsModel())
         return;
 
+    if (clientModel && clientModel->getNumConnections() == 0) {
+        QMessageBox::warning(this, tr("Wallet is offline"),
+            tr("Connect to the Yerbas network before sending. No transaction has been created."));
+        return;
+    }
+
     QList<SendCoinsRecipient> recipients;
     bool valid = true;
 

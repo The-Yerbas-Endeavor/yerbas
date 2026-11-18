@@ -57,3 +57,11 @@ repository root. Linux Qt checks build separately with qmake6; the CI script
 selects disposable tests and does not contact any live service or run a GPU.
 
 Owner cancellation uses a durable retry queue. After the local job reaches a terminal state, the authenticated relay releases its coordinator reservation once. Completed, settled work is never refunded; network failures remain pending across agent restarts.
+
+## Current wallet workflow
+
+See [commands and abilities](../../doc/yerbas-ai-commands.md) for the current
+private-testnet workflow and remaining release gates. The optional automatic
+wallet handoff requires its matched controller; ordinary archives do not enable
+it. `wallet-workflow` contains the durable interruption guard and disposable
+tests. `deployment-candidates` preserves the public service integration source.

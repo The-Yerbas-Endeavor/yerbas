@@ -12,6 +12,8 @@ public:
   auto* layout=new QVBoxLayout(this);layout->setContentsMargins(20,20,20,20);layout->setSpacing(12);
   auto* title=new QLabel(tr("AI network"),this);title->setProperty("role","sectionTitle");layout->addWidget(title);
   status=new QLabel(this);status->setObjectName("networkAIStatus");status->setWordWrap(true);status->setTextFormat(Qt::PlainText);layout->addWidget(status);
+  auto* authority=new QLabel(tr("AI testnet pilot: consensus and payment observers are operated by one owner. Validator applications do not grant voting authority."),this);
+  authority->setObjectName("networkAIAuthorityDisclosure");authority->setWordWrap(true);authority->setTextFormat(Qt::PlainText);layout->addWidget(authority);
   identity=new SmartnodeIdentityWidget(this);layout->addWidget(identity);
   auto* row=new QHBoxLayout;refresh=new QPushButton(tr("Refresh"),this);refresh->setObjectName("networkAIRefresh");row->addWidget(refresh);
   auto* open=new QPushButton(tr("Open marketplace"),this);open->setProperty("variant","primary");row->addWidget(open);layout->addLayout(row);

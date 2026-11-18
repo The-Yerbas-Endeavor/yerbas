@@ -63,3 +63,23 @@ QSpinBox::up-button { subcontrol-origin: border; subcontrol-position: top right;
 QSpinBox::down-button { subcontrol-origin: border; subcontrol-position: bottom right; width: 24px; height: 21px; }
 QSpinBox::up-arrow { image: url(:/css/chevron-up); width: 12px; height: 9px; }
 QSpinBox::down-arrow { image: url(:/css/chevron-down); width: 12px; height: 9px; }
+
+/* Opaque sync surface: wallet contents must not show through the overlay. */
+ModalOverlay QWidget#bgWidget { background-color: #101719; border: none; border-radius: 0; }
+
+/* Send recipients and the fixed-point amount editor use native palette roles
+   unless explicitly themed; keep their surfaces and text readable together. */
+SendCoinsDialog QScrollArea, SendCoinsDialog QWidget#scrollAreaWidgetContents,
+SendCoinsDialog QWidget#qt_scrollarea_viewport, SendCoinsEntry { background: #182225; }
+SendCoinsDialog QFrame#frameFee { background: #182225; border: 1px solid #35464a; border-radius: 8px; }
+AmountSpinBox { background: #101719; color: #ecf2ef; border: 1px solid #35464a; border-radius: 8px; padding: 10px 26px 10px 10px; min-height: 22px; min-width: 200px; }
+AmountSpinBox QLineEdit { background: transparent; color: #ecf2ef; border: none; padding: 0; min-height: 0; }
+AmountSpinBox::up-button, AmountSpinBox::down-button { width: 22px; border: none; background: transparent; }
+AmountSpinBox::up-arrow { image: url(:/css/chevron-up); width: 12px; height: 9px; }
+AmountSpinBox::down-arrow { image: url(:/css/chevron-down); width: 12px; height: 9px; }
+QCheckBox, QRadioButton { color: #ecf2ef; spacing: 6px; }
+
+QScrollBar:horizontal { background: #182225; height: 9px; margin: 0; border: none; }
+QScrollBar::handle:horizontal { background: #35464a; min-width: 28px; border-radius: 4px; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: none; }

@@ -14,3 +14,6 @@ if sys.platform.startswith('linux'):
  if sys.platform.startswith('linux'):
   phase=root/'contrib/yerbas-ai/provider/provider-phase-cupti-v1'
   subprocess.run([sys.executable,'-B','-m','unittest','discover','-s',str(phase/'tests'),'-v'],check=True,env=dict(os.environ,PYTHONDONTWRITEBYTECODE='1',PYTHONPATH=os.pathsep.join((str(phase),str(phase/'payload')))))
+
+if sys.platform.startswith("linux"):
+ subprocess.run([sys.executable,"-B","-m","unittest","discover","-s",str(root/"contrib/yerbas-ai/wallet-workflow"),"-v"],check=True)
