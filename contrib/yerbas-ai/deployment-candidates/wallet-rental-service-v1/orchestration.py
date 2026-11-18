@@ -118,7 +118,7 @@ class Adapter:
         if step == 'confirm_payment':
             import sys
             sys.path.insert(0, str(OUT / 'coordinator-fencing-v1'))
-            from chain_reader import node
+            from chain_reader import node, TransactionNotYetKnown
             from payment_chain_anchor import anchor, agree
             from context import GENESIS
             txid = c.load('consensus-settlement.json')['result']['txid']
@@ -126,8 +126,12 @@ class Adapter:
                 raise ValueError('Retained payout identity required')
             until = time.monotonic() + 3600
             while True:
-                confirmations = [node(host)('getrawtransaction', txid, True).get('confirmations', 0)
-                                 for host in ('u26-2T', 'anno2-u26')]
+                confirmations = []
+                for host in ('u26-2T', 'anno2-u26'):
+                    try:
+                        confirmations.append(node(host)('getrawtransaction', txid, True).get('confirmations', 0))
+                    except TransactionNotYetKnown:
+                        confirmations.append(0)
                 if min(confirmations) >= 6:
                     anchors = [anchor(node(host), genesis=GENESIS, txid=txid)
                                for host in ('u26-2T', 'anno2-u26')]

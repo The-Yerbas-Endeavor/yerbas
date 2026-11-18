@@ -17,6 +17,19 @@ class Tests(unittest.TestCase):
                           deposit_txid='d'*64,deposit_vout=0,maximum_base_units=101000,
                           provider_reward_base_units=100000)
 
+    def test_confirmation_waits_for_peer_propagation_without_sending(self):
+        import sys
+        sys.path.insert(0,str(flow.OUT/'coordinator-fencing-v1'))
+        from chain_reader import TransactionNotYetKnown
+        tx='a'*64
+        self.context.load.return_value={'result':{'txid':tx}}
+        first=Mock(return_value={'confirmations':6})
+        second=Mock(side_effect=[TransactionNotYetKnown('anno2-u26'),{'confirmations':6}])
+        with patch('chain_reader.node',side_effect=lambda host:first if host=='u26-2T' else second), patch('payment_chain_anchor.anchor',return_value={'verified':True}), patch('payment_chain_anchor.agree'), patch.object(flow.time,'sleep') as pause:
+            result=self.adapter.perform('confirm_payment',self.request,{})
+        self.assertEqual(result['txid'],tx);self.assertEqual(second.call_count,2)
+        pause.assert_called_once_with(5);self.context.remote.assert_not_called()
+
     def test_changed_review_refused(self):
         terms=dict(quote_id='e'*32,assignment_id='b'*32)
         with patch.object(flow,'wallet',return_value={'terms':terms,'assignment_sha256':'c'*64}):

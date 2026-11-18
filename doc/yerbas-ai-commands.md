@@ -17,11 +17,15 @@ mainnet release or a demonstration of independent-operator decentralization.
 | Payment | Exact deposit/output binding, protected signing, confirmation checks and replay refusal | Operator-controlled testnet treasury; not trustless escrow |
 | Recovery | Preserve original deposits, execution records, signing history and uncertain requests | An uncertain effect requires reconciliation; it is never blindly repeated |
 
-The previous assisted rental completed GPU execution, reproduction, payout and
-capacity release, with six payout confirmations on both native nodes. The
-permanent verifier and rental services have replaced per-order remote installers.
-The new automatic wallet handoff and durable workflow are under integration;
-a fresh fully automatic wallet-to-payout acceptance test remains outstanding.
+On 18 November 2026, wallet build workflow4 completed a fresh rental from the
+GUI through GPU execution, automatic verification on anno2, payout, six native
+confirmations on both nodes, and capacity release. No per-order helper commands
+or terminal authentication were used. The provider received 0.00100000 tYERB.
+The enrolled services and consensus credit were prepared beforehand; private
+chain blocks were mined as test infrastructure. This is a same-owner test.
+See [the acceptance record](yerbas-ai-wallet-acceptance-2026-11-18.json).
+An earlier run also tested explicit recovery without repeating its deposit,
+completed training or payout.
 
 ## Normal rental workflow
 
@@ -109,8 +113,8 @@ They use test adapters and do not establish live payout success.
 
 ## Remaining release gates
 
-- Complete and preserve a fresh wallet-driven rental, verification, confirmed
-  payout and capacity-release test without per-order helper commands.
+- Repeat the passing wallet-driven workflow under restart, network-loss, busy-GPU,
+  refund and prolonged-operation conditions; uncertain effects still require reconciliation.
 - Package the u26 workflow and its dependencies into the consolidated installer;
   test clean installation, interrupted upgrade, restart and recovery.
 - Test independent operators, authority handover and failure domains beyond one

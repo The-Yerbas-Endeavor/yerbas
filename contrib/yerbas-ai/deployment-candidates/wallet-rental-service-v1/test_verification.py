@@ -31,6 +31,11 @@ class Tests(unittest.TestCase):
   for _ in range(2):
    with self.assertRaises(ValueError):verify(self.c,self.e,self.command,run)
   self.assertEqual(run.call_count,1)
+ def test_failed_command_retains_bounded_diagnostic(self):
+  run=Mock(return_value=SimpleNamespace(returncode=1,stderr='x'*7000,stdout='safe status'))
+  with self.assertRaises(ValueError):verify(self.c,self.e,self.command,run)
+  record=self.c.load('verification-command-result.json')
+  self.assertEqual(record['stderr'],'x'*6000);self.assertEqual(record['stdout'],'safe status')
  def test_missing_acceptance_never_restarts(self):
   run=Mock(return_value=SimpleNamespace(returncode=0))
   for _ in range(2):

@@ -35,7 +35,8 @@ def verify(context,evidence_root,command,run=subprocess.run):
    argv=command(receipt,folder) # Pin/configuration checks precede retention.
    context.save('verification-intent.json',dict(receipt=receipt,evidence=str(folder)))
    response=run(argv,check=False,timeout=300,capture_output=True,text=True)
-   context.save('verification-command-result.json',dict(exit_code=response.returncode))
+   context.save('verification-command-result.json',dict(exit_code=response.returncode,
+    stderr=getattr(response,'stderr','')[-6000:],stdout=getattr(response,'stdout','')[-6000:]))
    if response.returncode:raise ValueError('Verification refused; reconcile retained run before retry')
    result=acceptance(folder,receipt)
    if result is None:raise ValueError('Missing accepted evidence; no automatic GPU retry')
