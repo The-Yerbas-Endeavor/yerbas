@@ -17,3 +17,6 @@ if sys.platform.startswith('linux'):
 
 if sys.platform.startswith("linux"):
  subprocess.run([sys.executable,"-B","-m","unittest","discover","-s",str(root/"contrib/yerbas-ai/wallet-workflow"),"-v"],check=True)
+
+if sys.platform.startswith("linux"):
+ subprocess.run([sys.executable,"-I","-B","-m","unittest","discover","-s",str(root/"contrib/yerbas-ai/deployment-candidates/fresh-provider/provider-fresh-marketplace-v2"),"-q"],check=True)

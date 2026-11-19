@@ -1,0 +1,28 @@
+[Unit]
+Description=Yerbas fixed provider broker
+Requires=yerbas-provider-broker.socket
+After=yerbas-provider-broker.socket
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 -I -B -c "import runpy,sys;sys.path.insert(0,'/opt/yerbas-ai/broker-v1');runpy.run_module('provider_broker_daemon',run_name='__main__')"
+WorkingDirectory=/opt/yerbas-ai/broker-v1
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/yerbas-ai-broker /var/lib/yerbas-ai-provider/requests
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryMax=256M
+TasksMax=16
+KillMode=control-group
+TimeoutStopSec=70
+Restart=no
+
+# Deliberately no Install section. Deployment and activation require provisioning.

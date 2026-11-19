@@ -1,1 +1,4 @@
 src/clientversion.cpp export-subst
+
+# Preserve the exact licensed upstream corpus bytes pinned by the installer.
+contrib/yerbas-ai/deployment-candidates/fresh-provider/provider-fresh-host-candidate-v1/rootfs/opt/yerbas-ai/provider-v1/source-license/source-with-license.txt -text whitespace=-trailing-space

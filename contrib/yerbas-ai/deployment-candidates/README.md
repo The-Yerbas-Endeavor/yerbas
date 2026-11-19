@@ -1,17 +1,24 @@
-# Wallet service integration candidates
+# Wallet service integration and clean-install candidates
 
-These are public source snapshots of the enrolled u26 and anno2 test deployment,
-not a fresh-host installer. Root-owned runtimes, owner identities, separate
-consensus credit, fixed testnet transport and prior deployment modules are
-required. Never copy private state or run a historical activation blindly.
+The wallet rental adapters are source snapshots of the enrolled u26/anno2
+same-owner test deployment. A fresh wallet-driven rental, verification and
+payout passed; see `doc/yerbas-ai-wallet-acceptance-2026-11-18.json`.
+They still depend on protected runtimes, owner enrollment, separate consensus
+credit and testnet transport. Do not run historical activations on a new host.
 
-The verifier and rental service components have passed live testing. The new
-wallet orchestration adapters are integration candidates; a fresh unattended
-rental acceptance result is still required. Build scripts reference the
-retained deployment layout and public datasets, which are not included here.
-Generated installers, credentials, wallets, databases, and model weights are
-excluded. No mainnet activation is implied.
+`fresh-provider/` is the self-contained public disabled-install candidate.
+It passed installation into a disposable Ubuntu filesystem using pinned offline
+wheels, dedicated owner/provider accounts, actual service-definition validation,
+and a CPU runtime check. An interrupted installation preserved its journal and
+refused automatic retry. No live state was copied. This does not establish
+physical GPU enrollment or boot-time service acceptance on a clean machine.
 
-Portable interruption tests are in `../wallet-workflow`. The owner adapter tests
-require the matching protected deployment and must not be included in ordinary
-CI as live tests.
+The explicit `--offline-services` option only stages disabled images. It refuses
+a running systemd manager and never substitutes for live service inventory.
+The normal installer continues to require that inventory. See the candidate's
+README and `acceptance/` harnesses. Wheels and private state are not included.
+
+Portable process/network interruption tests are in `../wallet-workflow`.
+Owner adapter tests require the matching protected deployment. Automatic wallet
+refund settlement remains incomplete: cancellation records a plan, while payment
+still needs protected operator settlement. No mainnet readiness is implied.

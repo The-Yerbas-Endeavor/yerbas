@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-18",
+  "same_owner_test": true,
+  "mainnet_ready": false,
+  "clean_install": {
+    "passed": true,
+    "scope": "fresh disposable filesystem, disabled services, offline pinned wheels",
+    "systemd_boot_tested": false,
+    "physical_gpu_enrollment_tested": false
+  },
+  "interrupted_install": {
+    "passed": true,
+    "interrupted_phase": "runtime_started",
+    "root_entries": 87,
+    "retry_refused": true,
+    "journal_preserved": true,
+    "services_started": false,
+    "gpu_started": false,
+    "coins_sent": false
+  },
+  "wallet_restart": {
+    "passed": true,
+    "wallet_restarted": true,
+    "deposit_records_preserved": 4,
+    "backup_created": true,
+    "coins_sent": false,
+    "gpu_started": false
+  },
+  "live_verifier_disconnect": {
+    "passed": true,
+    "run_id": "d909970cae824b03ab72a21179c38fcd",
+    "network_reply_discarded": true,
+    "completed_despite_client_disconnect": true,
+    "duplicate_execute_refused": true,
+    "gpu_steps": 6000,
+    "checkpoint_sha256": "b45353d27546bcb88b6fe77c973a1a29b973868da79d1f6abe1161377a2a93fe",
+    "gpu_idle": true,
+    "coins_sent": false,
+    "same_owner_test": true
+  },
+  "process_network_tests": 4,
+  "refund_regression_tests": 69,
+  "retained_refund": {
+    "txid": "15c645c041b18d876f42ece384f35e08430a3608ca3928d43ff9708a04f997af",
+    "confirmations": 61,
+    "fresh_refund_sent": false
+  },
+  "remaining": [
+    "Physical clean-host enrollment and boot acceptance",
+    "Automatic wallet refund settlement",
+    "Independent operator deployment and authority",
+    "Mainnet security and economic review"
+  ],
+  "public_ci": {
+    "passed": true,
+    "tests": 221,
+    "suite_counts": [
+      16,
+      44,
+      60,
+      7,
+      47,
+      12,
+      35
+    ]
+  }
+}

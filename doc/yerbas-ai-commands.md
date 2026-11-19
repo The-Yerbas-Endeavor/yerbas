@@ -124,3 +124,23 @@ They use test adapters and do not establish live payout success.
   public work alone cannot prove that fresh paid computation occurred.
 - Run sustained reliability tests and obtain security review before declaring
   mainnet readiness. A passing private-testnet demonstration is not that release.
+
+## Installation and resilience checks — November 18, 2026
+
+A disabled provider installation passed in a fresh, network-isolated container
+using pinned offline wheels. Interrupted installation and repeat installation
+both refused to overwrite retained state. This is not a physical-host enrollment
+or systemd boot test. Public candidate source and reproducible harnesses are in
+`contrib/yerbas-ai/deployment-candidates/fresh-provider/`.
+
+The wallet restarted with all four saved deposit records intact. The remote
+verifier restarted with all eight retained runs intact. A fresh 6,000-step GPU
+verification completed after the client discarded its reply; duplicate execution
+was refused and the GPU returned idle. Four real-process network/crash tests and
+69 refund regressions passed. The prior incomplete-work refund was rechecked at
+61 confirmations; no new refund was broadcast in these checks.
+
+Wallet cancellation still records a refund for protected operator settlement.
+Fully automatic refunds, physical clean-host boot/enrollment, and independent
+operator deployment remain acceptance gates. Detailed results are in
+`yerbas-ai-resilience-2026-11-18.json`.

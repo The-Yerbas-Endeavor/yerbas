@@ -10,7 +10,15 @@ for name,digest in expected.items():
  p=ai/name
  if p.is_symlink() or hashlib.sha256(p.read_bytes()).hexdigest()!=digest:raise ValueError('AI source differs: '+name)
  if p.suffix in ('.key','.pem','.sqlite','.sqlite3','.db') or p.name in ('wallet.dat','enrollment.json'):raise ValueError('Private state forbidden')
- text=p.read_text()
+ raw=p.read_bytes()
+ binary_collectors={
+  'deployment-candidates/fresh-provider/provider-direct-collector-candidate-v1/payload/collector.so',
+  'deployment-candidates/fresh-provider/provider-fresh-marketplace-v2/staged-direct-runtime/payload/collector.so',
+ }
+ if name in binary_collectors:
+  if not raw.startswith(b'\x7fELF') or b'PRIVATE KEY-----' in raw:raise ValueError('Invalid pinned collector artifact')
+  continue
+ text=raw.decode('utf-8')
  if re.search(r'-----BEGIN [A-Z ]*PRIVATE KEY-----',text):raise ValueError('Private key forbidden')
  if p.suffix=='.py':ast.parse(text,filename=str(p))
 assert 'release-version=5.0.0.0' in (ROOT/'build.properties').read_text()

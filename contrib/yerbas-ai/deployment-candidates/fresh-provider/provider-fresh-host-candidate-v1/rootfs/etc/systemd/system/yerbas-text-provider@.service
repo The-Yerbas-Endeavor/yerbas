@@ -1,0 +1,35 @@
+[Unit]
+Description=Yerbas fixed text contribution %i
+After=network.target yerbas-provider-broker.service
+BindsTo=yerbas-provider-broker.service
+
+[Service]
+Type=exec
+RemainAfterExit=yes
+User=yerbas-provider
+Group=yerbas-provider
+ExecStart=/opt/yerbas-ai/runtime-v1/venv/bin/python -B /opt/yerbas-ai/provider-v1/code/provider_executor.py --policy /etc/yerbas-ai/provider.json --request /var/lib/yerbas-ai-provider/requests/%i.json
+WorkingDirectory=/opt/yerbas-ai/provider-v1/code
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/yerbas-ai-provider/jobs
+ReadWritePaths=/var/lib/yerbas-training-experiment/continuous-worker.lock
+ReadWritePaths=/var/lib/yerbas-training-experiment/gpu-probe.lock
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+LockPersonality=yes
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+TimeoutStopSec=30
+RuntimeMaxSec=275
+MemoryMax=2G
+MemorySwapMax=0
+TasksMax=32
+CPUQuota=200%
+Restart=no
+
+# No Install section. No socket activation or wallet authorization rule yet.
