@@ -5,7 +5,8 @@ ROOT=Path(__file__).resolve().parents[1]
 ai=ROOT/'contrib/yerbas-ai'
 m=json.loads((ai/'SOURCE.json').read_text());expected=m['files']
 actual={str(p.relative_to(ai)) for p in ai.rglob('*') if p.is_file() and '__pycache__' not in p.parts}
-if actual!=set(expected)|{'SOURCE.json'}:raise ValueError('Unexpected AI source file')
+if actual!=set(expected)|{'SOURCE.json'}:
+ raise ValueError('AI source inventory differs: missing='+repr(sorted(set(expected)-actual))+' unexpected='+repr(sorted(actual-set(expected)-{'SOURCE.json'})))
 for name,digest in expected.items():
  p=ai/name
  if p.is_symlink() or hashlib.sha256(p.read_bytes()).hexdigest()!=digest:raise ValueError('AI source differs: '+name)
