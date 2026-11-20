@@ -1976,8 +1976,14 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
 
                 // Check for changed -txindex state
                 if (fTxIndex != gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
-                    break;
+                    // Disabling an existing full transaction index is safe only
+                    // after verified evidence migration, before any block pruning.
+                    // Do not allow the reverse transition without reindexing.
+                    if (!(fPruneMode && fTxIndex && !gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX))) {
+                        strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
+                        break;
+                    }
+                    LogPrintf("Prune migration: deferring txindex disable until historical evidence is verified\n");
                 }
 
                 // Check for changed -addressindex state
@@ -2199,6 +2205,15 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
             uiInterface.InitMessage(_("Verifying historical pruning evidence..."));
             if (!EnsurePrunedBlockEvidence(evidenceError)) {
                 return InitError(strprintf(_("Pruning prevented: %s"), evidenceError));
+            }
+            // The 4.0.1.4 default is an archival transaction index.
+            // Switch it off only once all evidence has been retained, and
+            // before deleting any historical block files.
+            if (fTxIndex) {
+                if (!pblocktree->WriteFlag("txindex", false))
+                    return InitError(_("Pruning prevented: could not disable historical transaction index."));
+                fTxIndex = false;
+                LogPrintf("Prune migration: disabled txindex without rebuilding chainstate\n");
             }
             uiInterface.InitMessage(_("Pruning blockstore..."));
             PruneAndFlush();
