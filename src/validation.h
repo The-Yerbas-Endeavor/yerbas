@@ -325,6 +325,8 @@ void UnlinkPrunedFiles(const std::set<int>& setFilesToPrune);
 CBlockIndex * InsertBlockIndex(uint256 hash);
 /** Flush all state, indexes and buffers to disk. */
 void FlushStateToDisk();
+/** Verify and retain historical active-chain evidence before any initial pruning. */
+bool EnsurePrunedBlockEvidence(std::string& error);
 /** Prune block files and flush state to disk. */
 void PruneAndFlush();
 /** Prune block files up to a given height */

@@ -2193,6 +2193,13 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
         LogPrintf("Unsetting NODE_NETWORK on prune mode\n");
         nLocalServices = ServiceFlags(nLocalServices & ~NODE_NETWORK);
         if (!fReindex) {
+            // Existing 4.0.1.4 nodes have not retained historical quorum or
+            // governance evidence. Populate and verify it before pruning files.
+            std::string evidenceError;
+            uiInterface.InitMessage(_("Verifying historical pruning evidence..."));
+            if (!EnsurePrunedBlockEvidence(evidenceError)) {
+                return InitError(strprintf(_("Pruning prevented: %s"), evidenceError));
+            }
             uiInterface.InitMessage(_("Pruning blockstore..."));
             PruneAndFlush();
         }

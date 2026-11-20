@@ -26,6 +26,7 @@
 #include "policy/policy.h"
 #include "pow.h"
 #include "primitives/block.h"
+#include "prunedblock.h"
 #include "primitives/transaction.h"
 #include "reverse_iterator.h"
 #include "script/script.h"
@@ -2929,6 +2930,64 @@ void FlushStateToDisk() {
     CValidationState state;
     const CChainParams& chainparams = Params();
     FlushStateToDisk(chainparams, state, FLUSH_STATE_ALWAYS);
+}
+
+// Historical evidence migration is mandatory before pruning an existing archive.
+// Mark completion only after every active-chain block has been verified. A crash
+// or missing block leaves the marker unset; restart retries without deleting data.
+bool EnsurePrunedBlockEvidence(std::string& error)
+{
+    error.clear();
+    if (!fPruneMode || fReindex) return true;
+    LOCK(cs_main);
+    if (!chainActive.Tip()) return true; // Fresh sync retains evidence in ConnectBlock.
+
+    static const std::string marker = "pruned-evidence-v1";
+    bool complete = false;
+    if (pblocktree->ReadFlag(marker, complete) && complete) return true;
+
+    const int height = chainActive.Height();
+    LogPrintf("Prune evidence migration: scanning %d active-chain blocks before pruning\n", height);
+    for (int n = 1; n <= height; ++n) {
+        if (ShutdownRequested()) {
+            error = "shutdown requested during evidence migration; no pruning performed";
+            return false;
+        }
+        const CBlockIndex* index = chainActive[n];
+        if (!index) {
+            error = strprintf("missing active-chain block index at height %d", n);
+            return false;
+        }
+        const uint256 hash = index->GetBlockHash();
+        if (index->nStatus & BLOCK_HAVE_DATA) {
+            CBlock block;
+            if (!ReadBlockFromDisk(block, index, Params().GetConsensus()) ||
+                block.GetHash() != hash || BlockMerkleRoot(block) != index->hashMerkleRoot) {
+                error = strprintf("missing or invalid archival block at height %d (%s); no pruning performed", n, hash.ToString());
+                return false;
+            }
+            if (!pblocktree->WritePrunedBlockMetadata(block) ||
+                !pblocktree->WriteGovernanceCollateral(block)) {
+                error = strprintf("cannot retain historical evidence at height %d; no pruning performed", n);
+                return false;
+            }
+        }
+        CPrunedBlockMetadata metadata;
+        if (!pblocktree->ReadPrunedBlockMetadata(hash, index->hashMerkleRoot, metadata)) {
+            error = strprintf("verified historical evidence unavailable at height %d (%s); restore archival blocks before pruning", n, hash.ToString());
+            return false;
+        }
+        if (n % 10000 == 0 || n == height) {
+            LogPrintf("Prune evidence migration verified %d/%d blocks\n", n, height);
+            uiInterface.InitMessage(strprintf(_("Verifying pruning evidence: %d/%d"), n, height));
+        }
+    }
+    if (!pblocktree->WriteFlag(marker, true)) {
+        error = "cannot commit pruning evidence migration marker; no pruning performed";
+        return false;
+    }
+    LogPrintf("Prune evidence migration complete at height %d; pruning is permitted\n", height);
+    return true;
 }
 
 void PruneAndFlush() {
