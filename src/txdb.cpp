@@ -4,6 +4,9 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "txdb.h"
+#include "prunedblock.h"
+#include "governance/governance-object.h"
+#include "primitives/block.h"
 
 #include "chainparams.h"
 #include "hash.h"
@@ -559,4 +562,60 @@ bool CCoinsViewDB::Upgrade() {
     uiInterface.SetProgressBreakAction(std::function<void(void)>());
     LogPrintf("[%s].\n", ShutdownRequested() ? "CANCELLED" : "DONE");
     return !ShutdownRequested();
+}
+
+// Retain only locally validated burn transactions, independently of block files.
+// Entries from disconnected blocks are harmless: readers require active-chain membership.
+bool CBlockTreeDB::WriteGovernanceCollateral(const CBlock& block)
+{
+    CDBBatch batch(*this);
+    bool found = false;
+    for (const auto& tx : block.vtx) {
+        for (const auto& out : tx->vout) {
+            if (out.nValue >= GOVERNANCE_PROPOSAL_FEE_TX && out.scriptPubKey.size() == 34 &&
+                out.scriptPubKey[0] == OP_RETURN && out.scriptPubKey[1] == 32) {
+                batch.Write(std::make_pair(std::string("govcollateral"), tx->GetHash()),
+                            std::make_pair(tx, block.GetHash()));
+                found = true;
+                break;
+            }
+        }
+    }
+    return !found || WriteBatch(batch, true);
+}
+
+bool CBlockTreeDB::ReadGovernanceCollateral(const uint256& txid, CTransactionRef& tx, uint256& blockHash)
+{
+    std::pair<CTransactionRef, uint256> record;
+    if (!Read(std::make_pair(std::string("govcollateral"), txid), record) ||
+        !record.first || record.first->GetHash() != txid) return false;
+    tx = record.first;
+    blockHash = record.second;
+    return true;
+}
+
+bool CBlockTreeDB::WritePrunedBlockMetadata(const CBlock& block)
+{
+    if (block.vtx.empty()) return false;
+    CPrunedBlockMetadata data;
+    data.coinbase = block.vtx[0];
+    std::vector<uint256> hashes;
+    std::vector<bool> coinbaseMatch(block.vtx.size(), false), commitmentMatch(block.vtx.size(), false);
+    coinbaseMatch[0] = commitmentMatch[0] = true;
+    for (size_t i=0; i<block.vtx.size(); ++i) {
+        hashes.push_back(block.vtx[i]->GetHash());
+        if (i && block.vtx[i]->nType == TRANSACTION_QUORUM_COMMITMENT) {
+            commitmentMatch[i] = true;
+            data.commitments.push_back(block.vtx[i]);
+        }
+    }
+    data.coinbaseProof = CPartialMerkleTree(hashes, coinbaseMatch);
+    data.commitmentProof = CPartialMerkleTree(hashes, commitmentMatch);
+    if (!data.Verify(block.hashMerkleRoot)) return false;
+    return Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data, true);
+}
+
+bool CBlockTreeDB::ReadPrunedBlockMetadata(const uint256& hash, const uint256& root, CPrunedBlockMetadata& data)
+{
+    return Read(std::make_pair(std::string("prunedmetadata"), hash), data) && data.Verify(root);
 }

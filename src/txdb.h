@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+struct CPrunedBlockMetadata;
 class CBlockIndex;
 class CCoinsViewDBCursor;
 class uint256;
@@ -121,6 +122,10 @@ public:
     bool ReadLastBlockFile(int &nFile);
     bool WriteReindexing(bool fReindex);
     bool ReadReindexing(bool &fReindex);
+    bool WritePrunedBlockMetadata(const CBlock& block);
+    bool ReadPrunedBlockMetadata(const uint256& blockHash, const uint256& merkleRoot, CPrunedBlockMetadata& data);
+    bool ReadGovernanceCollateral(const uint256& txid, CTransactionRef& tx, uint256& blockHash);
+    bool WriteGovernanceCollateral(const CBlock& block);
     bool HasTxIndex(const uint256 &txid);
     bool ReadTxIndex(const uint256 &txid, CDiskTxPos &pos);
     bool WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);

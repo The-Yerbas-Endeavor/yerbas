@@ -38,7 +38,7 @@ private:
 public:
     CQuorumBlockProcessor(CEvoDB& _evoDb) : evoDb(_evoDb) {}
 
-    void UpgradeDB();
+    void UpgradeDB(bool force = false);
 
     void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
 

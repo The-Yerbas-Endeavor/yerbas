@@ -210,6 +210,7 @@ BITCOIN_CORE_H = \
   smartnode/smartnode-collaterals.h \
   memusage.h \
   merkleblock.h \
+  prunedblock.h \
   messagesigner.h \
   miner.h \
   net.h \
