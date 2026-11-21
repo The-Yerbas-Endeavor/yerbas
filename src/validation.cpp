@@ -2947,39 +2947,77 @@ bool EnsurePrunedBlockEvidence(std::string& error)
     if (pblocktree->ReadFlag(marker, complete) && complete) return true;
 
     const int height = chainActive.Height();
-    LogPrintf("Prune evidence migration: scanning %d active-chain blocks before pruning\n", height);
-    for (int n = 1; n <= height; ++n) {
+    int checkpointHeight = 0;
+    uint256 checkpointHash;
+    if (pblocktree->ReadPrunedEvidenceCheckpoint(checkpointHeight, checkpointHash)) {
+        if (checkpointHeight < 1 || checkpointHeight > height || !chainActive[checkpointHeight] ||
+            chainActive[checkpointHeight]->GetBlockHash() != checkpointHash) {
+            error = "historical evidence checkpoint is not on the active chain; no pruning performed";
+            return false;
+        }
+        // A checkpoint is written atomically with all evidence in its batch.
+        // Confirm that its final block's Merkle proof is still available.
+        CPrunedBlockMetadata metadata;
+        if (!pblocktree->ReadPrunedBlockMetadata(checkpointHash,
+                chainActive[checkpointHeight]->hashMerkleRoot, metadata)) {
+            error = "historical evidence checkpoint metadata missing or invalid; no pruning performed";
+            return false;
+        }
+    }
+
+    const int start = checkpointHeight + 1;
+    LogPrintf("Prune evidence migration: scanning %d active-chain blocks before pruning (resuming at %d)\n",
+              height, start);
+
+    // Cap the in-memory working set. Only one synchronous DB write is needed
+    // per batch, including both quorum and governance evidence and checkpoint.
+    static const size_t BATCH_BLOCKS = 32;
+    std::vector<CBlock> pending;
+    pending.reserve(BATCH_BLOCKS);
+
+    for (int n = start; n <= height; ++n) {
         if (ShutdownRequested()) {
             error = "shutdown requested during evidence migration; no pruning performed";
             return false;
         }
         const CBlockIndex* index = chainActive[n];
-        if (!index) {
-            error = strprintf("missing active-chain block index at height %d", n);
+        if (!index || !(index->nStatus & BLOCK_HAVE_DATA)) {
+            error = strprintf("missing archival block at height %d; no pruning performed", n);
             return false;
         }
-        const uint256 hash = index->GetBlockHash();
-        if (index->nStatus & BLOCK_HAVE_DATA) {
-            CBlock block;
-            if (!ReadBlockFromDisk(block, index, Params().GetConsensus()) ||
-                block.GetHash() != hash || BlockMerkleRoot(block) != index->hashMerkleRoot) {
-                error = strprintf("missing or invalid archival block at height %d (%s); no pruning performed", n, hash.ToString());
-                return false;
-            }
-            if (!pblocktree->WritePrunedBlockMetadata(block) ||
-                !pblocktree->WriteGovernanceCollateral(block)) {
-                error = strprintf("cannot retain historical evidence at height %d; no pruning performed", n);
-                return false;
-            }
-        }
-        CPrunedBlockMetadata metadata;
-        if (!pblocktree->ReadPrunedBlockMetadata(hash, index->hashMerkleRoot, metadata)) {
-            error = strprintf("verified historical evidence unavailable at height %d (%s); restore archival blocks before pruning", n, hash.ToString());
+
+        // These blocks already belong to the locally validated active chain.
+        // Avoid the expensive second proof-of-work calculation performed by
+        // ReadBlockFromDisk. Check indexed hash AND Merkle root instead.
+        CBlock block;
+        CAutoFile input(OpenBlockFile(index->GetBlockPos(), true), SER_DISK, CLIENT_VERSION);
+        if (input.IsNull()) {
+            error = strprintf("cannot read archival block at height %d; no pruning performed", n);
             return false;
         }
-        if (n % 10000 == 0 || n == height) {
-            LogPrintf("Prune evidence migration verified %d/%d blocks\n", n, height);
-            uiInterface.InitMessage(strprintf(_("Verifying pruning evidence: %d/%d"), n, height));
+        try {
+            input >> block;
+        } catch (const std::exception&) {
+            error = strprintf("cannot deserialize archival block at height %d; no pruning performed", n);
+            return false;
+        }
+        if (block.GetHash() != index->GetBlockHash() ||
+            BlockMerkleRoot(block) != index->hashMerkleRoot) {
+            error = strprintf("invalid indexed block or Merkle root at height %d; no pruning performed", n);
+            return false;
+        }
+
+        pending.emplace_back(std::move(block));
+        if (pending.size() == BATCH_BLOCKS || n == height) {
+            if (!pblocktree->WritePrunedEvidenceBatch(pending, n, index->GetBlockHash())) {
+                error = strprintf("cannot atomically retain historical evidence through height %d; no pruning performed", n);
+                return false;
+            }
+            pending.clear();
+            if (n / 10000 != (n - static_cast<int>(BATCH_BLOCKS)) / 10000 || n == height) {
+                LogPrintf("Prune evidence migration verified %d/%d blocks\n", n, height);
+                uiInterface.InitMessage(strprintf(_("Verifying pruning evidence: %d/%d"), n, height));
+            }
         }
     }
     if (!pblocktree->WriteFlag(marker, true)) {
