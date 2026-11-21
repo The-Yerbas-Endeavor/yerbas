@@ -39,8 +39,9 @@ jobs:
           ARCHIVE="yerbas-4.0.1.6-ubuntu26-${SHA}.tar.gz"
           test -s "$ARCHIVE"
           test "$(tar -xOf "$ARCHIVE" yerbas-build/build-info.txt | sed -n 's/^commit=//p' | head -1)" = "$SHA"
-          tar -tzf "$ARCHIVE" | grep -qx 'yerbas-build/yerbasd'
-          tar -tzf "$ARCHIVE" | grep -qx 'yerbas-build/yerbas-cli'
+          tar -tzf "$ARCHIVE" > archive-contents.txt
+          grep -Fxq 'yerbas-build/yerbasd' archive-contents.txt
+          grep -Fxq 'yerbas-build/yerbas-cli' archive-contents.txt
           sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
