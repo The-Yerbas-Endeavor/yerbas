@@ -594,15 +594,16 @@ bool CBlockTreeDB::ReadGovernanceCollateral(const uint256& txid, CTransactionRef
     return true;
 }
 
-bool CBlockTreeDB::WritePrunedBlockMetadata(const CBlock& block)
+// Build the same Merkle-verified evidence for normal block connection and
+// historical archive migration, without altering its serialized DB format.
+static bool BuildPrunedBlockMetadata(const CBlock& block, CPrunedBlockMetadata& data)
 {
     if (block.vtx.empty()) return false;
-    CPrunedBlockMetadata data;
     data.coinbase = block.vtx[0];
     std::vector<uint256> hashes;
     std::vector<bool> coinbaseMatch(block.vtx.size(), false), commitmentMatch(block.vtx.size(), false);
     coinbaseMatch[0] = commitmentMatch[0] = true;
-    for (size_t i=0; i<block.vtx.size(); ++i) {
+    for (size_t i = 0; i < block.vtx.size(); ++i) {
         hashes.push_back(block.vtx[i]->GetHash());
         if (i && block.vtx[i]->nType == TRANSACTION_QUORUM_COMMITMENT) {
             commitmentMatch[i] = true;
@@ -611,8 +612,48 @@ bool CBlockTreeDB::WritePrunedBlockMetadata(const CBlock& block)
     }
     data.coinbaseProof = CPartialMerkleTree(hashes, coinbaseMatch);
     data.commitmentProof = CPartialMerkleTree(hashes, commitmentMatch);
-    if (!data.Verify(block.hashMerkleRoot)) return false;
-    return Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data, true);
+    return data.Verify(block.hashMerkleRoot);
+}
+
+bool CBlockTreeDB::WritePrunedBlockMetadata(const CBlock& block)
+{
+    CPrunedBlockMetadata data;
+    return BuildPrunedBlockMetadata(block, data) &&
+        Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data, true);
+}
+
+// The checkpoint is committed in the same LevelDB transaction as the evidence
+// it covers. A crash can replay at most one batch, without ever skipping records.
+bool CBlockTreeDB::WritePrunedEvidenceBatch(const std::vector<CBlock>& blocks, int height, const uint256& hash)
+{
+    if (blocks.empty() || height < 1 || hash.IsNull() || blocks.back().GetHash() != hash) return false;
+    CDBBatch batch(*this);
+    for (const CBlock& block : blocks) {
+        CPrunedBlockMetadata data;
+        if (!BuildPrunedBlockMetadata(block, data)) return false;
+        batch.Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data);
+        for (const auto& tx : block.vtx) {
+            for (const auto& out : tx->vout) {
+                if (out.nValue >= GOVERNANCE_PROPOSAL_FEE_TX && out.scriptPubKey.size() == 34 &&
+                    out.scriptPubKey[0] == OP_RETURN && out.scriptPubKey[1] == 32) {
+                    batch.Write(std::make_pair(std::string("govcollateral"), tx->GetHash()),
+                                std::make_pair(tx, block.GetHash()));
+                    break;
+                }
+            }
+        }
+    }
+    batch.Write(std::string("pruned-evidence-checkpoint-v2"), std::make_pair(height, hash));
+    return WriteBatch(batch, true);
+}
+
+bool CBlockTreeDB::ReadPrunedEvidenceCheckpoint(int& height, uint256& hash)
+{
+    std::pair<int, uint256> record;
+    if (!Read(std::string("pruned-evidence-checkpoint-v2"), record)) return false;
+    height = record.first;
+    hash = record.second;
+    return true;
 }
 
 bool CBlockTreeDB::ReadPrunedBlockMetadata(const uint256& hash, const uint256& root, CPrunedBlockMetadata& data)
