@@ -230,6 +230,18 @@ jobs:
           python3 ci/test-asset-acceptance.py "$PWD/src/yerbasd" \
             --workdir "$RUNNER_TEMP/yerbas-asset-acceptance" 2>&1 | tee ci-logs/asset-acceptance.log
 
+      - name: Test archival-to-pruned evidence migration and restart
+        if: matrix.platform.id == 'ubuntu26'
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/yerbas-prune-functional-python"
+          source "$RUNNER_TEMP/yerbas-prune-functional-python/bin/activate"
+          python3 -m pip install pyasyncore==1.0.5
+          python3 test/functional/feature_prune_migration.py \
+            --tmpdir="$RUNNER_TEMP/yerbas-prune-migration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            2>&1 | tee ci-logs/prune-migration.log
+
       - name: Test signed LOW_LLMQ transactions and replay audit
         if: matrix.platform.id == 'ubuntu26'
         timeout-minutes: 30
