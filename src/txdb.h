@@ -123,6 +123,9 @@ public:
     bool WriteReindexing(bool fReindex);
     bool ReadReindexing(bool &fReindex);
     bool WritePrunedBlockMetadata(const CBlock& block);
+    // Atomic historical evidence batches and resumable active-chain checkpoints.
+    bool WritePrunedEvidenceBatch(const std::vector<CBlock>& blocks, int height, const uint256& hash);
+    bool ReadPrunedEvidenceCheckpoint(int& height, uint256& hash);
     bool ReadPrunedBlockMetadata(const uint256& blockHash, const uint256& merkleRoot, CPrunedBlockMetadata& data);
     bool ReadGovernanceCollateral(const uint256& txid, CTransactionRef& tx, uint256& blockHash);
     bool WriteGovernanceCollateral(const CBlock& block);
