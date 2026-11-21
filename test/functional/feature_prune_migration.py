@@ -11,6 +11,12 @@ class PruneMigrationTest(BitcoinTestFramework):
         self.setup_clean_chain = True
         self.extra_args = [["-txindex=1", "-disablegovernance"]]
 
+    def setup_network(self):
+        # This is a single-node offline archive conversion. The inherited
+        # setup_network invokes sync_all(), including a legacy RPC not exposed
+        # by Yerbas 4.0.1.6; no peer/mempool synchronization is needed.
+        self.setup_nodes()
+
     def run_test(self):
         node = self.nodes[0]
         node.generate(40)
