@@ -1,0 +1,64 @@
+name: Publish verified Ubuntu 26 pruning pilot 80bc1224
+on:
+  push:
+    branches: ["4.0.1.6"]
+    paths:
+      - .github/workflows/publish-prune-pilot-80bc1224.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Fetch successful Ubuntu 26 build from exact commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          SHA="80bc1224c01d6f098003eb1bd48f67dc3f0c4833"
+          RUN="44855783153"
+          ARTIFACT="14689330636"
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.conclusion')"
+          ACTUAL="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.head_sha')"
+          test "$STATUS" = success
+          test "$ACTUAL" = "$SHA"
+          curl -fsSL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT/zip" \
+            -o artifact.zip
+          mkdir -p release-artifact
+          unzip -q artifact.zip -d release-artifact
+          cd release-artifact
+          sha256sum -c SHA256SUMS
+          ARCHIVE="yerbas-4.0.1.6-ubuntu26-${SHA}.tar.gz"
+          test -s "$ARCHIVE"
+          test "$(tar -xOf "$ARCHIVE" yerbas-build/build-info.txt | sed -n 's/^commit=//p' | head -1)" = "$SHA"
+          tar -tzf "$ARCHIVE" | grep -qx 'yerbas-build/yerbasd'
+          tar -tzf "$ARCHIVE" | grep -qx 'yerbas-build/yerbas-cli'
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Publish separate prerelease without altering existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          cd release-artifact
+          TAG="v4.0.1.6-prune-pilot-80bc1224"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite or replace artifacts"
+            exit 1
+          fi
+          gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "80bc1224c01d6f098003eb1bd48f67dc3f0c4833" \
+            --title "Yerbas 4.0.1.6 pruning migration pilot (Ubuntu 26)" \
+            --prerelease \
+            --notes "Experimental Ubuntu 26 pruning migration pilot, built from verified commit 80bc1224c01d6f098003eb1bd48f67dc3f0c4833. GitHub Actions run 44855783153 passed. This pilot is NOT a general mainnet rollout. Back up node data and validate on a disposable host; preserves existing 4.0.1.4 release and original 9f9627c binaries."
