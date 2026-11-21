@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Regression: migrate an existing archival txindex chain to prune mode without reindex."""
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal
+from test_framework.util import assert_equal, get_chain_folder
+from pathlib import Path
 
 
 class PruneMigrationTest(BitcoinTestFramework):
@@ -12,7 +13,7 @@ class PruneMigrationTest(BitcoinTestFramework):
 
     def run_test(self):
         node = self.nodes[0]
-        node.generate(25)
+        node.generate(40)
         height = node.getblockcount()
         tip = node.getbestblockhash()
         historical = node.getblockhash(1)
@@ -21,16 +22,21 @@ class PruneMigrationTest(BitcoinTestFramework):
         self.log.info("Restart existing archival chain with txindex disabled and pruning enabled")
         self.stop_node(0)
         prune_args = ["-txindex=0", "-prune=550", "-disablegovernance"]
-        self.start_node(0, extra_args=prune_args)
+        with node.assert_debug_log(["Prune evidence migration complete at height 40"]):
+            self.start_node(0, extra_args=prune_args)
         node = self.nodes[0]
         assert_equal(node.getblockcount(), height)
         assert_equal(node.getbestblockhash(), tip)
         assert_equal(node.getblockhash(1), historical)
         assert_equal(node.getblockchaininfo()["pruned"], True)
 
-        self.log.info("Verify retained evidence survives a second prune-mode restart")
+        self.log.info("Verify evidence completion marker skips repeat scanning on restart")
+        log = Path(node.datadir) / get_chain_folder(node.datadir, node.chain) / "debug.log"
+        count_before = log.read_text(encoding="utf-8").count("Prune evidence migration: scanning")
         self.stop_node(0)
         self.start_node(0, extra_args=prune_args)
+        count_after = log.read_text(encoding="utf-8").count("Prune evidence migration: scanning")
+        assert_equal(count_after, count_before)
         assert_equal(self.nodes[0].getbestblockhash(), tip)
         assert_equal(self.nodes[0].getblockchaininfo()["pruned"], True)
 
