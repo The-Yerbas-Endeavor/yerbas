@@ -648,6 +648,43 @@ UniValue quorum(const JSONRPCRequest& request)
         result.pushKV("blocks_checked", static_cast<int64_t>(checked));
         result.pushKV("commitments_matched", static_cast<int64_t>(commitments));
         return result;
+    } else if (command == "testrebuildnode5index") {
+        // NEVER MERGE: temporary test hook for the disposable node5 snapshot.
+        // Hard-pin the chain, path, evidence count and offline runtime. This
+        // must not be available on ordinary mainnet nodes.
+        if (request.params.size() != 1)
+            throw std::runtime_error("quorum testrebuildnode5index\\nDisposable node5 snapshot only.\\n");
+        if (Params().NetworkIDString() != "main" ||
+            GetDataDir() != fs::path("/var/lib/yerbas-recovery-test") ||
+            !fs::exists(GetDataDir() / "ALLOW_NODE5_PRUNED_INDEX_REBUILD") ||
+            !fPruneMode || fReindex ||
+            !gArgs.GetBoolArg("-disablewallet", false) ||
+            gArgs.GetBoolArg("-listen", true) ||
+            gArgs.GetArg("-connect", "") != "0" ||
+            gArgs.GetArg("-rpcport", 0) != 19995 ||
+            gArgs.GetArg("-port", 0) != 19996)
+            throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Test-only command unavailable");
+        LOCK(cs_main);
+        if (!chainActive.Tip() || chainActive.Height() != 1167184 ||
+            chainActive.Tip()->GetBlockHash().ToString() !=
+            "34813691133da90a08a9927a5b19b5cda6acf46f3ddc52888a6767e920168838")
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Unexpected node5 snapshot; rebuild refused");
+        size_t checked = 0, compact = 0, commitments = 0;
+        std::string error;
+        if (!llmq::quorumBlockProcessor->VerifyPrunedEvidence(checked, compact, commitments, error) ||
+            checked != 1167184 || commitments != 26290)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Pre-rebuild evidence mismatch: " + error);
+        llmq::quorumBlockProcessor->UpgradeDB(true);
+        size_t afterChecked = 0, afterCompact = 0, afterCommitments = 0;
+        if (!llmq::quorumBlockProcessor->VerifyPrunedEvidence(afterChecked, afterCompact, afterCommitments, error) ||
+            afterChecked != checked || afterCompact != compact || afterCommitments != commitments)
+            throw JSONRPCError(RPC_INTERNAL_ERROR, "Post-rebuild evidence mismatch: " + error);
+        UniValue result(UniValue::VOBJ);
+        result.pushKV("rebuilt", true);
+        result.pushKV("blocks_checked", static_cast<int64_t>(afterChecked));
+        result.pushKV("commitments_matched", static_cast<int64_t>(afterCommitments));
+        result.pushKV("bestblockhash", chainActive.Tip()->GetBlockHash().ToString());
+        return result;
     } else if (command == "verifyprunedevidence") {
         if (request.params.size() != 1)
             throw std::runtime_error("quorum verifyprunedevidence\\nRead-only full historical evidence and mined-commitment comparison.\\n");
