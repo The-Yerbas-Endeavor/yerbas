@@ -39,6 +39,10 @@ public:
     CQuorumBlockProcessor(CEvoDB& _evoDb) : evoDb(_evoDb) {}
 
     void UpgradeDB(bool force = false);
+    // Reconstruct in memory from retained evidence and compare with the
+    // existing mined-commitment index; NEVER modify either database.
+    bool VerifyPrunedEvidence(size_t& checked, size_t& compact,
+                              size_t& commitments, std::string& error);
 
     void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
 
