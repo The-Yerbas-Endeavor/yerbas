@@ -1326,8 +1326,8 @@ bool AppInitParameterInteraction()
     } else if (nPruneTarget) {
         if (gArgs.GetBoolArg("-regtest", false)) {
             // we use 1MB blocks to test this on regtest
-            if (nPruneTarget < 550 * 1024 * 1024) {
-                return InitError(strprintf(_("Prune configured below the minimum of %d MiB.  Please use a higher number."), 550));
+            if (nPruneTarget < 256 * 1024 * 1024) {
+                return InitError(strprintf(_("Prune configured below the minimum of %d MiB.  Please use a higher number."), 256));
             }
         } else {
             if (nPruneTarget < MIN_DISK_SPACE_FOR_BLOCK_FILES) {
