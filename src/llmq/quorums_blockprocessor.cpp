@@ -13,6 +13,7 @@
 
 #include "chain.h"
 #include "chainparams.h"
+#include "init.h" // ShutdownRequested
 #include "consensus/validation.h"
 #include "net.h"
 #include "net_processing.h"
