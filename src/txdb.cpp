@@ -680,8 +680,48 @@ bool CBlockTreeDB::ReadPrunedQuorumCommitments(const uint256& hash, const uint25
         commitments = old.commitments;
         return true;
     }
+    // A present but corrupt legacy record must never be bypassed by an empty marker.
+    if (Exists(std::make_pair(std::string("prunedmetadata"), hash))) return false;
     uint256 retainedRoot;
     if (!Read(std::make_pair(std::string("prunedempty"), hash), retainedRoot))
         return false;
     return retainedRoot == root;
+}
+
+// Opt-in database-only compaction: no old blocks are loaded or deleted.
+// The compact negative record and legacy deletion share a single atomic batch.
+bool CBlockTreeDB::CompactLegacyPrunedEvidenceBatch(
+    const std::vector<std::pair<uint256, uint256>>& blocks, int height, const uint256& hash)
+{
+    if (blocks.empty() || height < 1 || blocks.back().first != hash) return false;
+    CDBBatch batch(*this);
+    for (const auto& entry : blocks) {
+        const auto oldKey = std::make_pair(std::string("prunedmetadata"), entry.first);
+        CPrunedBlockMetadata old;
+        if (Read(oldKey, old)) {
+            if (!old.Verify(entry.second)) return false;
+            if (old.commitments.empty()) {
+                batch.Write(std::make_pair(std::string("prunedempty"), entry.first), entry.second);
+                batch.Erase(oldKey);
+            }
+        } else {
+            // Old evidence absent: require a matching compact record.
+            // A corrupt legacy record is not interchangeable with absence.
+            if (Exists(oldKey)) return false;
+            uint256 root;
+            if (!Read(std::make_pair(std::string("prunedempty"), entry.first), root) ||
+                root != entry.second) return false;
+        }
+    }
+    batch.Write(std::string("pruned-evidence-compact-checkpoint-v1"), std::make_pair(height, hash));
+    return WriteBatch(batch, true);
+}
+
+bool CBlockTreeDB::ReadPrunedEvidenceCompactionCheckpoint(int& height, uint256& hash)
+{
+    std::pair<int, uint256> record;
+    if (!Read(std::string("pruned-evidence-compact-checkpoint-v1"), record)) return false;
+    height = record.first;
+    hash = record.second;
+    return true;
 }
