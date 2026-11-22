@@ -19,8 +19,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           SHA="cf35bfd545d2b70c52575e9ce525f9dc880ef1ab"
-          RUN="45050396802"
-          ARTIFACT="14767160026"
+          RUN="45050391128"
+          ARTIFACT="14766304375"
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.conclusion')" = success
           test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
           curl -fsSL --retry 3 \
@@ -57,4 +57,4 @@ jobs:
             --target "cf35bfd545d2b70c52575e9ce525f9dc880ef1ab" \
             --title "Yerbas 4.0.1.6 experimental pruning recovery test pilot (Ubuntu 26)" \
             --prerelease \
-            --notes "Exact CI-tested 256 MiB automatic block/undo pruning pilot commit cf35bfd545d2b70c52575e9ce525f9dc880ef1ab. CI 45050396802. Target is a soft limit. No consensus changes. Experimental isolated tests only; do not change live Smartnodes or overwrite existing releases."
+            --notes "Exact CI-tested 256 MiB automatic block/undo pruning pilot commit cf35bfd545d2b70c52575e9ce525f9dc880ef1ab. CI 45050391128. Target is a soft limit. No consensus changes. Experimental isolated tests only; do not change live Smartnodes or overwrite existing releases."
