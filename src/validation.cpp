@@ -2957,9 +2957,9 @@ bool EnsurePrunedBlockEvidence(std::string& error)
         }
         // A checkpoint is written atomically with all evidence in its batch.
         // Confirm that its final block's Merkle proof is still available.
-        CPrunedBlockMetadata metadata;
-        if (!pblocktree->ReadPrunedBlockMetadata(checkpointHash,
-                chainActive[checkpointHeight]->hashMerkleRoot, metadata)) {
+        std::vector<CTransactionRef> commitments;
+        if (!pblocktree->ReadPrunedQuorumCommitments(checkpointHash,
+                chainActive[checkpointHeight]->hashMerkleRoot, commitments)) {
             error = "historical evidence checkpoint metadata missing or invalid; no pruning performed";
             return false;
         }
