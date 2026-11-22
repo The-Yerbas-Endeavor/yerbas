@@ -618,8 +618,12 @@ static bool BuildPrunedBlockMetadata(const CBlock& block, CPrunedBlockMetadata& 
 bool CBlockTreeDB::WritePrunedBlockMetadata(const CBlock& block)
 {
     CPrunedBlockMetadata data;
-    return BuildPrunedBlockMetadata(block, data) &&
-        Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data, true);
+    if (!BuildPrunedBlockMetadata(block, data)) return false;
+    // No quorum transactions: retain a compact locally-validated Merkle-root
+    // binding rather than the full coinbase and two redundant partial proofs.
+    if (data.commitments.empty())
+        return Write(std::make_pair(std::string("prunedempty"), block.GetHash()), block.hashMerkleRoot, true);
+    return Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data, true);
 }
 
 // The checkpoint is committed in the same LevelDB transaction as the evidence
@@ -631,7 +635,10 @@ bool CBlockTreeDB::WritePrunedEvidenceBatch(const std::vector<CBlock>& blocks, i
     for (const CBlock& block : blocks) {
         CPrunedBlockMetadata data;
         if (!BuildPrunedBlockMetadata(block, data)) return false;
-        batch.Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data);
+        if (data.commitments.empty())
+            batch.Write(std::make_pair(std::string("prunedempty"), block.GetHash()), block.hashMerkleRoot);
+        else
+            batch.Write(std::make_pair(std::string("prunedmetadata"), block.GetHash()), data);
         for (const auto& tx : block.vtx) {
             for (const auto& out : tx->vout) {
                 if (out.nValue >= GOVERNANCE_PROPOSAL_FEE_TX && out.scriptPubKey.size() == 34 &&
@@ -659,4 +666,22 @@ bool CBlockTreeDB::ReadPrunedEvidenceCheckpoint(int& height, uint256& hash)
 bool CBlockTreeDB::ReadPrunedBlockMetadata(const uint256& hash, const uint256& root, CPrunedBlockMetadata& data)
 {
     return Read(std::make_pair(std::string("prunedmetadata"), hash), data) && data.Verify(root);
+}
+
+// This is a *locally validated* negative commitment record, not a standalone
+// cryptographic proof that an arbitrary unvalidated block lacks commitments.
+// Full positive commitments still require Merkle-verified legacy evidence.
+bool CBlockTreeDB::ReadPrunedQuorumCommitments(const uint256& hash, const uint256& root,
+                                               std::vector<CTransactionRef>& commitments)
+{
+    commitments.clear();
+    CPrunedBlockMetadata old;
+    if (ReadPrunedBlockMetadata(hash, root, old)) {
+        commitments = old.commitments;
+        return true;
+    }
+    uint256 retainedRoot;
+    if (!Read(std::make_pair(std::string("prunedempty"), hash), retainedRoot))
+        return false;
+    return retainedRoot == root;
 }
