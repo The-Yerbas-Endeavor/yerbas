@@ -326,9 +326,36 @@ bool CQuorumBlockProcessor::VerifyPrunedEvidence(size_t& checked, size_t& compac
                 error = strprintf("retained commitment differs from mined index at height %d", height);
                 return false;
             }
+            // Reconstruct the second mined-commitment index entry exactly as
+            // UpgradeDB() would, and compare it without modifying EvoDB.
+            int indexedAnchorHeight = -1;
+            if (!evoDb.Read(BuildInversedHeightKey(entry.first, height), indexedAnchorHeight) ||
+                indexedAnchorHeight != anchor->second->nHeight) {
+                error = strprintf("retained commitment differs from inverted-height index at height %d", height);
+                return false;
+            }
             ++commitments;
         }
         ++checked;
+    }
+    // An index can contain stale entries even when every retained commitment
+    // matches. Compare complete cardinalities against reconstruction as well.
+    size_t indexedCommitments = 0;
+    size_t indexedHeights = 0;
+    std::unique_ptr<CDBIterator> it(evoDb.GetRawDB().NewIterator());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        std::string prefix;
+        if (!it->GetKey(prefix)) {
+            error = "cannot enumerate mined-commitment index";
+            return false;
+        }
+        if (prefix == DB_MINED_COMMITMENT) ++indexedCommitments;
+        if (prefix == DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT) ++indexedHeights;
+    }
+    if (indexedCommitments != commitments || indexedHeights != commitments) {
+        error = strprintf("mined-commitment index cardinality differs from reconstructed evidence (%d retained, %d commitments, %d inverted-height entries)",
+                          commitments, indexedCommitments, indexedHeights);
+        return false;
     }
     return true;
 }
