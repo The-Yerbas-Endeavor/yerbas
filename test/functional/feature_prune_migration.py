@@ -58,6 +58,10 @@ class PruneMigrationTest(BitcoinTestFramework):
             self.start_node(0, extra_args=compact_args)
         assert_equal(node.getbestblockhash(), tip)
         assert_equal(node.getblockchaininfo()["pruned"], True)
+        evidence = node.quorum("verifyprunedevidence")
+        assert_equal(evidence["verified"], True)
+        assert_equal(evidence["blocks_checked"], height)
+        assert_equal(evidence["commitments_matched"], 0)
 
 
 if __name__ == "__main__":
