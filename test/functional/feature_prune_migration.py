@@ -63,6 +63,21 @@ class PruneMigrationTest(BitcoinTestFramework):
         assert_equal(evidence["blocks_checked"], height)
         assert_equal(evidence["commitments_matched"], 0)
 
+        self.log.info("Exercise the real mined-quorum index rebuild on pruned regtest")
+        rebuilt = node.quorum("testrebuildprunedindex")
+        assert_equal(rebuilt["rebuilt"], True)
+        assert_equal(rebuilt["blocks_checked"], height)
+        assert_equal(rebuilt["commitments_matched"], evidence["commitments_matched"])
+        assert_equal(node.getbestblockhash(), tip)
+        self.stop_node(0)
+        self.start_node(0, extra_args=prune_args)
+        assert_equal(node.getbestblockhash(), tip)
+        assert_equal(node.getblockchaininfo()["pruned"], True)
+        after_restart = node.quorum("verifyprunedevidence")
+        assert_equal(after_restart["verified"], True)
+        assert_equal(after_restart["blocks_checked"], height)
+        assert_equal(after_restart["commitments_matched"], evidence["commitments_matched"])
+
 
 if __name__ == "__main__":
     PruneMigrationTest().main()
