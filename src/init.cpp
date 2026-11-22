@@ -2215,6 +2215,12 @@ bool AppInitMain(boost::thread_group& threadGroup, CScheduler& scheduler)
                 fTxIndex = false;
                 LogPrintf("Prune migration: disabled txindex without rebuilding chainstate\n");
             }
+            if (gArgs.GetBoolArg("-compactprunedevidence", false)) {
+                std::string compactError;
+                uiInterface.InitMessage(_("Compacting retained pruning evidence..."));
+                if (!CompactLegacyPrunedEvidence(compactError))
+                    return InitError(strprintf(_("Pruning evidence compaction prevented: %s"), compactError));
+            }
             uiInterface.InitMessage(_("Pruning blockstore..."));
             PruneAndFlush();
         }
