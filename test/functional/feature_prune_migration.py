@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regression: migrate an existing archival txindex chain to prune mode without reindex."""
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, get_chain_folder
+from test_framework.util import assert_equal, assert_raises_rpc_error, get_chain_folder
 from pathlib import Path
 
 
@@ -62,6 +62,15 @@ class PruneMigrationTest(BitcoinTestFramework):
         assert_equal(evidence["verified"], True)
         assert_equal(evidence["blocks_checked"], height)
         assert_equal(evidence["commitments_matched"], 0)
+
+        self.log.info("Verify an interrupted rebuild leaves the original index unchanged")
+        assert_raises_rpc_error(-1, "Injected quorum index rebuild interruption",
+                                node.quorum, "testrebuildprunedindex", 20)
+        after_abort = node.quorum("verifyprunedevidence")
+        assert_equal(after_abort["verified"], True)
+        assert_equal(after_abort["blocks_checked"], height)
+        assert_equal(after_abort["commitments_matched"], evidence["commitments_matched"])
+        assert_equal(node.getbestblockhash(), tip)
 
         self.log.info("Exercise the real mined-quorum index rebuild on pruned regtest")
         rebuilt = node.quorum("testrebuildprunedindex")
