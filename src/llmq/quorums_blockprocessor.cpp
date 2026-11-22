@@ -290,10 +290,9 @@ void CQuorumBlockProcessor::UpgradeDB(bool force)
         const auto index = chainActive[height];
         CBlock block;
         if (!(index->nStatus & BLOCK_HAVE_DATA)) {
-            CPrunedBlockMetadata data;
-            if (!pblocktree->ReadPrunedBlockMetadata(index->GetBlockHash(), index->hashMerkleRoot, data))
+            if (!pblocktree->ReadPrunedQuorumCommitments(index->GetBlockHash(),
+                    index->hashMerkleRoot, block.vtx))
                 throw std::runtime_error("Quorum recovery missing verified retained evidence; archival rebuild required; index unchanged");
-            block.vtx = data.commitments;
         } else if (!ReadBlockFromDisk(block, index, Params().GetConsensus()) || BlockMerkleRoot(block) != index->hashMerkleRoot) {
             throw std::runtime_error("Quorum recovery cannot read block; index unchanged");
         }
