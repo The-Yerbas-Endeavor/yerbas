@@ -46,6 +46,19 @@ class PruneMigrationTest(BitcoinTestFramework):
         assert_equal(self.nodes[0].getbestblockhash(), tip)
         assert_equal(self.nodes[0].getblockchaininfo()["pruned"], True)
 
+        self.log.info("Opt-in evidence compaction preserves chain tip and is restart-safe")
+        self.stop_node(0)
+        compact_args = prune_args + ["-compactprunedevidence=1"]
+        with node.assert_debug_log(["Prune evidence compaction finished and database compacted"]):
+            self.start_node(0, extra_args=compact_args)
+        assert_equal(node.getbestblockhash(), tip)
+        assert_equal(node.getblockchaininfo()["pruned"], True)
+        self.stop_node(0)
+        with node.assert_debug_log(["Prune evidence compaction finished and database compacted"]):
+            self.start_node(0, extra_args=compact_args)
+        assert_equal(node.getbestblockhash(), tip)
+        assert_equal(node.getblockchaininfo()["pruned"], True)
+
 
 if __name__ == "__main__":
     PruneMigrationTest().main()
