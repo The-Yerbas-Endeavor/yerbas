@@ -624,7 +624,26 @@ UniValue quorum(const JSONRPCRequest& request)
         command = request.params[0].get_str();
     }
 
-    if (command == "verifyprunedevidence") {
+    if (command == "testrebuildprunedindex") {
+        // A destructive index-reconstruction exercise strictly limited to regtest.
+        // Never expose this maintenance operation on mainnet or testnet.
+        if (Params().NetworkIDString() != CBaseChainParams::REGTEST)
+            throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Test-only command");
+        if (request.params.size() != 1)
+            throw std::runtime_error("quorum testrebuildprunedindex\\nRegtest-only mined-quorum-index reconstruction test.\\n");
+        if (!fPruneMode || fReindex)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires a loaded pruned regtest chain");
+        llmq::quorumBlockProcessor->UpgradeDB(true);
+        size_t checked = 0, compact = 0, commitments = 0;
+        std::string error;
+        if (!llmq::quorumBlockProcessor->VerifyPrunedEvidence(checked, compact, commitments, error))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, error);
+        UniValue result(UniValue::VOBJ);
+        result.pushKV("rebuilt", true);
+        result.pushKV("blocks_checked", static_cast<int64_t>(checked));
+        result.pushKV("commitments_matched", static_cast<int64_t>(commitments));
+        return result;
+    } else if (command == "verifyprunedevidence") {
         if (request.params.size() != 1)
             throw std::runtime_error("quorum verifyprunedevidence\\nRead-only full historical evidence and mined-commitment comparison.\\n");
         size_t checked = 0, compact = 0, commitments = 0;
