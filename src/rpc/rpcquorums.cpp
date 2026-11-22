@@ -405,6 +405,7 @@ UniValue quorum_dkgsimerror(const JSONRPCRequest& request)
             "  info              - Return information about a quorum\n"
             "  dkgsimerror       - Simulates DKG errors and malicious behavior\n"
             "  recovery          - Manually turn LOW_LLMQ on/off or inspect recorded status\n"
+            "  verifyprunedevidence - Read-only comparison of historical retained evidence to the quorum index\n"
             "  dkgstatus         - Return the status of the current DKG process\n"
             "  memberof          - Checks which quorums the given smartnode is a member of\n"
             "  sign              - Threshold-sign a message\n"
@@ -623,7 +624,20 @@ UniValue quorum(const JSONRPCRequest& request)
         command = request.params[0].get_str();
     }
 
-    if (command == "recovery") {
+    if (command == "verifyprunedevidence") {
+        if (request.params.size() != 1)
+            throw std::runtime_error("quorum verifyprunedevidence\\nRead-only full historical evidence and mined-commitment comparison.\\n");
+        size_t checked = 0, compact = 0, commitments = 0;
+        std::string error;
+        if (!llmq::quorumBlockProcessor->VerifyPrunedEvidence(checked, compact, commitments, error))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, error);
+        UniValue result(UniValue::VOBJ);
+        result.pushKV("verified", true);
+        result.pushKV("blocks_checked", static_cast<int64_t>(checked));
+        result.pushKV("compact_blocks", static_cast<int64_t>(compact));
+        result.pushKV("commitments_matched", static_cast<int64_t>(commitments));
+        return result;
+    } else if (command == "recovery") {
         return quorum_recovery(request);
     } else if (command == "recoveryrequest" || command == "recoverystate") {
         return quorum_recovery_test(request, command == "recoveryrequest");
