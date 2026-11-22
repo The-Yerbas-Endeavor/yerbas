@@ -27,7 +27,7 @@ class PruneMigrationTest(BitcoinTestFramework):
 
         self.log.info("Restart existing archival chain with txindex disabled and pruning enabled")
         self.stop_node(0)
-        prune_args = ["-txindex=0", "-prune=550", "-disablegovernance"]
+        prune_args = ["-txindex=0", "-prune=256", "-disablegovernance"]
         with node.assert_debug_log(["Prune evidence migration complete at height 40"]):
             self.start_node(0, extra_args=prune_args)
         node = self.nodes[0]
