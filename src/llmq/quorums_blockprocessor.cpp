@@ -360,7 +360,7 @@ bool CQuorumBlockProcessor::VerifyPrunedEvidence(size_t& checked, size_t& compac
     return true;
 }
 
-void CQuorumBlockProcessor::UpgradeDB(bool force)
+void CQuorumBlockProcessor::UpgradeDB(bool force, int abortAtHeight)
 {
     LOCK(cs_main);
     if (fReindex || !chainActive.Tip()) throw std::runtime_error("Quorum recovery requires a completed active chain; finish reindex first");
@@ -376,6 +376,10 @@ void CQuorumBlockProcessor::UpgradeDB(bool force)
     }
     size_t commitments = 0;
     for (int height=1; height<=chainActive.Height(); ++height) {
+        // Regtest failure injection: abort while the replacement is still only
+        // in memory, proving that the original index remains untouched.
+        if (abortAtHeight == height && Params().NetworkIDString() == CBaseChainParams::REGTEST)
+            throw std::runtime_error("Injected quorum index rebuild interruption; index unchanged");
         const auto index = chainActive[height];
         CBlock block;
         if (!(index->nStatus & BLOCK_HAVE_DATA)) {
