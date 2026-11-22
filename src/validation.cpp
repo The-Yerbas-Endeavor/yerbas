@@ -3028,6 +3028,64 @@ bool EnsurePrunedBlockEvidence(std::string& error)
     return true;
 }
 
+// Explicit maintenance mode: compact already retained evidence only. The
+// operation does not read block files or change any block/consensus rules.
+bool CompactLegacyPrunedEvidence(std::string& error)
+{
+    error.clear();
+    LOCK(cs_main);
+    if (!fPruneMode || !chainActive.Tip() || fReindex) {
+        error = "evidence compaction requires a complete pruned chain";
+        return false;
+    }
+    bool complete = false;
+    if (!pblocktree->ReadFlag("pruned-evidence-v1", complete) || !complete) {
+        error = "historical evidence migration is not complete";
+        return false;
+    }
+    const int height = chainActive.Height();
+    int checkpointHeight = 0;
+    uint256 checkpointHash;
+    if (pblocktree->ReadPrunedEvidenceCompactionCheckpoint(checkpointHeight, checkpointHash) &&
+        (checkpointHeight < 1 || checkpointHeight > height ||
+         !chainActive[checkpointHeight] ||
+         chainActive[checkpointHeight]->GetBlockHash() != checkpointHash)) {
+        error = "compact evidence checkpoint is not on active chain";
+        return false;
+    }
+    static const size_t BATCH_BLOCKS = 128;
+    std::vector<std::pair<uint256, uint256>> batch;
+    batch.reserve(BATCH_BLOCKS);
+    LogPrintf("Prune evidence compaction: starting at %d of %d blocks\n", checkpointHeight + 1, height);
+    for (int n = checkpointHeight + 1; n <= height; ++n) {
+        if (ShutdownRequested()) {
+            error = "shutdown during evidence compaction; checkpoint retained";
+            return false;
+        }
+        const CBlockIndex* index = chainActive[n];
+        if (!index) {
+            error = strprintf("missing active block index at height %d", n);
+            return false;
+        }
+        batch.emplace_back(index->GetBlockHash(), index->hashMerkleRoot);
+        if (batch.size() == BATCH_BLOCKS || n == height) {
+            if (!pblocktree->CompactLegacyPrunedEvidenceBatch(batch, n, index->GetBlockHash())) {
+                error = strprintf("evidence compaction failed at height %d; no block files deleted", n);
+                return false;
+            }
+            batch.clear();
+            if (n % 10000 < static_cast<int>(BATCH_BLOCKS) || n == height) {
+                LogPrintf("Prune evidence compaction: %d/%d blocks\n", n, height);
+                uiInterface.InitMessage(strprintf(_("Compacting pruning evidence: %d/%d"), n, height));
+            }
+        }
+    }
+    LogPrintf("Prune evidence compaction finished at height %d; reclaiming obsolete LevelDB records\n", height);
+    pblocktree->CompactFull();
+    LogPrintf("Prune evidence compaction finished and database compacted\n");
+    return true;
+}
+
 void PruneAndFlush() {
     CValidationState state;
     fCheckForPruning = true;
