@@ -634,7 +634,7 @@ UniValue quorum(const JSONRPCRequest& request)
         UniValue result(UniValue::VOBJ);
         result.pushKV("verified", true);
         result.pushKV("blocks_checked", static_cast<int64_t>(checked));
-        result.pushKV("compact_blocks", static_cast<int64_t>(compact));
+        result.pushKV("blocks_without_commitments", static_cast<int64_t>(compact));
         result.pushKV("commitments_matched", static_cast<int64_t>(commitments));
         return result;
     } else if (command == "recovery") {
