@@ -130,6 +130,9 @@ public:
     // Compatible with legacy full proofs and compact locally-validated empty blocks.
     bool ReadPrunedQuorumCommitments(const uint256& blockHash, const uint256& merkleRoot,
                                     std::vector<CTransactionRef>& commitments);
+    bool CompactLegacyPrunedEvidenceBatch(const std::vector<std::pair<uint256, uint256>>& blocks,
+                                          int height, const uint256& hash);
+    bool ReadPrunedEvidenceCompactionCheckpoint(int& height, uint256& hash);
     bool ReadGovernanceCollateral(const uint256& txid, CTransactionRef& tx, uint256& blockHash);
     bool WriteGovernanceCollateral(const CBlock& block);
     bool HasTxIndex(const uint256 &txid);
