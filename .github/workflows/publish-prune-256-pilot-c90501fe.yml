@@ -1,0 +1,60 @@
+name: Publish exact CI-proven Ubuntu 26 pruning 256 pilot
+on:
+  push:
+    branches: ["feature/prune-256-mib"]
+    paths:
+      - .github/workflows/publish-prune-256-pilot-c90501fe.yml
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Verify exact successful run and archived binary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          SHA="c90501fe3d84f15456ae0381cf5a03bcb3b646c0"
+          RUN="44977879464"
+          ARTIFACT="14736823830"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.head_sha')" = "$SHA"
+          curl -fsSL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT/zip" \
+            -o artifact.zip
+          mkdir -p release-artifact
+          unzip -q artifact.zip -d release-artifact
+          cd release-artifact
+          sha256sum -c SHA256SUMS
+          ARCHIVE="yerbas-4.0.1.6-ubuntu26-${SHA}.tar.gz"
+          test -s "$ARCHIVE"
+          test "$(tar -xOf "$ARCHIVE" yerbas-build/build-info.txt | sed -n 's/^commit=//p' | head -1)" = "$SHA"
+          tar -tzf "$ARCHIVE" > archive-contents.txt
+          grep -Fxq 'yerbas-build/yerbasd' archive-contents.txt
+          grep -Fxq 'yerbas-build/yerbas-cli' archive-contents.txt
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+      - name: Publish distinct non-production pilot
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          cd release-artifact
+          TAG="v4.0.1.6-prune-256-c90501fe"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release exists; refusing overwrite"
+            exit 1
+          fi
+          gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "c90501fe3d84f15456ae0381cf5a03bcb3b646c0" \
+            --title "Yerbas 4.0.1.6 experimental 256 MiB pruning pilot (Ubuntu 26)" \
+            --prerelease \
+            --notes "Exact CI-tested 256 MiB automatic block/undo pruning pilot commit c90501fe3d84f15456ae0381cf5a03bcb3b646c0. CI 44977879464. Target is a soft limit. No consensus changes. Experimental isolated tests only; do not change live Smartnodes or overwrite existing releases."
