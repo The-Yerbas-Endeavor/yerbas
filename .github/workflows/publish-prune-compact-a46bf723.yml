@@ -1,0 +1,65 @@
+name: Publish verified Ubuntu 26 compact pruning pilot a46bf723
+on:
+  push:
+    branches: ["4.0.1.6"]
+    paths:
+      - .github/workflows/publish-prune-compact-a46bf723.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Fetch and validate exact successful build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          SHA="a46bf723aca71c1f785b8e72933e2e69229a7f1b"
+          RUN="44965500165"
+          ARTIFACT="14732113371"
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.conclusion')"
+          ACTUAL="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$RUN" --jq '.head_sha')"
+          test "$STATUS" = success
+          test "$ACTUAL" = "$SHA"
+          curl -fsSL --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT/zip" \
+            -o artifact.zip
+          mkdir -p release-artifact
+          unzip -q artifact.zip -d release-artifact
+          cd release-artifact
+          sha256sum -c SHA256SUMS
+          ARCHIVE="yerbas-4.0.1.6-ubuntu26-${SHA}.tar.gz"
+          test -s "$ARCHIVE"
+          test "$(tar -xOf "$ARCHIVE" yerbas-build/build-info.txt | sed -n 's/^commit=//p' | head -1)" = "$SHA"
+          tar -tzf "$ARCHIVE" > archive-contents.txt
+          grep -Fxq 'yerbas-build/yerbasd' archive-contents.txt
+          grep -Fxq 'yerbas-build/yerbas-cli' archive-contents.txt
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+
+      - name: Publish separate experimental prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          cd release-artifact
+          TAG="v4.0.1.6-prune-compact-a46bf723"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing overwrite"
+            exit 1
+          fi
+          gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "a46bf723aca71c1f785b8e72933e2e69229a7f1b" \
+            --title "Yerbas 4.0.1.6 compact pruning experimental pilot (Ubuntu 26)" \
+            --prerelease \
+            --notes "Experimental locally stored compact pruning evidence. Exact commit a46bf723aca71c1f785b8e72933e2e69229a7f1b, verified CI 44965500165. NOT production-ready: run only against a disposable copy, preserve archival and active Smartnodes. The optional -compactprunedevidence=1 mode rewrites local index records."
