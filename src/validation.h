@@ -327,6 +327,8 @@ CBlockIndex * InsertBlockIndex(uint256 hash);
 void FlushStateToDisk();
 /** Verify and retain historical active-chain evidence before any initial pruning. */
 bool EnsurePrunedBlockEvidence(std::string& error);
+// Optional, resumable database-only compaction; does not modify consensus rules.
+bool CompactLegacyPrunedEvidence(std::string& error);
 /** Prune block files and flush state to disk. */
 void PruneAndFlush();
 /** Prune block files up to a given height */
