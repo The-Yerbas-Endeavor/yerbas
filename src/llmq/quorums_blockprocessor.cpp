@@ -271,6 +271,67 @@ bool CQuorumBlockProcessor::UndoBlock(const CBlock& block, const CBlockIndex* pi
 
 // Explicit maintenance only. Preflight all active-chain evidence before a single
 // atomic index replacement; never erase deterministic-list or signing state.
+bool CQuorumBlockProcessor::VerifyPrunedEvidence(size_t& checked, size_t& compact,
+                                                  size_t& commitments, std::string& error)
+{
+    LOCK(cs_main);
+    checked = compact = commitments = 0;
+    error.clear();
+    if (!fPruneMode || fReindex || !chainActive.Tip()) {
+        error = "verification requires a loaded pruned chain";
+        return false;
+    }
+    for (int height = 1; height <= chainActive.Height(); ++height) {
+        if (ShutdownRequested()) {
+            error = "shutdown requested";
+            return false;
+        }
+        const CBlockIndex* index = chainActive[height];
+        if (!index) {
+            error = strprintf("missing block index at height %d", height);
+            return false;
+        }
+        std::vector<CTransactionRef> transactions;
+        if (!pblocktree->ReadPrunedQuorumCommitments(index->GetBlockHash(),
+                index->hashMerkleRoot, transactions)) {
+            error = strprintf("missing or corrupt retained evidence at height %d", height);
+            return false;
+        }
+        // Compact negative records contain no transactions. Full evidence
+        // contains coinbase plus any commitments and is Merkle-verified.
+        if (transactions.empty()) ++compact;
+        CBlock block;
+        block.vtx = std::move(transactions);
+        std::map<Consensus::LLMQType, CFinalCommitment> qcs;
+        CValidationState state;
+        if (!GetCommitmentsFromBlock(block, index, qcs, state)) {
+            error = strprintf("invalid retained quorum payload at height %d", height);
+            return false;
+        }
+        for (const auto& entry : qcs) {
+            const auto& qc = entry.second;
+            if (qc.IsNull()) continue;
+            auto anchor = mapBlockIndex.find(qc.quorumHash);
+            if (anchor == mapBlockIndex.end() || !chainActive.Contains(anchor->second) ||
+                anchor->second->nHeight > height) {
+                error = strprintf("invalid quorum anchor at height %d", height);
+                return false;
+            }
+            CFinalCommitment indexed;
+            uint256 minedBlock;
+            if (!GetMinedCommitment(entry.first, qc.quorumHash, indexed, minedBlock) ||
+                minedBlock != index->GetBlockHash() ||
+                ::SerializeHash(indexed) != ::SerializeHash(qc)) {
+                error = strprintf("retained commitment differs from mined index at height %d", height);
+                return false;
+            }
+            ++commitments;
+        }
+        ++checked;
+    }
+    return true;
+}
+
 void CQuorumBlockProcessor::UpgradeDB(bool force)
 {
     LOCK(cs_main);
