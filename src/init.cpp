@@ -892,7 +892,11 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // scan for better chains in the block chain database, that are not yet connected in the active best chain
     CValidationState state;
-    if (!ActivateBestChain(state, chainparams)) {
+    const int64_t activateStart = GetTimeMillis();
+    const bool activated = ActivateBestChain(state, chainparams);
+    LogPrintf("Fast recovery timing: phase=activate-best-chain elapsed_ms=%d success=%d\n",
+              GetTimeMillis() - activateStart, activated ? 1 : 0);
+    if (!activated) {
         LogPrintf("Failed to connect best block (%s)\n", FormatStateMessage(state));
         StartShutdown();
     }
