@@ -14,7 +14,7 @@ This branch adds **timing only**, not changes to consensus rules, transaction va
 - `Fast recovery timing: phase=block-file`: wall-clock milliseconds per block import file (when `-reindex` is active).
 - `Fast recovery timing: phase=full-reindex`: total wall-clock time for block-file import and associated import phase.
 - `Fast recovery timing: phase=activate-best-chain`: wall-clock time spent connecting/indexing the best chain after import, including chainstate rebuild work.
-- `Fast recovery timing: phase=wallet-rescan`: elapsed time, number of blocks and transactions visited, and interruption status.
+- `Fast recovery timing: phase=wallet-rescan`: total elapsed time, block read/deserialization time (`block_read_ms`), wallet transaction matching time (`wallet_match_ms`), number of blocks and transactions visited, and interruption status. The per-block timers are millisecond-resolution diagnostics, not cycle-accurate profiles.
 
 Log timing is *not* an indication of successful validation by itself. Existing error handling and block validation remain authoritative.
 
