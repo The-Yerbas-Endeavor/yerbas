@@ -840,6 +840,7 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // -reindex
     if (fReindex) {
+        const int64_t reindexStart = GetTimeMillis();
         int nFile = 0;
         while (true) {
             CDiskBlockPos pos(nFile, 0);
@@ -848,13 +849,18 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
             FILE *file = OpenBlockFile(pos, true);
             if (!file)
                 break; // This error is logged in OpenBlockFile
+            const int64_t fileStart = GetTimeMillis();
             LogPrintf("Reindexing block file blk%05u.dat...\n", (unsigned int)nFile);
-            LoadExternalBlockFile(chainparams, file, &pos);
+            const bool loaded = LoadExternalBlockFile(chainparams, file, &pos);
+            LogPrintf("Fast recovery timing: phase=block-file file=%d loaded=%d elapsed_ms=%d\n",
+                      nFile, loaded ? 1 : 0, GetTimeMillis() - fileStart);
             nFile++;
         }
         pblocktree->WriteReindexing(false);
         fReindex = false;
         LogPrintf("Reindexing finished\n");
+        LogPrintf("Fast recovery timing: phase=full-reindex files=%d elapsed_ms=%d\n",
+                  nFile, GetTimeMillis() - reindexStart);
         // To avoid ending up in a situation without genesis block, re-try initializing (no-op if reindexing worked):
         LoadGenesisBlock(chainparams);
     }
