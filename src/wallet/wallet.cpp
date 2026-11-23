@@ -2079,6 +2079,8 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
     const int64_t scanStartMs = GetTimeMillis();
     uint64_t scannedBlocks = 0;
     uint64_t scannedTransactions = 0;
+    int64_t blockReadMs = 0;
+    int64_t walletMatchMs = 0;
     const CChainParams& chainParams = Params();
 
     CBlockIndex* pindex = pindexStart;
@@ -2101,12 +2103,17 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
             }
 
             CBlock block;
-            if (ReadBlockFromDisk(block, pindex, Params().GetConsensus())) {
+            const int64_t readStartMs = GetTimeMillis();
+            const bool readSuccess = ReadBlockFromDisk(block, pindex, Params().GetConsensus());
+            blockReadMs += GetTimeMillis() - readStartMs;
+            if (readSuccess) {
+                const int64_t matchStartMs = GetTimeMillis();
                 ++scannedBlocks;
                 scannedTransactions += block.vtx.size();
                 for (size_t posInBlock = 0; posInBlock < block.vtx.size(); ++posInBlock) {
                     AddToWalletIfInvolvingMe(block.vtx[posInBlock], pindex, posInBlock, fUpdate);
                 }
+                walletMatchMs += GetTimeMillis() - matchStartMs;
             } else {
                 ret = pindex;
             }
@@ -2119,8 +2126,9 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool f
 
         fScanningWallet = false;
     }
-    LogPrintf("Fast recovery timing: phase=wallet-rescan blocks=%u transactions=%u elapsed_ms=%d interrupted=%d\n",
-              scannedBlocks, scannedTransactions, GetTimeMillis() - scanStartMs, fAbortRescan ? 1 : 0);
+    LogPrintf("Fast recovery timing: phase=wallet-rescan blocks=%u transactions=%u elapsed_ms=%d block_read_ms=%d wallet_match_ms=%d interrupted=%d\n",
+              scannedBlocks, scannedTransactions, GetTimeMillis() - scanStartMs,
+              blockReadMs, walletMatchMs, fAbortRescan ? 1 : 0);
     return ret;
 }
 
