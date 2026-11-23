@@ -22,6 +22,7 @@
 #include "txdb.h"
 #include "prunedblock.h"
 #include "consensus/merkle.h"
+#include <chrono>
 
 namespace llmq
 {
@@ -367,15 +368,33 @@ void CQuorumBlockProcessor::UpgradeDB(bool force, int abortAtHeight)
     uint256 bestBlock;
     if (!force && evoDb.GetRawDB().Read(DB_BEST_BLOCK_UPGRADE, bestBlock) &&
         bestBlock == chainActive.Tip()->GetBlockHash()) return;
+    const auto started = std::chrono::steady_clock::now();
     CDBBatch batch(evoDb.GetRawDB());
     std::unique_ptr<CDBIterator> it(evoDb.GetRawDB().NewIterator());
-    for (it->SeekToFirst(); it->Valid(); it->Next()) {
-        std::string prefix;
-        if (it->GetKey(prefix) && (prefix == DB_MINED_COMMITMENT || prefix == DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT))
+    // These are serialized string prefixes. Seek directly into each family
+    // rather than scanning the entire EvoDB, which may contain millions of
+    // unrelated entries.
+    size_t removed = 0;
+    for (const std::string& keyPrefix : {DB_MINED_COMMITMENT, DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT}) {
+        for (it->Seek(keyPrefix); it->Valid(); it->Next()) {
+            std::string prefix;
+            if (!it->GetKey(prefix)) throw std::runtime_error("Quorum index recovery cannot decode existing index key; index unchanged");
+            if (prefix != keyPrefix) break;
             batch.Erase(it->GetKey());
+            ++removed;
+        }
     }
+    LogPrintf("Quorum index recovery: staged %d index removals in %d seconds\\n",
+              removed, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - started).count());
     size_t commitments = 0;
     for (int height=1; height<=chainActive.Height(); ++height) {
+        if (height % 10000 == 0 || height == chainActive.Height()) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - started).count();
+            LogPrintf("Quorum index recovery progress: height=%d/%d (%.2f%%), commitments=%d, elapsed=%d seconds\\n",
+                      height, chainActive.Height(), 100.0 * height / chainActive.Height(), commitments, elapsed);
+            if (ShutdownRequested()) throw std::runtime_error("Quorum index recovery interrupted by shutdown; index unchanged");
+        }
         // Regtest failure injection: abort while the replacement is still only
         // in memory, proving that the original index remains untouched.
         if (abortAtHeight == height && Params().NetworkIDString() == CBaseChainParams::REGTEST)
