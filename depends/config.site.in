@@ -8,18 +8,20 @@ if test -z $with_boost; then
   with_boost=$depends_prefix
 fi
 if test "x@use_system_qt@" != x1; then
-if test -z $with_qt_plugindir; then
-  with_qt_plugindir=$depends_prefix/plugins
-fi
-if test -z $with_qt_translationdir; then
-  with_qt_translationdir=$depends_prefix/translations
-fi
-if test -z $with_qt_bindir; then
-  with_qt_bindir=$depends_prefix/native/bin
-fi
-if test -z "$with_qt_libexecdir"; then
-  with_qt_libexecdir=$depends_prefix/native/libexec
-fi
+  if test -z "$with_qt_plugindir"; then
+    with_qt_plugindir=$depends_prefix/plugins
+  fi
+  if test -z "$with_qt_translationdir"; then
+    with_qt_translationdir=$depends_prefix/translations
+  fi
+  if test "x@host_os@" = xmingw32 || test "x@linux_qt_cross@" = x1; then
+    if test -z "$with_qt_bindir"; then
+      with_qt_bindir=$depends_prefix/native/bin
+    fi
+    if test -z "$with_qt_libexecdir"; then
+      with_qt_libexecdir=$depends_prefix/native/libexec
+    fi
+  fi
 fi
 
 
