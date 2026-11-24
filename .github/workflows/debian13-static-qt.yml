@@ -63,7 +63,7 @@ jobs:
             2>&1 | tee ci-logs/debian-static-configure.log
           make -j2 2>&1 | tee ci-logs/debian-static-build.log
           test -x src/qt/yerbas-qt
-          src/qt/yerbas-qt -version 2>&1 | tee ci-logs/qt-version.log
+          QT_QPA_PLATFORM=minimal src/qt/yerbas-qt -version 2>&1 | tee ci-logs/qt-version.log\n          ldd src/qt/yerbas-qt | tee ci-logs/qt-ldd.log\n          if grep -Eq "libQt6|not found" ci-logs/qt-ldd.log; then\n            echo "Static Qt GUI unexpectedly requires dynamic Qt libraries or has missing runtime dependencies"\n            exit 1\n          fi
       - name: Save diagnostic logs
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
