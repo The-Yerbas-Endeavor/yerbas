@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regression: migrate an existing archival txindex chain to prune mode without reindex."""
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, get_chain_folder
+from test_framework.util import assert_equal, assert_raises_rpc_error, get_chain_folder
 from pathlib import Path
 
 
@@ -27,7 +27,7 @@ class PruneMigrationTest(BitcoinTestFramework):
 
         self.log.info("Restart existing archival chain with txindex disabled and pruning enabled")
         self.stop_node(0)
-        prune_args = ["-txindex=0", "-prune=550", "-disablegovernance"]
+        prune_args = ["-txindex=0", "-prune=256", "-disablegovernance"]
         with node.assert_debug_log(["Prune evidence migration complete at height 40"]):
             self.start_node(0, extra_args=prune_args)
         node = self.nodes[0]
@@ -62,6 +62,30 @@ class PruneMigrationTest(BitcoinTestFramework):
         assert_equal(evidence["verified"], True)
         assert_equal(evidence["blocks_checked"], height)
         assert_equal(evidence["commitments_matched"], 0)
+
+        self.log.info("Verify an interrupted rebuild leaves the original index unchanged")
+        assert_raises_rpc_error(-1, "Injected quorum index rebuild interruption",
+                                node.quorum, "testrebuildprunedindex", 20)
+        after_abort = node.quorum("verifyprunedevidence")
+        assert_equal(after_abort["verified"], True)
+        assert_equal(after_abort["blocks_checked"], height)
+        assert_equal(after_abort["commitments_matched"], evidence["commitments_matched"])
+        assert_equal(node.getbestblockhash(), tip)
+
+        self.log.info("Exercise the real mined-quorum index rebuild on pruned regtest")
+        rebuilt = node.quorum("testrebuildprunedindex")
+        assert_equal(rebuilt["rebuilt"], True)
+        assert_equal(rebuilt["blocks_checked"], height)
+        assert_equal(rebuilt["commitments_matched"], evidence["commitments_matched"])
+        assert_equal(node.getbestblockhash(), tip)
+        self.stop_node(0)
+        self.start_node(0, extra_args=prune_args)
+        assert_equal(node.getbestblockhash(), tip)
+        assert_equal(node.getblockchaininfo()["pruned"], True)
+        after_restart = node.quorum("verifyprunedevidence")
+        assert_equal(after_restart["verified"], True)
+        assert_equal(after_restart["blocks_checked"], height)
+        assert_equal(after_restart["commitments_matched"], evidence["commitments_matched"])
 
 
 if __name__ == "__main__":

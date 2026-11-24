@@ -22,6 +22,7 @@
 #include "txdb.h"
 #include "prunedblock.h"
 #include "consensus/merkle.h"
+#include <chrono>
 
 namespace llmq
 {
@@ -326,29 +327,78 @@ bool CQuorumBlockProcessor::VerifyPrunedEvidence(size_t& checked, size_t& compac
                 error = strprintf("retained commitment differs from mined index at height %d", height);
                 return false;
             }
+            // Reconstruct the second mined-commitment index entry exactly as
+            // UpgradeDB() would, and compare it without modifying EvoDB.
+            int indexedAnchorHeight = -1;
+            if (!evoDb.Read(BuildInversedHeightKey(entry.first, height), indexedAnchorHeight) ||
+                indexedAnchorHeight != anchor->second->nHeight) {
+                error = strprintf("retained commitment differs from inverted-height index at height %d", height);
+                return false;
+            }
             ++commitments;
         }
         ++checked;
     }
+    // An index can contain stale entries even when every retained commitment
+    // matches. Compare complete cardinalities against reconstruction as well.
+    size_t indexedCommitments = 0;
+    size_t indexedHeights = 0;
+    std::unique_ptr<CDBIterator> it(evoDb.GetRawDB().NewIterator());
+    for (it->SeekToFirst(); it->Valid(); it->Next()) {
+        std::string prefix;
+        if (!it->GetKey(prefix)) {
+            error = "cannot enumerate mined-commitment index";
+            return false;
+        }
+        if (prefix == DB_MINED_COMMITMENT) ++indexedCommitments;
+        if (prefix == DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT) ++indexedHeights;
+    }
+    if (indexedCommitments != commitments || indexedHeights != commitments) {
+        error = strprintf("mined-commitment index cardinality differs from reconstructed evidence (%d retained, %d commitments, %d inverted-height entries)",
+                          commitments, indexedCommitments, indexedHeights);
+        return false;
+    }
     return true;
 }
 
-void CQuorumBlockProcessor::UpgradeDB(bool force)
+void CQuorumBlockProcessor::UpgradeDB(bool force, int abortAtHeight)
 {
     LOCK(cs_main);
     if (fReindex || !chainActive.Tip()) throw std::runtime_error("Quorum recovery requires a completed active chain; finish reindex first");
     uint256 bestBlock;
     if (!force && evoDb.GetRawDB().Read(DB_BEST_BLOCK_UPGRADE, bestBlock) &&
         bestBlock == chainActive.Tip()->GetBlockHash()) return;
+    const auto started = std::chrono::steady_clock::now();
     CDBBatch batch(evoDb.GetRawDB());
     std::unique_ptr<CDBIterator> it(evoDb.GetRawDB().NewIterator());
-    for (it->SeekToFirst(); it->Valid(); it->Next()) {
-        std::string prefix;
-        if (it->GetKey(prefix) && (prefix == DB_MINED_COMMITMENT || prefix == DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT))
+    // These are serialized string prefixes. Seek directly into each family
+    // rather than scanning the entire EvoDB, which may contain millions of
+    // unrelated entries.
+    size_t removed = 0;
+    for (const std::string& keyPrefix : {DB_MINED_COMMITMENT, DB_MINED_COMMITMENT_BY_INVERSED_HEIGHT}) {
+        for (it->Seek(keyPrefix); it->Valid(); it->Next()) {
+            std::string prefix;
+            if (!it->GetKey(prefix)) throw std::runtime_error("Quorum index recovery cannot decode existing index key; index unchanged");
+            if (prefix != keyPrefix) break;
             batch.Erase(it->GetKey());
+            ++removed;
+        }
     }
+    LogPrintf("Quorum index recovery: staged %d index removals in %d seconds\\n",
+              removed, std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - started).count());
     size_t commitments = 0;
     for (int height=1; height<=chainActive.Height(); ++height) {
+        if (height % 10000 == 0 || height == chainActive.Height()) {
+            const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - started).count();
+            LogPrintf("Quorum index recovery progress: height=%d/%d (%.2f%%), commitments=%d, elapsed=%d seconds\\n",
+                      height, chainActive.Height(), 100.0 * height / chainActive.Height(), commitments, elapsed);
+            if (ShutdownRequested()) throw std::runtime_error("Quorum index recovery interrupted by shutdown; index unchanged");
+        }
+        // Regtest failure injection: abort while the replacement is still only
+        // in memory, proving that the original index remains untouched.
+        if (abortAtHeight == height && Params().NetworkIDString() == CBaseChainParams::REGTEST)
+            throw std::runtime_error("Injected quorum index rebuild interruption; index unchanged");
         const auto index = chainActive[height];
         CBlock block;
         if (!(index->nStatus & BLOCK_HAVE_DATA)) {

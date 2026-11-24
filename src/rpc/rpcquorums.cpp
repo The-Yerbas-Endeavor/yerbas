@@ -624,7 +624,31 @@ UniValue quorum(const JSONRPCRequest& request)
         command = request.params[0].get_str();
     }
 
-    if (command == "verifyprunedevidence") {
+    if (command == "testrebuildprunedindex") {
+        // A destructive index-reconstruction exercise strictly limited to regtest.
+        // Never expose this maintenance operation on mainnet or testnet.
+        if (Params().NetworkIDString() != CBaseChainParams::REGTEST)
+            throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Test-only command");
+        if (request.params.size() != 1 && request.params.size() != 2)
+            throw std::runtime_error("quorum testrebuildprunedindex ( abort_at_height )\\nRegtest-only mined-quorum-index reconstruction and atomicity test.\\n");
+        if (!fPruneMode || fReindex)
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Requires a loaded pruned regtest chain");
+        int abortAtHeight = -1;
+        if (request.params.size() == 2) {
+            abortAtHeight = ParseInt32V(request.params[1], "abort_at_height");
+            if (abortAtHeight < 1) throw JSONRPCError(RPC_INVALID_PARAMETER, "abort_at_height must be positive");
+        }
+        llmq::quorumBlockProcessor->UpgradeDB(true, abortAtHeight);
+        size_t checked = 0, compact = 0, commitments = 0;
+        std::string error;
+        if (!llmq::quorumBlockProcessor->VerifyPrunedEvidence(checked, compact, commitments, error))
+            throw JSONRPCError(RPC_INTERNAL_ERROR, error);
+        UniValue result(UniValue::VOBJ);
+        result.pushKV("rebuilt", true);
+        result.pushKV("blocks_checked", static_cast<int64_t>(checked));
+        result.pushKV("commitments_matched", static_cast<int64_t>(commitments));
+        return result;
+    } else if (command == "verifyprunedevidence") {
         if (request.params.size() != 1)
             throw std::runtime_error("quorum verifyprunedevidence\\nRead-only full historical evidence and mined-commitment comparison.\\n");
         size_t checked = 0, compact = 0, commitments = 0;

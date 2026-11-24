@@ -1,15 +1,12 @@
 For a BDB-only build without sudo or Qt, run `sh contrib/build-bdb.sh` from
 the repository root. See [local Berkeley DB instructions](../doc/berkeley-db-local.md).
 
-For a native Linux GUI using installed Qt 6.8 or newer, see
-[the local GUI build instructions](../doc/local-gui-build.md). Plain `make` selects
-`USE_SYSTEM_QT=1` automatically on native Linux; the bundled Qt 5 path is retired.
-Qt itself is not downloaded or installed: provide Qt 6.8+ development packages
-(including Core5Compat) before configuring the application. Headless builds require
-`NO_QT=1`. A Windows Qt cross-build dependency path is being restored for
-`HOST=x86_64-w64-mingw32`; its full build and runtime packaging are not yet verified.
-The Windows CI job now selects GUI dependencies and packages the Qt wallet; see
-[Windows builds](../doc/build-windows.md). Hosted validation remains pending.
+Native Linux builds compile the pinned static Qt 6 SDK by default. See the
+[local GUI build instructions](../doc/local-gui-build.md) for XCB build
+dependencies, runtime checks, and distribution requirements. Use
+`USE_SYSTEM_QT=1` to select an installed Qt 6.8+ SDK, or `NO_QT=1` for a headless
+build. Native macOS uses an installed SDK. The Linux-to-MinGW build uses pinned
+Qt and matching host tools. See [Windows builds](../doc/build-windows.md).
 
 For the current headless CI dependency pins, validation status, and manual
 rebuild commands, see [dependency updates](../doc/dependency-updates.md).
@@ -20,8 +17,7 @@ To build dependencies for the native Linux graphical wallet:
 
     make -j10
 
-This automatically selects `USE_SYSTEM_QT=1`. The explicit command
-`make -j10 USE_SYSTEM_QT=1` remains supported.
+This builds static Qt. `make -j10 USE_SYSTEM_QT=1` selects an installed SDK.
 
 To build headless dependencies for the current arch+OS:
 
@@ -79,7 +75,7 @@ The following can be set when running make: make FOO=bar
     SOURCES_PATH: downloaded sources will be placed here
     BASE_CACHE: built packages will be placed here
     FALLBACK_DOWNLOAD_PATH: If a source file can't be fetched, try here before giving up
-    USE_SYSTEM_QT: Defaults to 1 on native Linux unless NO_QT is set; uses installed Qt 6.8+
+    USE_SYSTEM_QT: Use installed Qt 6.8+ instead of building Qt (default on native macOS)
     NO_QT: Don't download/build/cache qt and its dependencies
     NO_WALLET: Don't download/build/cache libs needed to enable the wallet
     NO_UPNP: Don't download/build/cache packages needed for enabling upnp

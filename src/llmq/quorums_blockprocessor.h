@@ -38,7 +38,7 @@ private:
 public:
     CQuorumBlockProcessor(CEvoDB& _evoDb) : evoDb(_evoDb) {}
 
-    void UpgradeDB(bool force = false);
+    void UpgradeDB(bool force = false, int abortAtHeight = -1);
     // Reconstruct in memory from retained evidence and compare with the
     // existing mined-commitment index; NEVER modify either database.
     bool VerifyPrunedEvidence(size_t& checked, size_t& compact,

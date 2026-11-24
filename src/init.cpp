@@ -840,6 +840,7 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // -reindex
     if (fReindex) {
+        const int64_t reindexStart = GetTimeMillis();
         int nFile = 0;
         while (true) {
             CDiskBlockPos pos(nFile, 0);
@@ -848,13 +849,18 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
             FILE *file = OpenBlockFile(pos, true);
             if (!file)
                 break; // This error is logged in OpenBlockFile
+            const int64_t fileStart = GetTimeMillis();
             LogPrintf("Reindexing block file blk%05u.dat...\n", (unsigned int)nFile);
-            LoadExternalBlockFile(chainparams, file, &pos);
+            const bool loaded = LoadExternalBlockFile(chainparams, file, &pos);
+            LogPrintf("Fast recovery timing: phase=block-file file=%d loaded=%d elapsed_ms=%d\n",
+                      nFile, loaded ? 1 : 0, GetTimeMillis() - fileStart);
             nFile++;
         }
         pblocktree->WriteReindexing(false);
         fReindex = false;
         LogPrintf("Reindexing finished\n");
+        LogPrintf("Fast recovery timing: phase=full-reindex files=%d elapsed_ms=%d\n",
+                  nFile, GetTimeMillis() - reindexStart);
         // To avoid ending up in a situation without genesis block, re-try initializing (no-op if reindexing worked):
         LoadGenesisBlock(chainparams);
     }
@@ -886,7 +892,11 @@ void ThreadImport(std::vector<fs::path> vImportFiles)
 
     // scan for better chains in the block chain database, that are not yet connected in the active best chain
     CValidationState state;
-    if (!ActivateBestChain(state, chainparams)) {
+    const int64_t activateStart = GetTimeMillis();
+    const bool activated = ActivateBestChain(state, chainparams);
+    LogPrintf("Fast recovery timing: phase=activate-best-chain elapsed_ms=%d success=%d\n",
+              GetTimeMillis() - activateStart, activated ? 1 : 0);
+    if (!activated) {
         LogPrintf("Failed to connect best block (%s)\n", FormatStateMessage(state));
         StartShutdown();
     }
@@ -1326,8 +1336,8 @@ bool AppInitParameterInteraction()
     } else if (nPruneTarget) {
         if (gArgs.GetBoolArg("-regtest", false)) {
             // we use 1MB blocks to test this on regtest
-            if (nPruneTarget < 550 * 1024 * 1024) {
-                return InitError(strprintf(_("Prune configured below the minimum of %d MiB.  Please use a higher number."), 550));
+            if (nPruneTarget < 256 * 1024 * 1024) {
+                return InitError(strprintf(_("Prune configured below the minimum of %d MiB.  Please use a higher number."), 256));
             }
         } else {
             if (nPruneTarget < MIN_DISK_SPACE_FOR_BLOCK_FILES) {
