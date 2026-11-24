@@ -1,0 +1,74 @@
+name: Debian 13 Static Qt Depends Validation
+
+on:
+  pull_request:
+    branches: ["4.0.1.6"]
+    paths:
+      - ".github/workflows/debian13-static-qt.yml"
+      - "ci/build-native-qt.py"
+      - "ci/tests/**"
+      - "depends/**"
+      - "configure.ac"
+      - "build-aux/m4/bitcoin_qt.m4"
+      - "src/cryptonote/oaes_lib.c"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debian13-static-qt:
+    name: Debian 13 pinned static Qt GUI build
+    runs-on: ubuntu-24.04
+    container: debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6
+    timeout-minutes: 240
+    steps:
+      - name: Install build and Qt desktop prerequisites
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git python3 python-is-python3 \
+            build-essential autoconf automake libtool autotools-dev pkg-config curl \
+            cmake zip file python3-venv bsdextrautils \
+            libfontconfig-dev libbrotli-dev libssl-dev libx11-dev libx11-xcb-dev \
+            libxext-dev libxfixes-dev libxi-dev libxrender-dev libxcb1-dev \
+            libxcb-cursor-dev libxcb-glx0-dev libxcb-icccm4-dev libxcb-image0-dev \
+            libxcb-keysyms1-dev libxcb-util-dev libxcb-randr0-dev libxcb-render-util0-dev \
+            libxcb-shape0-dev libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev \
+            libxcb-xinerama0-dev libxcb-xkb-dev libxau-dev libxdmcp-dev
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Validate static Qt metadata logic
+        run: python3 -m unittest discover -s ci/tests -v
+      - name: Build pinned Debian static Qt depends (no system Qt bypass)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p ci-logs
+          make -C depends -j2 HOST=x86_64-pc-linux-gnu NO_UPNP=1 \
+            2>&1 | tee ci-logs/debian-static-depends.log
+          test -f depends/x86_64-pc-linux-gnu/lib/pkgconfig/Qt6Core.pc
+          test -f depends/x86_64-pc-linux-gnu/lib/pkgconfig/Qt6Core5Compat.pc
+          pkg-config --version
+      - name: Configure and build GUI from pinned depends
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ./autogen.sh 2>&1 | tee ci-logs/autogen.log
+          ./configure --prefix="$PWD/depends/x86_64-pc-linux-gnu" \
+            --with-gui=qt6 --with-qtdbus=no --without-miniupnpc \
+            --disable-bench --enable-wallet --enable-tests \
+            2>&1 | tee ci-logs/debian-static-configure.log
+          make -j2 2>&1 | tee ci-logs/debian-static-build.log
+          test -x src/qt/yerbas-qt
+          src/qt/yerbas-qt -version 2>&1 | tee ci-logs/qt-version.log
+      - name: Save diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: debian13-static-qt-logs
+          path: ci-logs/
+          retention-days: 7
+          if-no-files-found: ignore
