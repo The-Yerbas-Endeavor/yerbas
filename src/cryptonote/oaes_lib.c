@@ -490,7 +490,7 @@ static uint32_t oaes_get_seed(void)
   uint32_t _ret = 0;
 
   gettimeofday(&tv, NULL);
-  uint64_t tv_sec = tv.tv_sec;
+  time_t tv_sec = tv.tv_sec;
   gmTimer = gmtime( &tv_sec );
   _test = (char *) calloc( sizeof( char ), tv.tv_usec/1000 );
   _ret = gmTimer->tm_year + 1900 + gmTimer->tm_mon + 1 + gmTimer->tm_mday + gmTimer->tm_hour + gmTimer->tm_min + gmTimer->tm_sec + tv.tv_usec/1000 + (uintptr_t)( _test + tv.tv_usec/1000 ) + GETPID();
