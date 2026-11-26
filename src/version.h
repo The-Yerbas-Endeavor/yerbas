@@ -24,11 +24,11 @@ static const int INIT_PROTO_VERSION = 209;
 //! In this version, 'getheaders' was introduced.
 static const int GETHEADERS_VERSION = 70077;
 
-//! disconnect from peers older than this proto version
-static const int MIN_PEER_PROTO_VERSION = 70221;
+//! v3.2.x advertises 70222/70223; require the protocol used by v4.x peers.
+static const int MIN_PEER_PROTO_VERSION = 70224;
 
-//! disconnect from peers older than this proto version
-static const int NEW_MIN_PEER_PROTO_VERSION = 70223;
+//! Asset activation must not lower the minimum accepted peer protocol.
+static const int NEW_MIN_PEER_PROTO_VERSION = MIN_PEER_PROTO_VERSION;
 
 //! nTime field added to CAddress, starting with this version;
 //! if possible, avoid requesting addresses nodes older than this
