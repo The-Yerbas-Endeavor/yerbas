@@ -242,6 +242,16 @@ jobs:
             --tmpdir="$RUNNER_TEMP/yerbas-prune-migration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             2>&1 | tee ci-logs/prune-migration.log
 
+      - name: Test minimum peer protocol before and after asset activation
+        if: matrix.platform.id == 'ubuntu26'
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/yerbas-prune-functional-python/bin/activate"
+          python3 test/functional/p2p_min_peer_version.py \
+            --tmpdir="$RUNNER_TEMP/yerbas-peer-version-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            2>&1 | tee ci-logs/peer-version.log
+
       - name: Test actual 256 MiB pruning, evidence recovery and restart
         if: matrix.platform.id == 'ubuntu26'
         timeout-minutes: 20

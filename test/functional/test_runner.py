@@ -202,6 +202,7 @@ EXTENDED_SCRIPTS = [
     # vv Tests less than 2m vv
     'feature_bip68_sequence.py',
     'mining_getblocktemplate_longpoll.py',  # FIXME: "socket.error: [Errno 54] Connection reset by peer" on my Mac, same as  https://github.com/bitcoin/bitcoin/issues/6651
+    'p2p_min_peer_version.py',
     'p2p_timeouts.py',
     # vv Tests less than 60s vv
     # vv Tests less than 30s vv

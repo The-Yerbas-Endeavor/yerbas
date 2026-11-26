@@ -36,7 +36,9 @@ or `-reindex`. Missing or pruned historical blocks may require a resync. See the
   boundaries. Confirmation and effective activation are separate events.
 - Existing PoSe cleanup and hard-coded legacy history retained, with automatic
   recovery-history migration and DKG queue resizing.
-- Protocol 70224 advertised without automatic exclusion of older peers.
+- Protocol 70224 was advertised without automatic exclusion of older peers in
+  4.0.1.3. The 4.0.1.6 peer-policy update requires 70224 and disconnects stock
+  v3.2.x peers; see [minimum peer protocol](peer-protocol-policy.md).
 - Founder-payment validation corrected to use the block's own height.
 - Opt-in isolated fast-collateral testnet profile; mainnet collateral unchanged.
 
