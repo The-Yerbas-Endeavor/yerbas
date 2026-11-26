@@ -191,6 +191,7 @@ EXTENDED_SCRIPTS = [
     # Longest test should go first, to favor running tests in parallel
     'feature_pruning.py', # NOTE: Prune mode is incompatible with -txindex, should work with governance validation disabled though.
     'feature_prune_migration.py', # Existing archival txindex chain -> pruning without reindex
+    'feature_pruned_smartnodes.py', # Real DKG/signing/ChainLocks after block deletion
     'feature_prune_storage.py', # Real automatic file deletion, evidence and restart at 256 MiB
     # vv Tests less than 20m vv
     'feature_fee_estimation.py',
