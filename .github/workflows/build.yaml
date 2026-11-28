@@ -242,6 +242,15 @@ jobs:
             --tmpdir="$RUNNER_TEMP/yerbas-prune-migration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             2>&1 | tee ci-logs/prune-migration.log
 
+      - name: Smoke test 256 MiB pruning under isolated mainnet parameters
+        if: matrix.platform.id == 'ubuntu26'
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          python3 ci/test-mainnet-prune-startup.py "$PWD/src/yerbasd" \
+            --workdir="$RUNNER_TEMP/yerbas-mainnet-prune-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            2>&1 | tee ci-logs/mainnet-prune-smoke.log
+
       - name: Test minimum peer protocol before and after asset activation
         if: matrix.platform.id == 'ubuntu26'
         timeout-minutes: 5
